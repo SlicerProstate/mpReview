@@ -214,6 +214,14 @@ class PCampReviewWidget:
     self.editorParameterNode = self.editUtil.getParameterNode()
 
     self.volumesLogic = slicer.modules.volumes.logic()
+    
+    # set up temporary directory
+    self.tempDir = slicer.app.temporaryPath+'/PCampReview-tmp'
+    print('Temporary directory location: '+self.tempDir)
+    qt.QDir().mkpath(self.tempDir)
+               
+    # these are the PK maps that should be loaded
+    self.pkMaps = ['Ktrans','Ve','Auc','TTP','MaxSlope']
 
   def setOffsetOnAllSliceWidgets(self, offset):    
     layoutManager = slicer.app.layoutManager()
@@ -280,12 +288,18 @@ class PCampReviewWidget:
     self.dataDirButton.text = self.inputDataDir
     print(self.inputDataDir)
  
+  '''
+  Step 1: Select the directory that has the data
+  '''
   def onStep1Selected(self):
     self.step1frame.collapsed = 0
     self.step2frame.collapsed = 1
     self.step3frame.collapsed = 1
     self.step4frame.collapsed = 1
 
+  '''
+  Step 2: Select the patient
+  '''
   def onStep2Selected(self):
     self.step2frame.collapsed = 0
     self.step1frame.collapsed = 1
@@ -305,8 +319,13 @@ class PCampReviewWidget:
 
     self.studyTable.setContent(studyDirs)
 
+  '''
+  Step 3: Select series of interest
+  '''
   def onStep3Selected(self):
     print('Entering step 3')
+
+    self.cleanupDir(self.tempDir)
 
     self.step3frame.collapsed = 0
     self.step2frame.collapsed = 1
@@ -329,6 +348,21 @@ class PCampReviewWidget:
         print('DICOM dir: '+root)
         dcm = dicom.read_file(root+'/'+files[0])
         series[int(dcm.SeriesNumber)] = dcm.SeriesDescription
+      if os.path.split(root)[-1] == 'OncoQuant':
+        print('Found OncoQuant stuff')
+        # copy the right zip file to temp directory
+        mapsFileName = 'OncoQuant-TwoParameterModel-ModelAIF.zip'
+        import zipfile
+        zfile = zipfile.ZipFile(root+'/'+mapsFileName)
+        for fname in zfile.namelist():
+          for pkname in self.pkMaps:
+            if string.find(fname,pkname) > 0:
+              print('Found map '+pkname)
+              fd = open(self.tempDir+'/'+os.path.split(fname)[-1],'w')
+              fd.write(zfile.read(fname))
+              fd.close()
+              # PK map name is *-<map type>.nrrd
+              series[pkname] = string.split(os.path.split(fname)[-1],'.')[0]
 
     numbers = series.keys()
     numbers.sort()
@@ -344,7 +378,7 @@ class PCampReviewWidget:
         print('Checked: '+str(item.checkState()))
     
   def isSeriesOfInterest(self,desc):
-    discardThose = ['SAG','COR','PURE','mapping','DWI','breath','3D DCE','loc']
+    discardThose = ['SAG','COR','PURE','mapping','DWI','breath','3D DCE','loc','Expo','Map','MAP','POST']
     for d in discardThose:
       if string.find(desc,d)>=0:
         return False
@@ -385,15 +419,37 @@ class PCampReviewWidget:
       text = i.text()
       self.refSelector.addItem(text)
       self.delayDisplay('Processing series '+text)
+      try:
+        guessPkMapName = string.split(text,'-')[-1]
+      except:
+        guessPkMapName = None
       import string, glob
       if string.find(text, 'DCE')>=0 or string.find(text, 'mapping')>=0:
         dicomPlugin = slicer.modules.dicomPlugins['MultiVolumeImporterPlugin']()
+      # get the map type from the string that looks like 
+      #    Ktrans:PATIENT-Ktrans
+      elif guessPkMapName in self.pkMaps:
+        # do not use any dicom plugin
+        dicomPlugin = None
       else:
         # parse using scalar volume plugin
         dicomPlugin = slicer.modules.dicomPlugins['DICOMScalarVolumePlugin']()
 
       # text should be formatted as <SeriesNumber : SeriesDescription> !!
       seriesNumber = string.split(text,':')[0]
+      
+      if dicomPlugin == None:
+        filename = self.tempDir+'/'+string.split(text,':')[-1][1:]+'.nrrd'
+        print('Loading volume from '+filename)
+        (success,volume) = slicer.util.loadVolume(filename,returnNode=True)
+        volume.SetName(guessPkMapName)
+        self.volumeNodes[seriesNumber] = volume
+        dNode = volume.GetDisplayNode()
+        dNode.SetAndObserveColorNodeID('vtkMRMLColorTableNodeFileHotToColdRainbow.txt')
+        if guessPkMapName == 'Ktrans' or guessPkMapName == 'Ve':
+          dNode.SetWindowLevel(5.0,2.5)
+        continue
+
       seriesDir = self.inputDataDir+'/'+self.studyName+'/SCANS/'+seriesNumber+'/DICOM'
       files = glob.glob(seriesDir+'/*.dcm')
       allLoadables = dicomPlugin.examine([files])
@@ -412,12 +468,41 @@ class PCampReviewWidget:
 
     print('Will now set up compares')
     self.cvLogic = CompareVolumes.CompareVolumesLogic()
+    self.viewNames = [self.volumeNodes[ref].GetName()]     
+    for vNode in self.volumeNodes.values():
+      if vNode != self.volumeNodes[ref]:
+        self.viewNames.append(vNode.GetName())
+    self.viewNames = self.abbreviateNames(self.viewNames)
+    print('Abbreviated names:'+str(self.viewNames))
     self.cvLogic.viewerPerVolume(self.volumeNodes.values(), self.volumeNodes[ref],viewNames=self.viewNames)
+    print('Compares set up')
     if ref:
       self.cvLogic.rotateToVolumePlanes(self.volumeNodes[ref])
 
 
     return
+
+  def abbreviateNames(self, longNames):
+    shortNames = []
+    firstADC = True
+    for name in longNames:
+      print(str(shortNames))
+      if name in self.pkMaps:
+        shortNames.append(name)
+      elif string.find(name,'T2')>0:
+        shortNames.append('T2')
+      elif string.find(name,'T1')>0:
+        shortNames.append('T1')
+      elif string.find(name,'Apparent Diffusion Coefficient')>0:
+        if firstADC:
+          shortNames.append('ADCb500')
+          firstADC = False
+        else:
+          shortNames.append('ADCb1400')
+      else:
+        shortNames.append('Subtract')
+    return shortNames
+
 
     '''
     self.delayDisplay('Will process the data next. Wait until confirmation message appears!')
@@ -487,7 +572,7 @@ class PCampReviewWidget:
       self.labelNodes[ref] = refLabel
 
     self.cvLogic = CompareVolumes.CompareVolumesLogic()
-    self.cvLogic.viewerPerVolume(self.volumeNodes.values(),background=self.volumeNodes[ref],label=refLabel)
+    self.cvLogic.viewerPerVolume(self.volumeNodes.values(),background=self.volumeNodes[ref],label=refLabel,viewNames=self.viewNames)
     if ref:
       print('Rotate to reference '+self.volumeNodes[ref].GetName())
       self.cvLogic.rotateToVolumePlanes(self.volumeNodes[ref])
