@@ -59,7 +59,7 @@ class PCampReviewWidget:
 
     # module-specific initialization
     self.inputDataDir = ''
-    
+
     # TODO: figure out why module/class hierarchy is different
     # between developer builds ans packages
     try:
@@ -98,6 +98,9 @@ class PCampReviewWidget:
     reloadFormLayout.addWidget(self.reloadAndTestButton)
     self.reloadAndTestButton.connect('clicked()', self.onReloadAndTest)
 
+    # parameters
+    self.parameters = {}
+
     #
     # Step 1: selection of the data directory
     #
@@ -107,7 +110,7 @@ class PCampReviewWidget:
 
     # Layout within the dummy collapsible button
     step1Layout = qt.QFormLayout(self.step1frame)
-    
+
     self.dataDirButton = qt.QPushButton('press to select')
     self.dataDirButton.connect('clicked()', self.onInputDirSelected)
     step1Layout.addRow("Data directory:", self.dataDirButton)
@@ -132,7 +135,7 @@ class PCampReviewWidget:
 
     self.step2frame.collapsed = 1
     self.step2frame.connect('clicked()', self.onStep2Selected)
- 
+
     #
     # Step 3: series selection
     #
@@ -152,7 +155,7 @@ class PCampReviewWidget:
     self.step3frame.connect('clicked()', self.onStep3Selected)
 
     # get the list of all series for the selected study
-    
+
 
     #
     # Step 4: segmentation tools
@@ -199,14 +202,17 @@ class PCampReviewWidget:
     #
     # Step 5: save results
     #
-    self.step5frame = ctk.ctkCollapsibleButton()
-    self.step5frame.text = "Step 5: Save results"
-    self.layout.addWidget(self.step5frame)
+    #self.step5frame = ctk.ctkCollapsibleButton()
+    #self.step5frame.text = "Step 5: Save results"
+    #self.layout.addWidget(self.step5frame)
 
     # Layout within the dummy collapsible button
-    step5Layout = qt.QFormLayout(self.step5frame)
+    #step5Layout = qt.QFormLayout(self.step5frame)
     # TODO: add here source directory selector
 
+    self.saveButton = qt.QPushButton("Save")
+    self.layout.addWidget(self.saveButton)
+    self.saveButton.connect('clicked()', self.onSaveClicked)
 
     # Add vertical spacer
     self.layout.addStretch(1)
@@ -214,23 +220,23 @@ class PCampReviewWidget:
     self.editorParameterNode = self.editUtil.getParameterNode()
 
     self.volumesLogic = slicer.modules.volumes.logic()
-    
+
     # set up temporary directory
     self.tempDir = slicer.app.temporaryPath+'/PCampReview-tmp'
     print('Temporary directory location: '+self.tempDir)
     qt.QDir().mkpath(self.tempDir)
-               
+
     # these are the PK maps that should be loaded
     self.pkMaps = ['Ktrans','Ve','Auc','TTP','MaxSlope']
 
-  def setOffsetOnAllSliceWidgets(self, offset):    
+  def setOffsetOnAllSliceWidgets(self, offset):
     layoutManager = slicer.app.layoutManager()
     widgetNames = layoutManager.sliceViewNames()
     for wn in widgetNames:
       widget = layoutManager.sliceWidget(wn)
       node = widget.mrmlSliceNode()
       node.SetSliceOffset(offset)
-      
+
       sc = widget.mrmlSliceCompositeNode()
       sc.SetLinkedControl(1)
       sc.SetInteractionFlagsModifier(4+8+16)
@@ -248,11 +254,11 @@ class PCampReviewWidget:
       self.setOffsetOnAllSliceWidgets(redSliceOffset)
 
       # set linking properties on one composite node -- should it apply to
-      # all?      
+      # all?
       sc = redSliceWidget.mrmlSliceCompositeNode()
       sc.SetLinkedControl(1)
       sc.SetInteractionFlags(4+8+16)
-      
+
       layoutNode.SetViewArrangement(layoutNode.SlicerLayoutUserView)
 
     if id == 2:
@@ -283,11 +289,33 @@ class PCampReviewWidget:
     qt.QTimer.singleShot(msec, self.info.close)
     self.info.exec_()
 
+  def onSaveClicked(self):
+    """ Elements that will be saved:
+        * segmentation: label map
+        * w/l for each volume
+        Convention: create a directory for each type of resource saved,
+        then subdirectory for each scan that was analyzed
+    """
+    resourcesDir = self.inputDataDir+'/'+self.studyName+'/Segmentations'
+    try:
+      os.mkdir(resourcesDir)
+    except:
+      pass
+    labelNodes = slicer.util.getNodes('*-label')
+    for key in labelNodes.keys():
+      sNode = slicer.vtkMRMLVolumeArchetypeStorageNode()
+      seriesNumber = string.split(key,":")
+      sNode.SetFileName(resourcesDir+'/'+seriesNumber[0]+'-label.nrrd')
+      sNode.SetWriteFileFormat('nrrd')
+      sNode.SetURI(None)
+      sNode.WriteData(labelNodes[key])
+      print(key+' has been saved')
+
   def onInputDirSelected(self):
     self.inputDataDir = qt.QFileDialog.getExistingDirectory(self.parent,'Input data directory', '/Users/fedorov/Downloads/TESTSlicer')
     self.dataDirButton.text = self.inputDataDir
     print(self.inputDataDir)
- 
+
   '''
   Step 1: Select the directory that has the data
   '''
@@ -336,7 +364,7 @@ class PCampReviewWidget:
     if selectedItem == None:
       return
 
-    print('Selected item text: '+selectedItem.text())    
+    print('Selected item text: '+selectedItem.text())
     self.studyName = selectedItem.text()
 
     # go over all dirs that end in DICOM, get series name
@@ -376,7 +404,7 @@ class PCampReviewWidget:
       if self.isSeriesOfInterest(item.text()):
         item.setCheckState(True)
         print('Checked: '+str(item.checkState()))
-    
+
   def isSeriesOfInterest(self,desc):
     discardThose = ['SAG','COR','PURE','mapping','DWI','breath','3D DCE','loc','Expo','Map','MAP','POST']
     for d in discardThose:
@@ -388,16 +416,16 @@ class PCampReviewWidget:
   '''
    T2w, sub, ADC, T2map
   '''
-  
+
   def onStep4Selected(self):
     # set up editor
     self.editorWidget.enter()
-    
+
     self.step2frame.collapsed = 1
     self.step3frame.collapsed = 1
     self.step1frame.collapsed = 1
     self.step4frame.collapsed = 0
-    
+
     checkedItems = self.seriesTable.getCheckedItems()
 
     self.volumeNodes = {}
@@ -426,7 +454,7 @@ class PCampReviewWidget:
       import string, glob
       if string.find(text, 'DCE')>=0 or string.find(text, 'mapping')>=0:
         dicomPlugin = slicer.modules.dicomPlugins['MultiVolumeImporterPlugin']()
-      # get the map type from the string that looks like 
+      # get the map type from the string that looks like
       #    Ktrans:PATIENT-Ktrans
       elif guessPkMapName in self.pkMaps:
         # do not use any dicom plugin
@@ -437,7 +465,7 @@ class PCampReviewWidget:
 
       # text should be formatted as <SeriesNumber : SeriesDescription> !!
       seriesNumber = string.split(text,':')[0]
-      
+
       if dicomPlugin == None:
         filename = self.tempDir+'/'+string.split(text,':')[-1][1:]+'.nrrd'
         print('Loading volume from '+filename)
@@ -468,7 +496,7 @@ class PCampReviewWidget:
 
     print('Will now set up compares')
     self.cvLogic = CompareVolumes.CompareVolumesLogic()
-    self.viewNames = [self.volumeNodes[ref].GetName()]     
+    self.viewNames = [self.volumeNodes[ref].GetName()]
     for vNode in self.volumeNodes.values():
       if vNode != self.volumeNodes[ref]:
         self.viewNames.append(vNode.GetName())
@@ -647,7 +675,7 @@ class PCampReviewWidget:
     except Exception, e:
       import traceback
       traceback.print_exc()
-      qt.QMessageBox.warning(slicer.util.mainWindow(), 
+      qt.QMessageBox.warning(slicer.util.mainWindow(),
           "Reload and Test", 'Exception!\n\n' + str(e) + "\n\nSee Python Console for Stack Trace")
 
 
@@ -656,8 +684,8 @@ class PCampReviewWidget:
 #
 
 class PCampReviewLogic:
-  """This class should implement all the actual 
-  computation done by your module.  The interface 
+  """This class should implement all the actual
+  computation done by your module.  The interface
   should be such that other python code can import
   this class and make use of the functionality without
   requiring an instance of the Widget
@@ -666,7 +694,7 @@ class PCampReviewLogic:
     pass
 
   def hasImageData(self,volumeNode):
-    """This is a dummy logic method that 
+    """This is a dummy logic method that
     returns true if the passed in volume
     node has valid image data
     """
