@@ -52,3 +52,8 @@ class PCampReviewHelper(object):
       widget = layoutManager.sliceWidget(wn)
       sc = widget.mrmlSliceCompositeNode()
       sc.SetForegroundOpacity(opacity)
+
+  @staticmethod
+  def infoPopup(message):
+    messageBox = qt.QMessageBox()
+    messageBox.information(None, 'Slicer mpMRI review', message)

@@ -341,20 +341,39 @@ class PCampReviewWidget:
         Convention: create a directory for each type of resource saved,
         then subdirectory for each scan that was analyzed
     """
-    resourcesDir = self.inputDataDir+'/'+self.studyName+'/Segmentations'
+    segmentationsDir = self.parameters['ResultsLocation']+'/'+self.studyName+'/Segmentations'
+    wlSettingsDir = self.parameters['ResultsLocation']+'/'+self.studyName+'/WindowLevelSettings'
     try:
-      os.mkdir(resourcesDir)
+      os.makedirs(segmentationsDir)
+      os.makedirs(wlSettingsDir)
     except:
       pass
+
+    # save all label nodes (there should be only one per volume!)
     labelNodes = slicer.util.getNodes('*-label')
     for key in labelNodes.keys():
       sNode = slicer.vtkMRMLVolumeArchetypeStorageNode()
-      seriesNumber = string.split(key,":")
-      sNode.SetFileName(resourcesDir+'/'+seriesNumber[0]+'-label.nrrd')
+      seriesNumber = string.split(key,":")[0]
+      sNode.SetFileName(segmentationsDir+'/'+seriesNumber+'-label.nrrd')
       sNode.SetWriteFileFormat('nrrd')
       sNode.SetURI(None)
       sNode.WriteData(labelNodes[key])
       print(key+' has been saved')
+
+    # save w/l settings for all non-label volume nodes
+    volumeNodes = slicer.util.getNodes('vtkMRMLScalarVolumeNode*')
+    print('All volume nodes: '+str(volumeNodes))
+    for key in volumeNodes.keys():
+      vNode = volumeNodes[key]
+      if vNode.GetAttribute('LabelMap') == '1':
+        continue
+      seriesNumber = string.split(key,':')[0]
+      print('W/L for series '+seriesNumber+' is '+str(vNode.GetDisplayNode().GetWindow()))
+      f = open(wlSettingsDir+'/'+seriesNumber+'-wl.txt','w')
+      f.write(str(vNode.GetDisplayNode().GetWindow())+' '+str(vNode.GetDisplayNode().GetLevel()))
+      f.close()
+
+    self.helper.infoPopup('Results were saved!')
 
   def onInputDirSelected(self):
     self.inputDataDir = qt.QFileDialog.getExistingDirectory(self.parent,'Input data directory', '/Users/fedorov/Downloads/TESTSlicer')
@@ -392,6 +411,8 @@ class PCampReviewWidget:
         print('Adding '+studyName)
 
     self.studyTable.setContent(studyDirs)
+
+    # TODO: unload all volume nodes that are already loaded
 
   '''
   Step 3: Select series of interest
@@ -572,8 +593,9 @@ class PCampReviewWidget:
     self.refSelectorIgnoreUpdates = False
 
     self.onReferenceChanged(0)
+    self.onViewUpdateRequested(2)
     self.onViewUpdateRequested(1)
-    self.helper.setOpacityOnAllSliceWidgets(1)
+    self.helper.setOpacityOnAllSliceWidgets(1.0)
 
   def onReferenceChanged(self, id):
     if self.refSelectorIgnoreUpdates:
@@ -601,6 +623,7 @@ class PCampReviewWidget:
       print('Rotate to reference '+self.volumeNodes[ref].GetName())
       self.cvLogic.rotateToVolumePlanes(self.volumeNodes[ref])
 
+    print('Setting master node for the Editor to '+self.volumeNodes[ref].GetID())
     self.editorWidget.setMasterNode(self.volumeNodes[ref])
     self.editorWidget.setMergeNode(self.labelNodes[ref])
 
