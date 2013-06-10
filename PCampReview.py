@@ -229,6 +229,34 @@ class PCampReviewWidget:
     # these are the PK maps that should be loaded
     self.pkMaps = ['Ktrans','Ve','Auc','TTP','MaxSlope']
 
+  def enter(self):
+    userName = None
+    try:
+      userName = self.parameters['UserName']
+    except:
+      pass
+
+    if userName == None or userName == '':
+      # prompt the user for ID (last name)
+      self.namePrompt = qt.QDialog()
+      self.namePromptLayout = qt.QVBoxLayout()
+      self.namePrompt.setLayout(self.namePromptLayout)
+      self.nameLabel = qt.QLabel('Enter your last name:', self.namePrompt)
+      import getpass
+      self.nameText = qt.QLineEdit(getpass.getuser(), self.namePrompt)
+      self.nameButton = qt.QPushButton('OK', self.namePrompt)
+      self.nameButton.connect('clicked()', self.onNameEntered)
+      self.namePromptLayout.addWidget(self.nameLabel)
+      self.namePromptLayout.addWidget(self.nameText)
+      self.namePromptLayout.addWidget(self.nameButton)
+      self.namePrompt.exec_()
+
+  def onNameEntered(self):
+    name = self.nameText.text
+    if len(name)>0:
+      self.parameters['UserName'] = name
+      self.namePrompt.close()
+
   def setOffsetOnAllSliceWidgets(self, offset):
     layoutManager = slicer.app.layoutManager()
     widgetNames = layoutManager.sliceViewNames()
