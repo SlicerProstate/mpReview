@@ -235,6 +235,7 @@ class PCampReviewWidget:
     # these are the PK maps that should be loaded
     self.pkMaps = ['Ktrans','Ve','Auc','TTP','MaxSlope']
     self.helper = PCampReviewHelper()
+    self.volumeNodes = {}
 
   def enter(self):
     settings = qt.QSettings()
@@ -432,6 +433,13 @@ class PCampReviewWidget:
     if selectedItem == None:
       self.onStep2Selected()
       return
+
+    # if any volumes have been loaded (we returned back from a previous step)
+    # then remove all of them from the scene
+    allVolumeNodes = slicer.util.getNodes('vtkMRMLScalarVolumeNode*')
+    if len(allVolumeNodes):
+      for key in allVolumeNodes.keys():
+        slicer.mrmlScene.RemoveNode(allVolumeNodes[key])
 
     self.parameters['StudyName'] = selectedItem.text()
 
