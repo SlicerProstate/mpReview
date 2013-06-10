@@ -351,7 +351,9 @@ class PCampReviewWidget:
       pass
 
     # save all label nodes (there should be only one per volume!)
-    labelNodes = slicer.util.getNodes('*-label')
+    labelNodes = slicer.util.getNodes('*-label*')
+    print('All label nodes found: '+str(labelNodes))
+    savedMessage = 'Segmentations for the following series were saved:\n'
     for key in labelNodes.keys():
       sNode = slicer.vtkMRMLVolumeArchetypeStorageNode()
       seriesNumber = string.split(key,":")[0]
@@ -359,6 +361,7 @@ class PCampReviewWidget:
       sNode.SetWriteFileFormat('nrrd')
       sNode.SetURI(None)
       sNode.WriteData(labelNodes[key])
+      savedMessage = savedMessage + string.split(key,'-label')[0]+'\n'
       print(key+' has been saved')
 
     # save w/l settings for all non-label volume nodes
@@ -374,7 +377,7 @@ class PCampReviewWidget:
       f.write(str(vNode.GetDisplayNode().GetWindow())+' '+str(vNode.GetDisplayNode().GetLevel()))
       f.close()
 
-    self.helper.infoPopup('Results were saved!')
+    self.helper.infoPopup(savedMessage)
 
   def onInputDirSelected(self):
     self.inputDataDir = qt.QFileDialog.getExistingDirectory(self.parent,'Input data directory', '/Users/fedorov/Downloads/TESTSlicer')
