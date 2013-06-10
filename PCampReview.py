@@ -8,7 +8,7 @@ import Editor
 from EditorLib import EditUtil
 from EditorLib import EditorLib
 
-
+from PCampReviewHelper import PCampReviewHelper as PCampReviewHelper
 
 #
 # PCampReview
@@ -100,6 +100,7 @@ class PCampReviewWidget:
 
     # parameters
     self.parameters = {}
+    self.settings = qt.QSettings()
 
     #
     # Step 1: selection of the data directory
@@ -172,13 +173,18 @@ class PCampReviewWidget:
     step4Layout.addRow(qt.QLabel("Reference image: "), self.refSelector)
     self.refSelector.connect('currentIndexChanged(int)', self.onReferenceChanged)
 
+    groupLabel = qt.QLabel('Show series:')
     self.viewGroup = qt.QButtonGroup()
     self.multiView = qt.QRadioButton('All')
-    self.singleView = qt.QRadioButton('Reference')
+    self.singleView = qt.QRadioButton('Reference only')
     self.multiView.setChecked(1)
     self.viewGroup.addButton(self.multiView,1)
     self.viewGroup.addButton(self.singleView,2)
-    step4Layout.addRow(self.multiView, self.singleView)
+    self.groupWidget = qt.QWidget()
+    self.groupLayout = qt.QFormLayout(self.groupWidget)
+    self.groupLayout.addRow(self.multiView, self.singleView)
+    step4Layout.addRow(groupLabel, self.groupWidget)
+    # step4Layout.addRow(groupLabel, self.viewGroup)
 
     self.viewGroup.connect('buttonClicked(int)', self.onViewUpdateRequested)
 
@@ -228,13 +234,12 @@ class PCampReviewWidget:
 
     # these are the PK maps that should be loaded
     self.pkMaps = ['Ktrans','Ve','Auc','TTP','MaxSlope']
+    self.helper = PCampReviewHelper()
 
   def enter(self):
-    userName = None
-    try:
-      userName = self.parameters['UserName']
-    except:
-      pass
+    settings = qt.QSettings()
+    userName = settings.value('PCampReview/UserName')
+    resultsLocation = settings.value('PCampReview/ResultsLocation')
 
     if userName == None or userName == '':
       # prompt the user for ID (last name)
@@ -251,23 +256,35 @@ class PCampReviewWidget:
       self.namePromptLayout.addWidget(self.nameButton)
       self.namePrompt.exec_()
 
+    if resultsLocation == None or resultsLocation == '':
+      self.dirPrompt = qt.QDialog()
+      self.dirPromptLayout = qt.QVBoxLayout()
+      self.dirPrompt.setLayout(self.dirPromptLayout)
+      self.dirLabel = qt.QLabel('Choose the directory to store the results:', self.dirPrompt)
+      self.dirButton = ctk.ctkDirectoryButton(self.dirPrompt)
+      self.dirButtonDone = qt.QPushButton('OK', self.dirPrompt)
+      self.dirButtonDone.connect('clicked()', self.onDirEntered)
+      self.dirPromptLayout.addWidget(self.dirLabel)
+      self.dirPromptLayout.addWidget(self.dirButton)
+      self.dirPromptLayout.addWidget(self.dirButtonDone)
+      self.dirPrompt.exec_()
+
+    self.parameters['UserName'] = userName
+    self.parameters['ResultsLocation'] = resultsLocation
+
   def onNameEntered(self):
     name = self.nameText.text
     if len(name)>0:
-      self.parameters['UserName'] = name
+      self.settings.setValue('PCampReview/UserName',name)
       self.namePrompt.close()
+      self.parameters['UserName'] = name
 
-  def setOffsetOnAllSliceWidgets(self, offset):
-    layoutManager = slicer.app.layoutManager()
-    widgetNames = layoutManager.sliceViewNames()
-    for wn in widgetNames:
-      widget = layoutManager.sliceWidget(wn)
-      node = widget.mrmlSliceNode()
-      node.SetSliceOffset(offset)
-
-      sc = widget.mrmlSliceCompositeNode()
-      sc.SetLinkedControl(1)
-      sc.SetInteractionFlagsModifier(4+8+16)
+  def onDirEntered(self):
+    path = self.dirButton.directory
+    if len(path)>0:
+      self.settings.setValue('PCampReview/ResultsLocation',path)
+      self.dirPrompt.close()
+      self.parameters['ResultsLocation'] = path
 
   def onViewUpdateRequested(self, id):
     layoutNode = slicer.util.getNode('*LayoutNode*')
@@ -279,7 +296,7 @@ class PCampReviewWidget:
       redSliceOffset = redSliceNode.GetSliceOffset()
       print('Red slice offset: '+str(redSliceOffset))
 
-      self.setOffsetOnAllSliceWidgets(redSliceOffset)
+      self.helper.setOffsetOnAllSliceWidgets(redSliceOffset)
 
       # set linking properties on one composite node -- should it apply to
       # all?
@@ -342,6 +359,7 @@ class PCampReviewWidget:
   def onInputDirSelected(self):
     self.inputDataDir = qt.QFileDialog.getExistingDirectory(self.parent,'Input data directory', '/Users/fedorov/Downloads/TESTSlicer')
     self.dataDirButton.text = self.inputDataDir
+    self.parameters['InputDirectory'] = self.inputDataDir
     print(self.inputDataDir)
 
   '''
@@ -389,24 +407,35 @@ class PCampReviewWidget:
     self.step4frame.collapsed = 1
 
     selectedItem = self.studyTable.getSelectedItem()
+    # check if the study has been selected, otherwise, go back to Step 2
     if selectedItem == None:
+      self.onStep2Selected()
       return
+
+    self.parameters['StudyName'] = selectedItem.text()
 
     print('Selected item text: '+selectedItem.text())
     self.studyName = selectedItem.text()
 
     # go over all dirs that end in DICOM, get series name
-    series = {}
+    # Two types of image data that will be displayed:
+    #  1) original DICOM data: 'series' maps series number to series
+    #  description
+    #  2) PK map: 'series' maps PK map code (as defined in self.pkMaps) to the
+    #  part of the PK map file name before the .nrrd extension
+    self.seriesMap = {}
     tableItems = []
     studyPath = self.inputDataDir+'/'+self.studyName
     for root, subdirs, files in os.walk(self.inputDataDir+'/'+self.studyName):
       if os.path.split(root)[-1] == 'DICOM':
         print('DICOM dir: '+root)
         dcm = dicom.read_file(root+'/'+files[0])
-        series[int(dcm.SeriesNumber)] = dcm.SeriesDescription
+        self.seriesMap[int(dcm.SeriesNumber)] = dcm.SeriesDescription
+      # assume that PK maps are in a zip file that is in OncoQuant folder
       if os.path.split(root)[-1] == 'OncoQuant':
         print('Found OncoQuant stuff')
         # copy the right zip file to temp directory
+        # hard-coded type of the maps we consider initially
         mapsFileName = 'OncoQuant-TwoParameterModel-ModelAIF.zip'
         import zipfile
         zfile = zipfile.ZipFile(root+'/'+mapsFileName)
@@ -418,27 +447,20 @@ class PCampReviewWidget:
               fd.write(zfile.read(fname))
               fd.close()
               # PK map name is *-<map type>.nrrd
-              series[pkname] = string.split(os.path.split(fname)[-1],'.')[0]
+              self.seriesMap[pkname] = string.split(os.path.split(fname)[-1],'.')[0]
 
-    numbers = series.keys()
+    numbers = self.seriesMap.keys()
     numbers.sort()
     for num in numbers:
-      tableItems.append(str(num)+': '+series[num])
+      tableItems.append(str(num)+': '+self.seriesMap[num])
     self.seriesTable.setContent(tableItems)
 
     # self.seriesTable.checkAll()
     for row in xrange(self.seriesTable.widget.rowCount):
       item = self.seriesTable.widget.item(row,0)
-      if self.isSeriesOfInterest(item.text()):
+      if self.helper.isSeriesOfInterest(item.text()):
         item.setCheckState(True)
         print('Checked: '+str(item.checkState()))
-
-  def isSeriesOfInterest(self,desc):
-    discardThose = ['SAG','COR','PURE','mapping','DWI','breath','3D DCE','loc','Expo','Map','MAP','POST']
-    for d in discardThose:
-      if string.find(desc,d)>=0:
-        return False
-    return True
 
 
   '''
@@ -456,6 +478,11 @@ class PCampReviewWidget:
 
     checkedItems = self.seriesTable.getCheckedItems()
 
+    # if no series selected, go to the previous step
+    if len(checkedItems) == 0:
+      self.onStep3Selected()
+      return
+
     self.volumeNodes = {}
     self.labelNodes = {}
     self.refSeriesNumber = '-1'
@@ -469,8 +496,12 @@ class PCampReviewWidget:
     # user should select reference, which triggers creation of the label and
     # initialization of the editor widget
 
-    self.refSelector.addItem('None')
+    # self.refSelector.addItem('None')
 
+    # ignore refSelector events until the selector is populated!
+    self.refSelectorIgnoreUpdates = True
+
+    # iterate over all selected items and add them to the reference selector
     for i in checkedItems:
       text = i.text()
       self.refSelector.addItem(text)
@@ -528,88 +559,25 @@ class PCampReviewWidget:
     for vNode in self.volumeNodes.values():
       if vNode != self.volumeNodes[ref]:
         self.viewNames.append(vNode.GetName())
-    self.viewNames = self.abbreviateNames(self.viewNames)
+    # this helper function implements fuzzy logic to figure out the matching to
+    # a specific series of interest for this project
+    # pkMaps
+    self.viewNames = self.helper.abbreviateNames(self.viewNames,self.pkMaps)
     print('Abbreviated names:'+str(self.viewNames))
     self.cvLogic.viewerPerVolume(self.volumeNodes.values(), self.volumeNodes[ref],viewNames=self.viewNames)
     print('Compares set up')
     if ref:
       self.cvLogic.rotateToVolumePlanes(self.volumeNodes[ref])
 
+    self.refSelectorIgnoreUpdates = False
 
-    return
-
-  def abbreviateNames(self, longNames):
-    shortNames = []
-    firstADC = True
-    for name in longNames:
-      print(str(shortNames))
-      if name in self.pkMaps:
-        shortNames.append(name)
-      elif string.find(name,'T2')>0:
-        shortNames.append('T2')
-      elif string.find(name,'T1')>0:
-        shortNames.append('T1')
-      elif string.find(name,'Apparent Diffusion Coefficient')>0:
-        if firstADC:
-          shortNames.append('ADCb500')
-          firstADC = False
-        else:
-          shortNames.append('ADCb1400')
-      else:
-        shortNames.append('Subtract')
-    return shortNames
-
-
-    '''
-    self.delayDisplay('Will process the data next. Wait until confirmation message appears!')
-
-    tempDir = slicer.app.temporaryPath+'/PCampReview-tmp'
-    print('Temporary directory location: '+tempDir)
-    qt.QDir().mkpath(tempDir)
-    dicomFilesDirectory = tempDir + '/dicomFiles'
-    self.cleanupDir(dicomFilesDirectory)
-    qt.QDir().mkpath(dicomFilesDirectory)
-
-    try:
-      self.delayDisplay("Switching to temp database directory")
-      tempDatabaseDirectory = reportingTempDir + '/tempDICOMDatbase'
-      qt.QDir().mkpath(tempDatabaseDirectory)
-      self.cleanupDir(tempDatabaseDirectory)
-      if slicer.dicomDatabase:
-        self.originalDatabaseDirectory = os.path.split(slicer.dicomDatabase.databaseFilename)[0]
-      else:
-        self.originalDatabaseDirectory = None
-        settings = qt.QSettings()
-        settings.setValue('DatabaseDirectory', tempDatabaseDirectory)
-      dicomWidget = slicer.modules.dicom.widgetRepresentation().self()
-      dicomWidget.onDatabaseDirectoryChanged(tempDatabaseDirectory)
-
-      self.delayDisplay('Importing DICOM')
-      mainWindow = slicer.util.mainWindow()
-      mainWindow.moduleSelector().selectModule('DICOM')
-      dicomWidget.dicomApp.suspendModel()
-      indexer = ctk.ctkDICOMIndexer()
-      indexer.addDirectory(slicer.dicomDatabase, dicomFilesDirectory, None)
-      indexer.waitForImportFinished()
-      dicomWidget.dicomApp.resumeModel()
-      dicomWidget.detailsPopup.open()
-      # click on the first row of the tree
-      index = dicomWidget.tree.indexAt(qt.QPoint(0,0))
-      dicomWidget.onTreeClicked(index)
-
-      self.delayDisplay('Loading Selection')
-      dicomWidget.detailsPopup.loadCheckedLoadables()
-
-      self.delayDisplay("Restoring original database directory")
-      if self.originalDatabaseDirectory:
-        dicomWidget.onDatabaseDirectoryChanged(self.originalDatabaseDirectory)
-
-    except Exception, e:
-      if self.originalDatabaseDirectory:
-        dicomWidget.onDatabaseDirectoryChanged(self.originalDatabaseDirectory)
-    '''
+    self.onReferenceChanged(0)
+    self.onViewUpdateRequested(1)
+    self.helper.setOpacityOnAllSliceWidgets(1)
 
   def onReferenceChanged(self, id):
+    if self.refSelectorIgnoreUpdates:
+      return
     text = self.refSelector.currentText
     print('Current reference node: '+text)
     if text != 'None':
