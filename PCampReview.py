@@ -256,6 +256,8 @@ class PCampReviewWidget:
       self.namePromptLayout.addWidget(self.nameText)
       self.namePromptLayout.addWidget(self.nameButton)
       self.namePrompt.exec_()
+    else:
+      self.parameters['UserName'] = resultsLocation
 
     if resultsLocation == None or resultsLocation == '':
       self.dirPrompt = qt.QDialog()
@@ -269,9 +271,8 @@ class PCampReviewWidget:
       self.dirPromptLayout.addWidget(self.dirButton)
       self.dirPromptLayout.addWidget(self.dirButtonDone)
       self.dirPrompt.exec_()
-
-    self.parameters['UserName'] = userName
-    self.parameters['ResultsLocation'] = resultsLocation
+    else:
+      self.parameters['ResultsLocation'] = resultsLocation
 
   def onNameEntered(self):
     name = self.nameText.text
