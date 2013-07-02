@@ -59,6 +59,7 @@ class PCampReviewWidget:
 
     # module-specific initialization
     self.inputDataDir = ''
+    self.webFormURL = 'https://docs.google.com/forms/d/1gWlcVayAYRpt0cs7GuSq6wiXPU46Ie3POHyl43lH8Ks/viewform'
 
     # TODO: figure out why module/class hierarchy is different
     # between developer builds ans packages
@@ -216,6 +217,10 @@ class PCampReviewWidget:
     #step5Layout = qt.QFormLayout(self.step5frame)
     # TODO: add here source directory selector
 
+    self.qaButton = qt.QPushButton("QA Form")
+    self.layout.addWidget(self.qaButton)
+    self.qaButton.connect('clicked()',self.onQAFormClicked)
+
     self.saveButton = qt.QPushButton("Save")
     self.layout.addWidget(self.saveButton)
     self.saveButton.connect('clicked()', self.onSaveClicked)
@@ -239,8 +244,8 @@ class PCampReviewWidget:
 
   def enter(self):
     settings = qt.QSettings()
-    userName = settings.value('PCampReview/UserName')
-    resultsLocation = settings.value('PCampReview/ResultsLocation')
+    userName = "" # settings.value('PCampReview/UserName')
+    resultsLocation = "" # settings.value('PCampReview/ResultsLocation')
 
     if userName == None or userName == '':
       # prompt the user for ID (last name)
@@ -257,7 +262,7 @@ class PCampReviewWidget:
       self.namePromptLayout.addWidget(self.nameButton)
       self.namePrompt.exec_()
     else:
-      self.parameters['UserName'] = resultsLocation
+      self.parameters['UserName'] = userName
 
     if resultsLocation == None or resultsLocation == '':
       self.dirPrompt = qt.QDialog()
@@ -335,6 +340,27 @@ class PCampReviewWidget:
     self.infoLayout.addWidget(self.label)
     qt.QTimer.singleShot(msec, self.info.close)
     self.info.exec_()
+
+  def onQAFormClicked(self):
+    self.webView = qt.QWebView()
+    self.webView.settings().setAttribute(qt.QWebSettings.DeveloperExtrasEnabled, True)
+    self.webView.connect('loadFinished(bool)', self.webViewFormLoadedCallback)
+    self.webView.show()
+    preFilledURL = self.webFormURL
+    preFilledURL += '?entry.2057130045='+self.parameters['UserName']
+    preFilledURL += '&entry.296646450='+self.parameters['StudyName']
+    u = qt.QUrl(preFilledURL)
+    self.webView.setUrl(u)
+
+  def webViewFormLoadedCallback(self,ok):
+    if not ok:
+      print('page did not load')
+      return
+    page = self.webView.page()
+    frame = page.mainFrame()
+    document = frame.documentElement()
+    element = document.findFirst('entry.2057130045')
+    element.setAttribute("value", self.parameters['UserName'])
 
   def onSaveClicked(self):
     """ Elements that will be saved:
