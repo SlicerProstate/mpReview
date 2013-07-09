@@ -228,8 +228,6 @@ class PCampReviewWidget:
     # Add vertical spacer
     self.layout.addStretch(1)
 
-    self.editorParameterNode = self.editUtil.getParameterNode()
-
     self.volumesLogic = slicer.modules.volumes.logic()
 
     # set up temporary directory
@@ -591,7 +589,7 @@ class PCampReviewWidget:
         volume.SetName(guessPkMapName)
         self.volumeNodes[seriesNumber] = volume
         dNode = volume.GetDisplayNode()
-        dNode.SetAndObserveColorNodeID('vtkMRMLColorTableNodeFileHotToColdRainbow.txt')
+        dNode.SetAndObserveColorNodeID('vtkMRMLColorTableNodeFileColdToHotRainbow.txt')
         if guessPkMapName == 'Ktrans' or guessPkMapName == 'Ve':
           dNode.SetWindowLevel(5.0,2.5)
         continue
