@@ -1,4 +1,4 @@
-import os, dicom
+import os, json
 import unittest
 from __main__ import vtk, qt, ctk, slicer, string, glob
 import CompareVolumes
@@ -170,6 +170,7 @@ class PCampReviewWidget:
     step4Layout = qt.QFormLayout(self.step4frame)
 
     # reference node selector
+    # TODO: use MRML selector here ?
     self.refSelector = qt.QComboBox()
     step4Layout.addRow(qt.QLabel("Reference image: "), self.refSelector)
     self.refSelector.connect('currentIndexChanged(int)', self.onReferenceChanged)
@@ -289,6 +290,7 @@ class PCampReviewWidget:
     if len(path)>0:
       self.settings.setValue('PCampReview/ResultsLocation',path)
       self.dirPrompt.close()
+      print('Setting results location to '+path)
       self.parameters['ResultsLocation'] = path
 
   def onViewUpdateRequested(self, id):
@@ -311,14 +313,15 @@ class PCampReviewWidget:
 
       layoutNode.SetViewArrangement(layoutNode.SlicerLayoutUserView)
 
+    # FIXME: look at labelNodes array
     if id == 2:
       layoutNode.SetViewArrangement(layoutNode.SlicerLayoutOneUpRedSliceView)
       if self.refSeriesNumber != '-1':
         ref = self.refSeriesNumber
         redSliceWidget = layoutManager.sliceWidget('Red')
         compositeNode = redSliceWidget.mrmlSliceCompositeNode()
-        compositeNode.SetBackgroundVolumeID(self.volumeNodes[ref].GetID())
-        compositeNode.SetLabelVolumeID(self.labelNodes[ref].GetID())
+        compositeNode.SetBackgroundVolumeID(self.volumeNodes[int(ref)].GetID())
+        compositeNode.SetLabelVolumeID(self.seriesMap[str(ref)]['Label'].GetID())
         #slicer.app.applicationLogic().PropagateVolumeSelection(0)
         # redSliceWidget.fitSliceToBackground()
 
@@ -405,7 +408,7 @@ class PCampReviewWidget:
     self.helper.infoPopup(savedMessage)
 
   def onInputDirSelected(self):
-    self.inputDataDir = qt.QFileDialog.getExistingDirectory(self.parent,'Input data directory', '/Users/fedorov/Downloads/TESTSlicer')
+    self.inputDataDir = qt.QFileDialog.getExistingDirectory(self.parent,'Input data directory', '/Users/fedorov/Temp/XNAT-images')
     self.dataDirButton.text = self.inputDataDir
     self.parameters['InputDirectory'] = self.inputDataDir
     print(self.inputDataDir)
@@ -437,7 +440,6 @@ class PCampReviewWidget:
     for studyName in dirs:
       if os.path.isdir(self.inputDataDir+'/'+studyName):
         studyDirs.append(studyName)
-        print('Adding '+studyName)
 
     self.studyTable.setContent(studyDirs)
 
@@ -471,48 +473,42 @@ class PCampReviewWidget:
 
     self.parameters['StudyName'] = selectedItem.text()
 
-    print('Selected item text: '+selectedItem.text())
     self.studyName = selectedItem.text()
 
-    # go over all dirs that end in DICOM, get series name
-    # Two types of image data that will be displayed:
-    #  1) original DICOM data: 'series' maps series number to series
-    #  description
-    #  2) PK map: 'series' maps PK map code (as defined in self.pkMaps) to the
-    #  part of the PK map file name before the .nrrd extension
-    self.seriesMap = {}
-    tableItems = []
-    studyPath = self.inputDataDir+'/'+self.studyName
-    for root, subdirs, files in os.walk(self.inputDataDir+'/'+self.studyName):
-      if os.path.split(root)[-1] == 'DICOM':
-        print('DICOM dir: '+root)
-        dcm = dicom.read_file(root+'/'+files[0])
-        self.seriesMap[int(dcm.SeriesNumber)] = dcm.SeriesDescription
-      # assume that PK maps are in a zip file that is in OncoQuant folder
-      if os.path.split(root)[-1] == 'OncoQuant':
-        print('Found OncoQuant stuff')
-        # copy the right zip file to temp directory
-        # hard-coded type of the maps we consider initially
-        mapsFileName = 'OncoQuant-TwoParameterModel-ModelAIF.zip'
-        import zipfile
-        zfile = zipfile.ZipFile(root+'/'+mapsFileName)
-        for fname in zfile.namelist():
-          for pkname in self.pkMaps:
-            if string.find(fname,pkname) > 0:
-              print('Found map '+pkname)
-              fd = open(self.tempDir+'/'+os.path.split(fname)[-1],'w')
-              fd.write(zfile.read(fname))
-              fd.close()
-              # PK map name is *-<map type>.nrrd
-              self.seriesMap[pkname] = string.split(os.path.split(fname)[-1],'.')[0]
+    self.resourcesDir = os.path.join(self.inputDataDir,self.studyName,'RESOURCES')
 
-    numbers = self.seriesMap.keys()
+    # expect one directory for each processed series, with the name
+    # corresponding to the series number
+    self.seriesMap = {}
+    for root,subdirs,files in os.walk(self.resourcesDir):
+      print('Root: '+root+', files: '+str(files))
+      resourceType = os.path.split(root)[1]
+      if resourceType == 'Reconstructions' or resourceType == 'OncoQuant':
+        for f in files:
+          if f.endswith('.json'):
+            metaFile = open(os.path.join(root,f))
+            metaInfo = json.load(metaFile)
+            print('JSON meta info: '+str(metaInfo))
+            try:
+              seriesNumber = metaInfo['SeriesNumber']
+              seriesName = metaInfo['SeriesDescription']
+            except:
+              seriesNumber = metaInfo['DerivedSeriesNumber']
+              seriesName = metaInfo['ModelType']+'-'+metaInfo['AIF']+'-'+metaInfo['Parameter']
+            volumePath = os.path.join(root,seriesNumber+'.nrrd')
+            self.seriesMap[seriesNumber] = {'MetaInfo':metaInfo, 'NRRDLocation':volumePath,'LongName':seriesName}
+            self.seriesMap[seriesNumber]['ShortName'] = self.helper.abbreviateName(self.seriesMap[seriesNumber]['MetaInfo'])
+
+    numbers = [int(x) for x in self.seriesMap.keys()]
     numbers.sort()
+
+    tableItems = []
     for num in numbers:
-      tableItems.append(str(num)+': '+self.seriesMap[num])
+      desc = self.seriesMap[str(num)]['LongName']
+      tableItems.append(str(num)+':'+desc)
+
     self.seriesTable.setContent(tableItems)
 
-    # self.seriesTable.checkAll()
     for row in xrange(self.seriesTable.widget.rowCount):
       item = self.seriesTable.widget.item(row,0)
       if self.helper.isSeriesOfInterest(item.text()):
@@ -521,7 +517,7 @@ class PCampReviewWidget:
 
 
   '''
-   T2w, sub, ADC, T2map
+  T2w, sub, ADC, T2map
   '''
 
   def onStep4Selected(self):
@@ -542,6 +538,7 @@ class PCampReviewWidget:
 
     self.volumeNodes = {}
     self.labelNodes = {}
+    selectedSeriesNumbers = []
     self.refSeriesNumber = '-1'
 
     print('Checked items:')
@@ -553,117 +550,98 @@ class PCampReviewWidget:
     # user should select reference, which triggers creation of the label and
     # initialization of the editor widget
 
-    # self.refSelector.addItem('None')
+    self.refSelector.addItem('None')
 
     # ignore refSelector events until the selector is populated!
     self.refSelectorIgnoreUpdates = True
 
     # iterate over all selected items and add them to the reference selector
+    selectedSeries = {}
     for i in checkedItems:
       text = i.text()
       self.refSelector.addItem(text)
       self.delayDisplay('Processing series '+text)
-      try:
-        guessPkMapName = string.split(text,'-')[-1]
-      except:
-        guessPkMapName = None
-      import string, glob
-      if string.find(text, 'DCE')>=0 or string.find(text, 'mapping')>=0:
-        dicomPlugin = slicer.modules.dicomPlugins['MultiVolumeImporterPlugin']()
-      # get the map type from the string that looks like
-      #    Ktrans:PATIENT-Ktrans
-      elif guessPkMapName in self.pkMaps:
-        # do not use any dicom plugin
-        dicomPlugin = None
-      else:
-        # parse using scalar volume plugin
-        dicomPlugin = slicer.modules.dicomPlugins['DICOMScalarVolumePlugin']()
 
-      # text should be formatted as <SeriesNumber : SeriesDescription> !!
-      seriesNumber = string.split(text,':')[0]
+      seriesNumber = text.split(':')[0]
+      fileName = self.seriesMap[seriesNumber]['NRRDLocation']
+      (success,volume) = slicer.util.loadVolume(fileName,returnNode=True)
+      self.seriesMap[seriesNumber]['Volume'] = volume
 
-      if dicomPlugin == None:
-        filename = self.tempDir+'/'+string.split(text,':')[-1][1:]+'.nrrd'
-        print('Loading volume from '+filename)
-        (success,volume) = slicer.util.loadVolume(filename,returnNode=True)
-        volume.SetName(guessPkMapName)
-        self.volumeNodes[seriesNumber] = volume
+      if self.seriesMap[seriesNumber]['MetaInfo']['ResourceType'] == 'OncoQuant':
         dNode = volume.GetDisplayNode()
+        dNode.SetWindowLevel(5.0,2.5)
         dNode.SetAndObserveColorNodeID('vtkMRMLColorTableNodeFileColdToHotRainbow.txt')
-        if guessPkMapName == 'Ktrans' or guessPkMapName == 'Ve':
-          dNode.SetWindowLevel(5.0,2.5)
-        continue
 
-      seriesDir = self.inputDataDir+'/'+self.studyName+'/SCANS/'+seriesNumber+'/DICOM'
-      files = glob.glob(seriesDir+'/*.dcm')
-      allLoadables = dicomPlugin.examine([files])
-      selectedLoadables = []
+      shortName = self.seriesMap[seriesNumber]['ShortName']
+      longName = self.seriesMap[seriesNumber]['LongName']
+      self.seriesMap[seriesNumber]['Volume'].SetName(shortName)
 
-      for sv in allLoadables:
-        if sv.selected:
-          selectedLoadables.append(sv)
-          volume = dicomPlugin.load(sv)
-          volume.SetName(text)
-          self.volumeNodes[seriesNumber] = volume
-          if string.find(text, 'T2')>0 and string.find(text, 'AX')>0:
-            print('Setting reference to '+text)
-            ref = seriesNumber
-      print('Have this many loadables for series '+str(seriesNumber)+' : '+str(len(selectedLoadables)))
+      if longName.find('T2')>=0 and longName.find('AX')>=0:
+        ref = int(seriesNumber)
 
-    print('Will now set up compares')
+      selectedSeries[seriesNumber] = self.seriesMap[seriesNumber]
+      print('Processed '+longName)
+
+      selectedSeriesNumbers.append(int(seriesNumber))
+
+    self.seriesMap = selectedSeries
+
+    print('Selected series: '+str(selectedSeries)+', reference: '+str(ref))
     self.cvLogic = CompareVolumes.CompareVolumesLogic()
-    self.viewNames = [self.volumeNodes[ref].GetName()]
-    for vNode in self.volumeNodes.values():
-      if vNode != self.volumeNodes[ref]:
-        self.viewNames.append(vNode.GetName())
-    # this helper function implements fuzzy logic to figure out the matching to
-    # a specific series of interest for this project
-    # pkMaps
-    self.viewNames = self.helper.abbreviateNames(self.viewNames,self.pkMaps)
-    print('Abbreviated names:'+str(self.viewNames))
-    self.cvLogic.viewerPerVolume(self.volumeNodes.values(), self.volumeNodes[ref],viewNames=self.viewNames)
-    print('Compares set up')
-    if ref:
-      self.cvLogic.rotateToVolumePlanes(self.volumeNodes[ref])
+    self.viewNames = [self.seriesMap[str(ref)]['ShortName']]
 
     self.refSelectorIgnoreUpdates = False
 
-    self.onReferenceChanged(0)
+    # self.onReferenceChanged(0)
     self.onViewUpdateRequested(2)
     self.onViewUpdateRequested(1)
     self.helper.setOpacityOnAllSliceWidgets(1.0)
 
   def onReferenceChanged(self, id):
+
     if self.refSelectorIgnoreUpdates:
       return
     text = self.refSelector.currentText
     print('Current reference node: '+text)
     if text != 'None':
       self.refSeriesNumber = string.split(text,':')[0]
-      ref = self.refSeriesNumber
+      ref = int(self.refSeriesNumber)
     else:
       return
 
+    print('Reference series selected: '+str(ref))
+
+    # volume nodes ordered by series number
+    seriesNumbers= [int(x) for x in self.seriesMap.keys()]
+    seriesNumbers.sort()
+    self.volumeNodes = [self.seriesMap[str(x)]['Volume'] for x in seriesNumbers if x != ref]
+    self.viewNames = [self.seriesMap[str(x)]['ShortName'] for x in seriesNumbers if x != ref]
+
+    self.volumeNodes = [self.seriesMap[str(ref)]['Volume']]+self.volumeNodes
+    self.viewNames = [self.seriesMap[str(ref)]['ShortName']]+self.viewNames
+
     try:
       # check if already have a label for this node
-      refLabel = self.labelNodes[ref]
+      refLabel = self.seriesMap[str(ref)]['Label']
     except KeyError:
       # create a new label
-      labelName = self.volumeNodes[ref].GetName()+'-label'
-      refLabel = self.volumesLogic.CreateAndAddLabelVolume(slicer.mrmlScene,self.volumeNodes[ref],labelName)
-      self.labelNodes[ref] = refLabel
+      labelName = self.seriesMap[str(ref)]['ShortName']+'-label'
+      refLabel = self.volumesLogic.CreateAndAddLabelVolume(slicer.mrmlScene,self.volumeNodes[0],labelName)
+      self.seriesMap[str(ref)]['Label'] = refLabel
 
-    self.cvLogic = CompareVolumes.CompareVolumesLogic()
-    self.cvLogic.viewerPerVolume(self.volumeNodes.values(),background=self.volumeNodes[ref],label=refLabel,viewNames=self.viewNames)
-    if ref:
-      print('Rotate to reference '+self.volumeNodes[ref].GetName())
-      self.cvLogic.rotateToVolumePlanes(self.volumeNodes[ref])
+    print('Volume nodes: '+str(self.viewNames))
+    cvLogic = CompareVolumes.CompareVolumesLogic()
+    cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel, viewNames=self.viewNames)
+    cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
 
-    print('Setting master node for the Editor to '+self.volumeNodes[ref].GetID())
-    self.editorWidget.setMasterNode(self.volumeNodes[ref])
-    self.editorWidget.setMergeNode(self.labelNodes[ref])
+    print('Setting master node for the Editor to '+self.volumeNodes[0].GetID())
+    self.editorWidget.setMasterNode(self.volumeNodes[0])
+    self.editorWidget.setMergeNode(self.seriesMap[str(ref)]['Label'])
 
     self.editorParameterNode.Modified()
+
+    self.onViewUpdateRequested(1)
+    self.helper.setOpacityOnAllSliceWidgets(1.0)
 
   def cleanupDir(self, d):
     if not os.path.exists(d):
@@ -686,7 +664,7 @@ class PCampReviewWidget:
     """Generic reload method for any scripted module.
     ModuleWizard will subsitute correct default moduleName.
     """
-    import imp, sys, os, slicer, CompareVolumes, dicom, string
+    import imp, sys, os, slicer, CompareVolumes, string
 
     widgetName = moduleName + "Widget"
 

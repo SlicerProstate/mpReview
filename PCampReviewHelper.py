@@ -1,9 +1,9 @@
-import string, qt, slicer
+import string, qt, slicer, re
 
 class PCampReviewHelper(object):
   @staticmethod
   def isSeriesOfInterest(desc):
-    discardThose = ['SAG','COR','PURE','mapping','DWI','breath','3D DCE','loc','Expo','Map','MAP','POST']
+    discardThose = ['SAG','COR','PURE','mapping','DWI','breath','3D DCE','loc','Expo','Map','MAP','POST','ThreeParameter','AutoAIF']
     for d in discardThose:
       if string.find(desc,d)>=0:
         return False
@@ -30,6 +30,35 @@ class PCampReviewHelper(object):
       else:
         shortNames.append('Subtract')
     return shortNames
+
+  @staticmethod
+  def abbreviateName(meta):
+    try:
+      descr = meta['SeriesDescription']
+      seriesNumber = meta['SeriesNumber']
+    except:
+      descr = meta['DerivedSeriesDescription']
+      seriesNumber = meta['DerivedSeriesNumber']
+    abbr = 'Unknown'
+    if descr.find('Apparent Diffusion Coeff')>=0:
+      abbr = 'ADC'
+    if descr.find('T2')>=0:
+      abbr = 'T2'
+    if descr.find('T1')>=0:
+      abbr = 'T1'
+    if descr.find('Ktrans')>=0:
+      abbr = 'Ktrans'
+    if descr.find('Ve')>=0:
+      abbr = 've'
+    if descr.find('MaxSlope')>=0:
+      abbr = 'MaxSlope'
+    if descr.find('TTP')>=0:
+      abbr = 'TTP'
+    if descr.find('Auc')>=0:
+      abbr = 'AUC'
+    if re.search('[a-zA-Z]',descr) == None:
+      abbr = 'Subtract'
+    return seriesNumber+'-'+abbr
 
   @staticmethod
   def setOffsetOnAllSliceWidgets(offset):
