@@ -240,11 +240,12 @@ class PCampReviewWidget:
     self.pkMaps = ['Ktrans','Ve','Auc','TTP','MaxSlope']
     self.helper = PCampReviewHelper()
     self.volumeNodes = {}
+    self.refSelectorIgnoreUpdates = False
 
   def enter(self):
     settings = qt.QSettings()
     userName = "" # settings.value('PCampReview/UserName')
-    resultsLocation = "" # settings.value('PCampReview/ResultsLocation')
+    resultsLocation = "/Users/fedorov/Temp/XNAT-results/" # settings.value('PCampReview/ResultsLocation')
 
     if userName == None or userName == '':
       # prompt the user for ID (last name)
@@ -320,7 +321,7 @@ class PCampReviewWidget:
         ref = self.refSeriesNumber
         redSliceWidget = layoutManager.sliceWidget('Red')
         compositeNode = redSliceWidget.mrmlSliceCompositeNode()
-        compositeNode.SetBackgroundVolumeID(self.volumeNodes[int(ref)].GetID())
+        compositeNode.SetBackgroundVolumeID(self.seriesMap[str(ref)]['Volume'].GetID())
         compositeNode.SetLabelVolumeID(self.seriesMap[str(ref)]['Label'].GetID())
         #slicer.app.applicationLogic().PropagateVolumeSelection(0)
         # redSliceWidget.fitSliceToBackground()
@@ -592,7 +593,7 @@ class PCampReviewWidget:
 
     self.refSelectorIgnoreUpdates = False
 
-    # self.onReferenceChanged(0)
+    self.onReferenceChanged(0)
     self.onViewUpdateRequested(2)
     self.onViewUpdateRequested(1)
     self.helper.setOpacityOnAllSliceWidgets(1.0)
@@ -640,6 +641,7 @@ class PCampReviewWidget:
 
     self.editorParameterNode.Modified()
 
+    self.onViewUpdateRequested(2)
     self.onViewUpdateRequested(1)
     self.helper.setOpacityOnAllSliceWidgets(1.0)
 
