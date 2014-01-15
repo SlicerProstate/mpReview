@@ -3,7 +3,7 @@ import string, qt, slicer, re
 class PCampReviewHelper(object):
   @staticmethod
   def isSeriesOfInterest(desc):
-    discardThose = ['SAG','COR','PURE','mapping','DWI','breath','3D DCE','loc','Expo','Map','MAP','POST','ThreeParameter','AutoAIF']
+    discardThose = ['SAG','COR','PURE','mapping','DWI','breath','3D DCE','loc','Expo','Map','MAP','POST','ThreeParameter','AutoAIF','BAT','-Slope','PkRsqr']
     for d in discardThose:
       if string.find(desc,d)>=0:
         return False

@@ -1,4 +1,4 @@
-import os, json
+import os, json, xml.dom.minidom
 import unittest
 from __main__ import vtk, qt, ctk, slicer, string, glob
 import CompareVolumes
@@ -113,9 +113,13 @@ class PCampReviewWidget:
     # Layout within the dummy collapsible button
     step1Layout = qt.QFormLayout(self.step1frame)
 
-    self.dataDirButton = qt.QPushButton('press to select')
+    self.dataDirButton = qt.QPushButton(str(self.settings.value('PCampReview/InputLocation')))
     self.dataDirButton.connect('clicked()', self.onInputDirSelected)
-    step1Layout.addRow("Data directory:", self.dataDirButton)
+    step1Layout.addRow("Select data directory:", self.dataDirButton)
+    self.inputDirLabel = qt.QLabel()
+    step1Layout.addRow(self.inputDirLabel)
+    self.resultsDirLabel = qt.QLabel()
+    step1Layout.addRow(self.resultsDirLabel)
     self.step1frame.collapsed = 0
     self.step1frame.connect('clicked()', self.onStep1Selected)
 
@@ -218,9 +222,9 @@ class PCampReviewWidget:
     #step5Layout = qt.QFormLayout(self.step5frame)
     # TODO: add here source directory selector
 
-    self.qaButton = qt.QPushButton("QA Form")
-    self.layout.addWidget(self.qaButton)
-    self.qaButton.connect('clicked()',self.onQAFormClicked)
+    #self.qaButton = qt.QPushButton("QA Form")
+    #self.layout.addWidget(self.qaButton)
+    #self.qaButton.connect('clicked()',self.onQAFormClicked)
 
     self.saveButton = qt.QPushButton("Save")
     self.layout.addWidget(self.saveButton)
@@ -244,8 +248,9 @@ class PCampReviewWidget:
 
   def enter(self):
     settings = qt.QSettings()
-    userName = "" # settings.value('PCampReview/UserName')
-    resultsLocation = "/Users/fedorov/Temp/XNAT-results/" # settings.value('PCampReview/ResultsLocation')
+    userName = settings.value('PCampReview/UserName')
+    resultsLocation = settings.value('PCampReview/ResultsLocation')
+    inputLocation = settings.value('PCampReview/InputLocation')
 
     if userName == None or userName == '':
       # prompt the user for ID (last name)
@@ -264,6 +269,24 @@ class PCampReviewWidget:
     else:
       self.parameters['UserName'] = userName
 
+    '''
+    # ask where is the input
+    if inputLocation == None or inputLocation == '':
+      self.dirPrompt = qt.QDialog()
+      self.dirPromptLayout = qt.QVBoxLayout()
+      self.dirPrompt.setLayout(self.dirPromptLayout)
+      self.dirLabel = qt.QLabel('Choose the directory with the input data:', self.dirPrompt)
+      self.dirButton = ctk.ctkDirectoryButton(self.dirPrompt)
+      self.dirButtonDone = qt.QPushButton('OK', self.dirPrompt)
+      self.dirButtonDone.connect('clicked()', self.onInputDirEntered)
+      self.dirPromptLayout.addWidget(self.dirLabel)
+      self.dirPromptLayout.addWidget(self.dirButton)
+      self.dirPromptLayout.addWidget(self.dirButtonDone)
+      self.dirPrompt.exec_()
+    else:
+      self.parameters['InputLocation'] = inputLocation
+      print('Setting inputlocation in settings to '+inputLocation)
+    # ask where to keep the results
     if resultsLocation == None or resultsLocation == '':
       self.dirPrompt = qt.QDialog()
       self.dirPromptLayout = qt.QVBoxLayout()
@@ -271,13 +294,17 @@ class PCampReviewWidget:
       self.dirLabel = qt.QLabel('Choose the directory to store the results:', self.dirPrompt)
       self.dirButton = ctk.ctkDirectoryButton(self.dirPrompt)
       self.dirButtonDone = qt.QPushButton('OK', self.dirPrompt)
-      self.dirButtonDone.connect('clicked()', self.onDirEntered)
+      self.dirButtonDone.connect('clicked()', self.onResultsDirEntered)
       self.dirPromptLayout.addWidget(self.dirLabel)
       self.dirPromptLayout.addWidget(self.dirButton)
       self.dirPromptLayout.addWidget(self.dirButtonDone)
       self.dirPrompt.exec_()
     else:
       self.parameters['ResultsLocation'] = resultsLocation
+    '''
+
+    #self.inputDirLabel.text = self.settings.value('PCampReview/InputLocation')
+    #self.resultsDirLabel.text = self.settings.value('PCampReview/ResultsLocation')
 
   def onNameEntered(self):
     name = self.nameText.text
@@ -286,12 +313,11 @@ class PCampReviewWidget:
       self.namePrompt.close()
       self.parameters['UserName'] = name
 
-  def onDirEntered(self):
+  def onResultsDirEntered(self):
     path = self.dirButton.directory
     if len(path)>0:
       self.settings.setValue('PCampReview/ResultsLocation',path)
       self.dirPrompt.close()
-      print('Setting results location to '+path)
       self.parameters['ResultsLocation'] = path
 
   def onViewUpdateRequested(self, id):
@@ -371,8 +397,8 @@ class PCampReviewWidget:
         Convention: create a directory for each type of resource saved,
         then subdirectory for each scan that was analyzed
     """
-    segmentationsDir = self.parameters['ResultsLocation']+'/'+self.studyName+'/Segmentations'
-    wlSettingsDir = self.parameters['ResultsLocation']+'/'+self.studyName+'/WindowLevelSettings'
+    segmentationsDir = self.settings.value('PCampReview/InputLocation')+'/'+self.studyName+'/Segmentations'
+    wlSettingsDir = self.settings.value('PCampReview/InputLocation')+'/'+self.studyName+'/WindowLevelSettings'
     try:
       os.makedirs(segmentationsDir)
       os.makedirs(wlSettingsDir)
@@ -384,9 +410,21 @@ class PCampReviewWidget:
     print('All label nodes found: '+str(labelNodes))
     savedMessage = 'Segmentations for the following series were saved:\n'
     for key in labelNodes.keys():
+      volume = slicer.util.getNode(key[:-6])
+      vsNode = volume.GetStorageNode()
+      vFileName = vsNode.GetFileName()
+      seriesNumber = os.path.split(os.path.split(os.path.split(vFileName)[0])[0])[1]
+      # structure is root -> study -> resources -> series # ->
+      # Segmentations/Reconstructions/OncoQuant -> files
+      segmentationsDir = self.settings.value('PCampReview/InputLocation')+'/'+self.studyName+'/RESOURCES/'+seriesNumber+'/Segmentations'
+      try:
+        os.makedirs(segmentationsDir)
+      except:
+        pass
+      print('Volume file name: '+vsNode.GetFileName())
+      labelFileName = segmentationsDir+'/'+seriesNumber+'.nrrd'
       sNode = slicer.vtkMRMLVolumeArchetypeStorageNode()
-      seriesNumber = string.split(key,":")[0]
-      sNode.SetFileName(segmentationsDir+'/'+seriesNumber+'-label.nrrd')
+      sNode.SetFileName(labelFileName)
       sNode.SetWriteFileFormat('nrrd')
       sNode.SetURI(None)
       sNode.WriteData(labelNodes[key])
@@ -394,6 +432,7 @@ class PCampReviewWidget:
       print(key+' has been saved')
 
     # save w/l settings for all non-label volume nodes
+    '''
     volumeNodes = slicer.util.getNodes('vtkMRMLScalarVolumeNode*')
     print('All volume nodes: '+str(volumeNodes))
     for key in volumeNodes.keys():
@@ -405,15 +444,39 @@ class PCampReviewWidget:
       f = open(wlSettingsDir+'/'+seriesNumber+'-wl.txt','w')
       f.write(str(vNode.GetDisplayNode().GetWindow())+' '+str(vNode.GetDisplayNode().GetLevel()))
       f.close()
+    '''
 
     self.helper.infoPopup(savedMessage)
 
   def onInputDirSelected(self):
     self.inputDataDir = qt.QFileDialog.getExistingDirectory(self.parent,'Input data directory', '/Users/fedorov/Temp/XNAT-images')
     self.dataDirButton.text = self.inputDataDir
-    self.parameters['InputDirectory'] = self.inputDataDir
+    self.settings.setValue('PCampReview/InputLocation', self.inputDataDir)
+    print('Directory selected:')
     print(self.inputDataDir)
+    print(self.settings.value('PCampReview/InputLocation'))
 
+  def findElement(self, dom, name):
+    els = dom.getElementsByTagName('element')
+    for e in els:
+      if e.getAttribute('name') == name:
+        return e.childNodes[0].nodeValue
+
+  def getSeriesInfoFromXML(self, f):
+    dom = xml.dom.minidom.parse(f)
+    number = self.findElement(dom, 'SeriesNumber')
+    name = self.findElement(dom, 'SeriesDescription')
+    return (number,name)
+
+  def checkAndLoadLabel(self, resourcesDir, seriesNumber, volumeName):
+    fileName = os.path.join(self.resourcesDir,str(seriesNumber),"Segmentations",str(seriesNumber)+'.nrrd')
+    (success,label) = slicer.util.loadVolume(fileName, returnNode=True)
+    if not success:
+      return (False,None)
+    print('Setting loaded label name to '+volumeName)
+    label.SetName(volumeName+'-label')
+    label.SetLabelMap(1)
+    return (True,label)
   '''
   Step 1: Select the directory that has the data
   '''
@@ -434,13 +497,15 @@ class PCampReviewWidget:
 
     studyDirs = []
     # get list of studies
-    if not os.path.exists(self.inputDataDir):
+    inputDir = self.settings.value('PCampReview/InputLocation')
+    if not os.path.exists(inputDir):
       return
 
-    dirs = os.listdir(self.inputDataDir)
+    dirs = os.listdir(inputDir)
     for studyName in dirs:
-      if os.path.isdir(self.inputDataDir+'/'+studyName):
+      if os.path.isdir(inputDir+'/'+studyName):
         studyDirs.append(studyName)
+        print('Appending '+studyName)
 
     self.studyTable.setContent(studyDirs)
 
@@ -476,7 +541,8 @@ class PCampReviewWidget:
 
     self.studyName = selectedItem.text()
 
-    self.resourcesDir = os.path.join(self.inputDataDir,self.studyName,'RESOURCES')
+    inputDir = self.settings.value('PCampReview/InputLocation')
+    self.resourcesDir = os.path.join(inputDir,self.studyName,'RESOURCES')
 
     # expect one directory for each processed series, with the name
     # corresponding to the series number
@@ -484,7 +550,26 @@ class PCampReviewWidget:
     for root,subdirs,files in os.walk(self.resourcesDir):
       print('Root: '+root+', files: '+str(files))
       resourceType = os.path.split(root)[1]
-      if resourceType == 'Reconstructions' or resourceType == 'OncoQuant':
+      print('Resource: '+resourceType)
+
+      if resourceType == 'Reconstructions':
+        for f in files:
+          print('File: '+f)
+          if f.endswith('.xml'):
+            metaFile = os.path.join(root,f)
+            print('Ends with xml: '+metaFile)
+            try:
+              (seriesNumber,seriesName) = self.getSeriesInfoFromXML(metaFile)
+              print(str(seriesNumber)+' '+seriesName)
+            except:
+              print('Failed to get from XML')
+              continue
+            volumePath = os.path.join(root,seriesNumber+'.nrrd')
+            self.seriesMap[seriesNumber] = {'MetaInfo':None, 'NRRDLocation':volumePath,'LongName':seriesName}
+            self.seriesMap[seriesNumber]['ShortName'] = seriesName
+            # self.helper.abbreviateName(self.seriesMap[seriesNumber]['MetaInfo'])
+
+      if resourceType == 'OncoQuant':
         for f in files:
           if f.endswith('.json'):
             metaFile = open(os.path.join(root,f))
@@ -499,6 +584,7 @@ class PCampReviewWidget:
             volumePath = os.path.join(root,seriesNumber+'.nrrd')
             self.seriesMap[seriesNumber] = {'MetaInfo':metaInfo, 'NRRDLocation':volumePath,'LongName':seriesName}
             self.seriesMap[seriesNumber]['ShortName'] = self.helper.abbreviateName(self.seriesMap[seriesNumber]['MetaInfo'])
+
 
     numbers = [int(x) for x in self.seriesMap.keys()]
     numbers.sort()
@@ -564,17 +650,22 @@ class PCampReviewWidget:
       self.delayDisplay('Processing series '+text)
 
       seriesNumber = text.split(':')[0]
-      fileName = self.seriesMap[seriesNumber]['NRRDLocation']
-      (success,volume) = slicer.util.loadVolume(fileName,returnNode=True)
-      self.seriesMap[seriesNumber]['Volume'] = volume
-
-      if self.seriesMap[seriesNumber]['MetaInfo']['ResourceType'] == 'OncoQuant':
-        dNode = volume.GetDisplayNode()
-        dNode.SetWindowLevel(5.0,2.5)
-        dNode.SetAndObserveColorNodeID('vtkMRMLColorTableNodeFileColdToHotRainbow.txt')
-
       shortName = self.seriesMap[seriesNumber]['ShortName']
       longName = self.seriesMap[seriesNumber]['LongName']
+
+      fileName = self.seriesMap[seriesNumber]['NRRDLocation']
+      (success,volume) = slicer.util.loadVolume(fileName,returnNode=True)
+      self.checkAndLoadLabel(self.resourcesDir, seriesNumber, shortName)
+      self.seriesMap[seriesNumber]['Volume'] = volume
+
+      try:
+        if self.seriesMap[seriesNumber]['MetaInfo']['ResourceType'] == 'OncoQuant':
+          dNode = volume.GetDisplayNode()
+          dNode.SetWindowLevel(5.0,2.5)
+          dNode.SetAndObserveColorNodeID('vtkMRMLColorTableNodeFileColdToHotRainbow.txt')
+      except:
+        pass
+
       self.seriesMap[seriesNumber]['Volume'].SetName(shortName)
 
       if longName.find('T2')>=0 and longName.find('AX')>=0:
@@ -589,7 +680,7 @@ class PCampReviewWidget:
 
     print('Selected series: '+str(selectedSeries)+', reference: '+str(ref))
     self.cvLogic = CompareVolumes.CompareVolumesLogic()
-    self.viewNames = [self.seriesMap[str(ref)]['ShortName']]
+    #self.viewNames = [self.seriesMap[str(ref)]['ShortName']]
 
     self.refSelectorIgnoreUpdates = False
 
@@ -632,7 +723,7 @@ class PCampReviewWidget:
 
     print('Volume nodes: '+str(self.viewNames))
     cvLogic = CompareVolumes.CompareVolumesLogic()
-    cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel, viewNames=self.viewNames)
+    cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel)
     cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
 
     print('Setting master node for the Editor to '+self.volumeNodes[0].GetID())
