@@ -474,8 +474,15 @@ class PCampReviewWidget:
     if not success:
       return (False,None)
     print('Setting loaded label name to '+volumeName)
-    label.SetName(volumeName+'-label')
+    label.SetName(volumeName+'-label')    
     label.SetLabelMap(1)
+    label.RemoveAllDisplayNodeIDs()
+
+    dNode = slicer.vtkMRMLLabelMapVolumeDisplayNode()
+    slicer.mrmlScene.AddNode(dNode)
+    dNode.SetAndObserveColorNodeID(slicer.modules.colors.logic().GetDefaultLabelMapColorNodeID())
+    label.SetAndObserveDisplayNodeID(dNode.GetID())
+
     return (True,label)
   '''
   Step 1: Select the directory that has the data
@@ -569,7 +576,8 @@ class PCampReviewWidget:
             self.seriesMap[seriesNumber]['ShortName'] = seriesName
             # self.helper.abbreviateName(self.seriesMap[seriesNumber]['MetaInfo'])
 
-      if resourceType == 'OncoQuant':
+      # ignore the PK maps for the purposes of segmentation
+      if resourceType == 'OncoQuant' and False:
         for f in files:
           if f.endswith('.json'):
             metaFile = open(os.path.join(root,f))
@@ -646,7 +654,6 @@ class PCampReviewWidget:
     selectedSeries = {}
     for i in checkedItems:
       text = i.text()
-      self.refSelector.addItem(text)
       self.delayDisplay('Processing series '+text)
 
       seriesNumber = text.split(':')[0]
@@ -655,15 +662,24 @@ class PCampReviewWidget:
 
       fileName = self.seriesMap[seriesNumber]['NRRDLocation']
       (success,volume) = slicer.util.loadVolume(fileName,returnNode=True)
-      self.checkAndLoadLabel(self.resourcesDir, seriesNumber, shortName)
-      self.seriesMap[seriesNumber]['Volume'] = volume
+      if success:
+        self.seriesMap[seriesNumber]['Volume'] = volume
+      else:
+        print('Failed to load image volume!')
+        return
+      (success,label) = self.checkAndLoadLabel(self.resourcesDir, seriesNumber, shortName)
+      if success:
+        self.seriesMap[seriesNumber]['Label'] = label
 
       try:
         if self.seriesMap[seriesNumber]['MetaInfo']['ResourceType'] == 'OncoQuant':
           dNode = volume.GetDisplayNode()
           dNode.SetWindowLevel(5.0,2.5)
           dNode.SetAndObserveColorNodeID('vtkMRMLColorTableNodeFileColdToHotRainbow.txt')
+        else:
+          self.refSelector.addItem(text)
       except:
+        self.refSelector.addItem(text)
         pass
 
       self.seriesMap[seriesNumber]['Volume'].SetName(shortName)
