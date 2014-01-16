@@ -1,2 +1,43 @@
 Slicer 4 extension for facilitating radiology review of multiparametric MRI
-data. Work in progress.
+data. Work in progress. Contact: fedorov@bwh.harvard.edu
+
+This module will prompt the user for the location of the input data, provide
+the list of available studies, for the selected study, will list the available
+series and prompt the user for the series that need to be loaded. The selected
+series will be loaded into Slicer, and displayed in a layout that shows each
+series in a separate viewport. The user can then select the series on which to
+perform segmentation, and can proceed with this task using Editor module. The
+resulting segmentations will be saved in the input directory hierarchy following
+the implementation conventions.
+
+This extension makes a number of assumptions in interpreting the data, and
+aims to follow these conventions:
+
+1) the image data is derived from DICOM, and the meta-data is available
+
+2) the user-defined input directory is assumed to have the following structure:
+
+ InputLocation
+   |
+   -- Study
+      |
+      -- RESOURCES
+         |
+         -- SeriesNumber
+            |
+            -- Reconstructions
+               |
+               -- <SeriesNumber>.nrrd   <-- image volume in NRRD format
+               -- <SeriesNumber>.xml    <-- output of the dcm2xml tool to
+                                            an image from this series
+            |
+            -- Segmentations
+               |
+               -- <SeriesNumber>.nrrd
+
+3) segmentations produced by the user will be saved at the same level as
+ Reconstructions in Segmentations directory. Segmentation label will be saved
+ as <SeriesNumber>.nrrd. NOTE: this approach currently does not support multiple
+ segmentations per series (e.g., multiple users, multiple readings). This was not
+ required at the time, and assumption of single segmentation image per series
+ makes the implementation and user interaction simpler.
