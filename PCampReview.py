@@ -422,7 +422,13 @@ class PCampReviewWidget:
       except:
         pass
       print('Volume file name: '+vsNode.GetFileName())
-      labelFileName = segmentationsDir+'/'+seriesNumber+'.nrrd'
+
+      import datetime
+      uniqueID = self.settings.value('PCampReview/UserName')+\
+        '-'+datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+
+      labelFileName = os.path.join(segmentationsDir,uniqueID+'.nrrd')
+    
       sNode = slicer.vtkMRMLVolumeArchetypeStorageNode()
       sNode.SetFileName(labelFileName)
       sNode.SetWriteFileFormat('nrrd')
@@ -469,7 +475,14 @@ class PCampReviewWidget:
     return (number,name)
 
   def checkAndLoadLabel(self, resourcesDir, seriesNumber, volumeName):
-    fileName = os.path.join(self.resourcesDir,str(seriesNumber),"Segmentations",str(seriesNumber)+'.nrrd')
+    globPath = os.path.join(self.resourcesDir,str(seriesNumber),"Segmentations",
+        self.settings.value('PCampReview/UserName')+'*')
+    previousSegmentations = glob.glob(globPath)
+    if not len(previousSegmentations):
+      return (False,None)
+    
+    fileName = previousSegmentations[-1]
+
     (success,label) = slicer.util.loadVolume(fileName, returnNode=True)
     if not success:
       return (False,None)
