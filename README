@@ -33,7 +33,7 @@ aims to follow these conventions:
             |
             -- Segmentations
                |
-               -- <SeriesNumber>.nrrd
+               -- <SeriesNumber>.nrrd   <-- segmentation volume in NRRD format
 
 3) segmentations produced by the user will be saved at the same level as
  Reconstructions in Segmentations directory. Segmentation label will be saved
