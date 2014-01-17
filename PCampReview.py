@@ -246,6 +246,8 @@ class PCampReviewWidget:
     self.volumeNodes = {}
     self.refSelectorIgnoreUpdates = False
 
+    # self.customLUT = self.helper.addCustomLUTToScene()
+
   def enter(self):
     settings = qt.QSettings()
     userName = settings.value('PCampReview/UserName')
@@ -764,6 +766,8 @@ class PCampReviewWidget:
     self.onViewUpdateRequested(2)
     self.onViewUpdateRequested(1)
     self.helper.setOpacityOnAllSliceWidgets(1.0)
+
+    print('Exiting onReferenceChanged')
 
   def cleanupDir(self, d):
     if not os.path.exists(d):

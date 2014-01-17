@@ -41,3 +41,12 @@ aims to follow these conventions:
  segmentations per series (e.g., multiple users, multiple readings). This was not
  required at the time, and assumption of single segmentation image per series
  makes the implementation and user interaction simpler.
+
+ Missing features:
+  * provenance elements: who (user information), when (date), how (w/l), what
+     (no information about the structures being segmented)
+
+ TODO:
+  * add a custom color LUT
+    details: https://github.com/paulcm/LongitudinalPETCT/blob/master/Logic/vtkSlicerLongitudinalPETCTLogic.cxx#L240
+  * add support for multiple readers and reading date
