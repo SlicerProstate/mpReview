@@ -1,14 +1,12 @@
-import os, json, xml.dom.minidom
+import os, json, xml.dom.minidom, string, glob, re
 import unittest
-from __main__ import vtk, qt, ctk, slicer, string, glob
+from __main__ import vtk, qt, ctk, slicer
 import CompareVolumes
 from Editor import EditorWidget
 from EditorLib import EditColor
 import Editor
 from EditorLib import EditUtil
 from EditorLib import EditorLib
-
-from PCampReviewHelper import PCampReviewHelper as PCampReviewHelper
 
 #
 # PCampReview
@@ -70,6 +68,85 @@ class PCampReviewWidget:
       # for release package...
       self.editUtil = EditorLib.EditUtil()
 
+  def isSeriesOfInterest(self,desc):
+    discardThose = ['SAG','COR','PURE','mapping','DWI','breath','3D DCE','loc','Expo','Map','MAP','POST','ThreeParameter','AutoAIF','BAT','-Slope','PkRsqr']
+    for d in discardThose:
+      if string.find(desc,d)>=0:
+        return False
+    return True
+
+  def abbreviateNames(self, longNames, fullMatch):
+    shortNames = []
+    firstADC = True
+    for name in longNames:
+      print(str(shortNames))
+      if name in fullMatch:
+        shortNames.append(name)
+      elif string.find(name,'T2')>0:
+        shortNames.append('T2')
+      elif string.find(name,'T1')>0:
+        shortNames.append('T1')
+      elif string.find(name,'Apparent Diffusion Coefficient')>0:
+        if firstADC:
+          shortNames.append('ADCb500')
+          firstADC = False
+        else:
+          shortNames.append('ADCb1400')
+      else:
+        shortNames.append('Subtract')
+    return shortNames
+
+  def abbreviateName(self, meta):
+    try:
+      descr = meta['SeriesDescription']
+      seriesNumber = meta['SeriesNumber']
+    except:
+      descr = meta['DerivedSeriesDescription']
+      seriesNumber = meta['DerivedSeriesNumber']
+    abbr = 'Unknown'
+    if descr.find('Apparent Diffusion Coeff')>=0:
+      abbr = 'ADC'
+    if descr.find('T2')>=0:
+      abbr = 'T2'
+    if descr.find('T1')>=0:
+      abbr = 'T1'
+    if descr.find('Ktrans')>=0:
+      abbr = 'Ktrans'
+    if descr.find('Ve')>=0:
+      abbr = 've'
+    if descr.find('MaxSlope')>=0:
+      abbr = 'MaxSlope'
+    if descr.find('TTP')>=0:
+      abbr = 'TTP'
+    if descr.find('Auc')>=0:
+      abbr = 'AUC'
+    if re.search('[a-zA-Z]',descr) == None:
+      abbr = 'Subtract'
+    return seriesNumber+'-'+abbr
+
+  def setOffsetOnAllSliceWidgets(self,offset):
+    layoutManager = slicer.app.layoutManager()
+    widgetNames = layoutManager.sliceViewNames()
+    for wn in widgetNames:
+      widget = layoutManager.sliceWidget(wn)
+      node = widget.mrmlSliceNode()
+      node.SetSliceOffset(offset)
+
+      sc = widget.mrmlSliceCompositeNode()
+      sc.SetLinkedControl(1)
+      sc.SetInteractionFlagsModifier(4+8+16)
+
+  def setOpacityOnAllSliceWidgets(self,opacity):
+    layoutManager = slicer.app.layoutManager()
+    widgetNames = layoutManager.sliceViewNames()
+    for wn in widgetNames:
+      widget = layoutManager.sliceWidget(wn)
+      sc = widget.mrmlSliceCompositeNode()
+      sc.SetForegroundOpacity(opacity)
+
+  def infoPopup(self,message):
+    messageBox = qt.QMessageBox()
+    messageBox.information(None, 'Slicer mpMRI review', message)
 
   def setup(self):
     # Instantiate and connect widgets ...
@@ -242,11 +319,8 @@ class PCampReviewWidget:
 
     # these are the PK maps that should be loaded
     self.pkMaps = ['Ktrans','Ve','Auc','TTP','MaxSlope']
-    self.helper = PCampReviewHelper()
     self.volumeNodes = {}
     self.refSelectorIgnoreUpdates = False
-
-    # self.customLUT = self.helper.addCustomLUTToScene()
 
   def enter(self):
     settings = qt.QSettings()
@@ -332,7 +406,7 @@ class PCampReviewWidget:
       redSliceOffset = redSliceNode.GetSliceOffset()
       print('Red slice offset: '+str(redSliceOffset))
 
-      self.helper.setOffsetOnAllSliceWidgets(redSliceOffset)
+      self.setOffsetOnAllSliceWidgets(redSliceOffset)
 
       # set linking properties on one composite node -- should it apply to
       # all?
@@ -454,7 +528,7 @@ class PCampReviewWidget:
       f.close()
     '''
 
-    self.helper.infoPopup(savedMessage)
+    self.infoPopup(savedMessage)
 
   def onInputDirSelected(self):
     self.inputDataDir = qt.QFileDialog.getExistingDirectory(self.parent,'Input data directory', '/Users/fedorov/Temp/XNAT-images')
@@ -479,6 +553,7 @@ class PCampReviewWidget:
   def checkAndLoadLabel(self, resourcesDir, seriesNumber, volumeName):
     globPath = os.path.join(self.resourcesDir,str(seriesNumber),"Segmentations",
         self.settings.value('PCampReview/UserName')+'*')
+    import glob
     previousSegmentations = glob.glob(globPath)
     if not len(previousSegmentations):
       return (False,None)
@@ -606,7 +681,7 @@ class PCampReviewWidget:
               seriesName = metaInfo['ModelType']+'-'+metaInfo['AIF']+'-'+metaInfo['Parameter']
             volumePath = os.path.join(root,seriesNumber+'.nrrd')
             self.seriesMap[seriesNumber] = {'MetaInfo':metaInfo, 'NRRDLocation':volumePath,'LongName':seriesName}
-            self.seriesMap[seriesNumber]['ShortName'] = self.helper.abbreviateName(self.seriesMap[seriesNumber]['MetaInfo'])
+            self.seriesMap[seriesNumber]['ShortName'] = self.abbreviateName(self.seriesMap[seriesNumber]['MetaInfo'])
 
 
     numbers = [int(x) for x in self.seriesMap.keys()]
@@ -621,7 +696,7 @@ class PCampReviewWidget:
 
     for row in xrange(self.seriesTable.widget.rowCount):
       item = self.seriesTable.widget.item(row,0)
-      if self.helper.isSeriesOfInterest(item.text()):
+      if self.isSeriesOfInterest(item.text()):
         item.setCheckState(True)
         print('Checked: '+str(item.checkState()))
 
@@ -718,7 +793,7 @@ class PCampReviewWidget:
     self.onReferenceChanged(0)
     self.onViewUpdateRequested(2)
     self.onViewUpdateRequested(1)
-    self.helper.setOpacityOnAllSliceWidgets(1.0)
+    self.setOpacityOnAllSliceWidgets(1.0)
 
   def onReferenceChanged(self, id):
 
@@ -765,7 +840,7 @@ class PCampReviewWidget:
 
     self.onViewUpdateRequested(2)
     self.onViewUpdateRequested(1)
-    self.helper.setOpacityOnAllSliceWidgets(1.0)
+    self.setOpacityOnAllSliceWidgets(1.0)
 
     print('Exiting onReferenceChanged')
 
