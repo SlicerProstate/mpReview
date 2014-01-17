@@ -484,24 +484,14 @@ class PCampReviewWidget:
     # save all label nodes (there should be only one per volume!)
     labelNodes = slicer.util.getNodes('*-label*')
     print('All label nodes found: '+str(labelNodes))
-    savedMessage = 'Segmentations for the following series were saved:\n'
+    savedMessage = 'Segmentations for the following series were saved:\n\n'
     for label in labelNodes.values():
-      # do reverse lookup to find out what series number matches this label
-      labelSeries = None
-      for seriesNumber in self.seriesMap.keys():
-        try:
-          if self.seriesMap[seriesNumber]['Label'] == label:
-            labelSeries = seriesNumber
-        except:
-          # not all volumes will have labels!
-          continue
-      if not labelSeries:
-        print('ERROR: cannot find the volume matching label '+label.GetName())
-        continue
+
+      labelSeries = label.GetName().split(':')[0]
 
       # structure is root -> study -> resources -> series # ->
       # Segmentations/Reconstructions/OncoQuant -> files
-      segmentationsDir = self.settings.value('PCampReview/InputLocation')+'/'+self.studyName+'/RESOURCES/'+seriesNumber+'/Segmentations'
+      segmentationsDir = self.settings.value('PCampReview/InputLocation')+'/'+self.studyName+'/RESOURCES/'+labelSeries+'/Segmentations'
       try:
         os.makedirs(segmentationsDir)
       except:
@@ -519,8 +509,8 @@ class PCampReviewWidget:
       sNode.SetURI(None)
       success = sNode.WriteData(label)
       if success:
-        savedMessage = savedMessage + string.split(label.GetName(),'-label')[0]+'\n'
-        print(label.GetName()+' has been saved')
+        savedMessage = savedMessage + label.GetName()+'\n'
+        print(label.GetName()+' has been saved to '+labelFileName)
 
     # save w/l settings for all non-label volume nodes
     '''
@@ -674,7 +664,7 @@ class PCampReviewWidget:
               continue
             volumePath = os.path.join(root,seriesNumber+'.nrrd')
             self.seriesMap[seriesNumber] = {'MetaInfo':None, 'NRRDLocation':volumePath,'LongName':seriesName}
-            self.seriesMap[seriesNumber]['ShortName'] = seriesName
+            self.seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+seriesName
             # self.helper.abbreviateName(self.seriesMap[seriesNumber]['MetaInfo'])
 
       # ignore the PK maps for the purposes of segmentation
@@ -692,7 +682,7 @@ class PCampReviewWidget:
               seriesName = metaInfo['ModelType']+'-'+metaInfo['AIF']+'-'+metaInfo['Parameter']
             volumePath = os.path.join(root,seriesNumber+'.nrrd')
             self.seriesMap[seriesNumber] = {'MetaInfo':metaInfo, 'NRRDLocation':volumePath,'LongName':seriesName}
-            self.seriesMap[seriesNumber]['ShortName'] = self.abbreviateName(self.seriesMap[seriesNumber]['MetaInfo'])
+            self.seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+self.abbreviateName(self.seriesMap[seriesNumber]['MetaInfo'])
 
 
     numbers = [int(x) for x in self.seriesMap.keys()]
@@ -765,6 +755,7 @@ class PCampReviewWidget:
       (success,volume) = slicer.util.loadVolume(fileName,returnNode=True)
       if success:
         self.seriesMap[seriesNumber]['Volume'] = volume
+        volume.SetName(shortName)
       else:
         print('Failed to load image volume!')
         return
