@@ -486,8 +486,12 @@ class PCampReviewWidget:
     print('All label nodes found: '+str(labelNodes))
     savedMessage = 'Segmentations for the following series were saved:\n'
     for key in labelNodes.keys():
-      volume = slicer.util.getNode(key[:-6])
+      volume = slicer.util.getNode(key)
       vsNode = volume.GetStorageNode()
+      if not vsNode:
+        print('FATAL ERROR: no storage node for '+key)
+        continue
+
       vFileName = vsNode.GetFileName()
       seriesNumber = os.path.split(os.path.split(os.path.split(vFileName)[0])[0])[1]
       # structure is root -> study -> resources -> series # ->
@@ -572,6 +576,8 @@ class PCampReviewWidget:
     slicer.mrmlScene.AddNode(dNode)
     dNode.SetAndObserveColorNodeID(slicer.modules.colors.logic().GetDefaultLabelMapColorNodeID())
     label.SetAndObserveDisplayNodeID(dNode.GetID())
+
+    print('Label loaded, storage node is '+label.GetStorageNode().GetID())
 
     return (True,label)
   '''
