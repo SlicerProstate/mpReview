@@ -485,15 +485,20 @@ class PCampReviewWidget:
     labelNodes = slicer.util.getNodes('*-label*')
     print('All label nodes found: '+str(labelNodes))
     savedMessage = 'Segmentations for the following series were saved:\n'
-    for key in labelNodes.keys():
-      volume = slicer.util.getNode(key)
-      vsNode = volume.GetStorageNode()
-      if not vsNode:
-        print('FATAL ERROR: no storage node for '+key)
+    for label in labelNodes.values():
+      # do reverse lookup to find out what series number matches this label
+      labelSeries = None
+      for seriesNumber in self.seriesMap.keys():
+        try:
+          if self.seriesMap[seriesNumber]['Label'] == label:
+            labelSeries = seriesNumber
+        except:
+          # not all volumes will have labels!
+          continue
+      if not labelSeries:
+        print('ERROR: cannot find the volume matching label '+label.GetName())
         continue
 
-      vFileName = vsNode.GetFileName()
-      seriesNumber = os.path.split(os.path.split(os.path.split(vFileName)[0])[0])[1]
       # structure is root -> study -> resources -> series # ->
       # Segmentations/Reconstructions/OncoQuant -> files
       segmentationsDir = self.settings.value('PCampReview/InputLocation')+'/'+self.studyName+'/RESOURCES/'+seriesNumber+'/Segmentations'
@@ -501,7 +506,6 @@ class PCampReviewWidget:
         os.makedirs(segmentationsDir)
       except:
         pass
-      print('Volume file name: '+vsNode.GetFileName())
 
       import datetime
       uniqueID = self.settings.value('PCampReview/UserName')+\
@@ -513,9 +517,10 @@ class PCampReviewWidget:
       sNode.SetFileName(labelFileName)
       sNode.SetWriteFileFormat('nrrd')
       sNode.SetURI(None)
-      sNode.WriteData(labelNodes[key])
-      savedMessage = savedMessage + string.split(key,'-label')[0]+'\n'
-      print(key+' has been saved')
+      success = sNode.WriteData(label)
+      if success:
+        savedMessage = savedMessage + string.split(label.GetName(),'-label')[0]+'\n'
+        print(label.GetName()+' has been saved')
 
     # save w/l settings for all non-label volume nodes
     '''
