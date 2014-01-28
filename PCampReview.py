@@ -299,9 +299,9 @@ class PCampReviewWidget:
     #step5Layout = qt.QFormLayout(self.step5frame)
     # TODO: add here source directory selector
 
-    #self.qaButton = qt.QPushButton("QA Form")
-    #self.layout.addWidget(self.qaButton)
-    #self.qaButton.connect('clicked()',self.onQAFormClicked)
+    self.qaButton = qt.QPushButton("QA Form")
+    self.layout.addWidget(self.qaButton)
+    self.qaButton.connect('clicked()',self.onQAFormClicked)
 
     self.saveButton = qt.QPushButton("Save")
     self.layout.addWidget(self.saveButton)
@@ -451,8 +451,8 @@ class PCampReviewWidget:
     self.webView.connect('loadFinished(bool)', self.webViewFormLoadedCallback)
     self.webView.show()
     preFilledURL = self.webFormURL
-    preFilledURL += '?entry.2057130045='+self.parameters['UserName']
-    preFilledURL += '&entry.296646450='+self.parameters['StudyName']
+    preFilledURL += '?entry.2057130045='+self.settings.value('PCampReview/UserName')
+    preFilledURL += '&entry.296646450='+self.studyName
     u = qt.QUrl(preFilledURL)
     self.webView.setUrl(u)
 
@@ -684,7 +684,8 @@ class PCampReviewWidget:
             self.seriesMap[seriesNumber] = {'MetaInfo':metaInfo, 'NRRDLocation':volumePath,'LongName':seriesName}
             self.seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+self.abbreviateName(self.seriesMap[seriesNumber]['MetaInfo'])
 
-
+    print('All series found: '+str(self.seriesMap.keys()))
+  
     numbers = [int(x) for x in self.seriesMap.keys()]
     numbers.sort()
 
@@ -708,6 +709,7 @@ class PCampReviewWidget:
 
   def onStep4Selected(self):
     # set up editor
+
     self.editorWidget.enter()
 
     self.step2frame.collapsed = 1
