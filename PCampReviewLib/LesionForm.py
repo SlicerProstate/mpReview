@@ -10,7 +10,7 @@ class LesionFormParameterNode:
     self.DCEscore = -1
     self.lesionName = ''
 
-class LesionFormWidget(RegistrationLib.pqWidget):
+class LesionFormWidget(PCampReviewLib.pqWidget):
   """
   Widget that manages the PI-RADS review form for a lesion.
   This widget initializes the form based on the content of the
@@ -65,12 +65,12 @@ class LesionFormWidget(RegistrationLib.pqWidget):
     t2label = qt.QLabel('T2W')
     wl.addWidget(t2label)
     t2radios = []
-    t2group = qt.QButtonGroup()
+    self.t2group = qt.QButtonGroup()
     for i in range(1,6):
       t2radios.append(qt.QRadioButton())
-      t2group.addButton(t2radios[-1],i)
+      self.t2group.addButton(t2radios[-1],i)
       wl.addWidget(t2radios[-1])
-    t2group.connect('buttonClicked(int)', self.onT2scoreUpdated)
+    self.t2group.connect('buttonClicked(int)', self.onT2scoreUpdated)
   
     ssLayout.addWidget(w)
   
@@ -80,12 +80,12 @@ class LesionFormWidget(RegistrationLib.pqWidget):
     dwilabel = qt.QLabel('DWI')
     wl.addWidget(dwilabel)
     dwiradios = []
-    dwigroup = qt.QButtonGroup()
+    self.dwigroup = qt.QButtonGroup()
     for i in range(1,6):
       dwiradios.append(qt.QRadioButton())
-      dwigroup.addButton(dwiradios[-1],i)
+      self.dwigroup.addButton(dwiradios[-1],i)
       wl.addWidget(dwiradios[-1])
-    dwigroup.connect('buttonClicked(int)', self.onDWIscoreUpdated)
+    self.dwigroup.connect('buttonClicked(int)', self.onDWIscoreUpdated)
   
     ssLayout.addWidget(w)
   
@@ -95,12 +95,12 @@ class LesionFormWidget(RegistrationLib.pqWidget):
     dcelabel = qt.QLabel('DCE')
     wl.addWidget(dcelabel)
     dceradios = []
-    dcegroup = qt.QButtonGroup()
+    self.dcegroup = qt.QButtonGroup()
     for i in range(1,6):
       dceradios.append(qt.QRadioButton())
-      dcegroup.addButton(dceradios[-1],i)
+      self.dcegroup.addButton(dceradios[-1],i)
       wl.addWidget(dceradios[-1])
-    dcegroup.connect('buttonClicked(int)', self.onDCEscoreUpdated)
+    self.dcegroup.connect('buttonClicked(int)', self.onDCEscoreUpdated)
   
     ssLayout.addWidget(w)
   
@@ -127,21 +127,18 @@ class LesionFormWidget(RegistrationLib.pqWidget):
     cwl = qt.QVBoxLayout(cw)
     cwl.addWidget(chartView)
     pLayout.addWidget(cw)
-  
+
     self.layout.addWidget(lesionNameWidget)
     self.layout.addWidget(scoreSheetWidget)
     self.layout.addWidget(plotWidget)
   
   def onT2scoreUpdated(self,score):
-    print('T2 updated')
     self.param.T2score = score
   
   def onDWIscoreUpdated(self,score):
-    print('DWI updated')
     self.param.DWIscore = score
 
   def onDCEscoreUpdated(self,score):
-    print('DCE updated')
     self.param.DCEscore = score
 
   def getParameterNode(self):
