@@ -8,6 +8,8 @@ import Editor
 from EditorLib import EditUtil
 from EditorLib import EditorLib
 
+import PCampReviewLib
+
 #
 # PCampReview
 #
@@ -288,8 +290,20 @@ class PCampReviewWidget:
     # keep here names of the views created by CompareVolumes logic
     self.viewNames = []
 
+    # Step 5: PI-RADS review
     #
-    # Step 5: save results
+    self.step5frame = ctk.ctkCollapsibleButton()
+    self.step5frame.text = "Step 5: PI-RADS review"
+    self.layout.addWidget(self.step5frame)
+    self.step5frame.connect('clicked()', self.onPIRADS)
+
+    # Layout within the dummy collapsible button
+    self.piradsLayout = qt.QFormLayout(self.step5frame)
+    # will be populated on entry depending on the content of the
+    # segmented labels
+
+    #
+    # Step 6: save results
     #
     #self.step5frame = ctk.ctkCollapsibleButton()
     #self.step5frame.text = "Step 5: Save results"
@@ -306,6 +320,10 @@ class PCampReviewWidget:
     self.saveButton = qt.QPushButton("Save")
     self.layout.addWidget(self.saveButton)
     self.saveButton.connect('clicked()', self.onSaveClicked)
+
+    self.piradsButton = qt.QPushButton("PI-RADS review")
+    self.layout.addWidget(self.piradsButton)
+    # self.piradsButton.connect('clicked()',self.onPiradsClicked)
 
     # Add vertical spacer
     self.layout.addStretch(1)
@@ -378,6 +396,8 @@ class PCampReviewWidget:
     else:
       self.parameters['ResultsLocation'] = resultsLocation
     '''
+
+    self.currentStep = 1
 
     #self.inputDirLabel.text = self.settings.value('PCampReview/InputLocation')
     #self.resultsDirLabel.text = self.settings.value('PCampReview/ResultsLocation')
@@ -579,6 +599,9 @@ class PCampReviewWidget:
   Step 1: Select the directory that has the data
   '''
   def onStep1Selected(self):
+    if self.currentStep == 1:
+      return
+    self.currentStep = 1
     self.step1frame.collapsed = 0
     self.step2frame.collapsed = 1
     self.step3frame.collapsed = 1
@@ -588,6 +611,9 @@ class PCampReviewWidget:
   Step 2: Select the patient
   '''
   def onStep2Selected(self):
+    if self.currentStep == 2:
+      return
+    self.currentStep = 2
     self.step2frame.collapsed = 0
     self.step1frame.collapsed = 1
     self.step3frame.collapsed = 1
@@ -613,6 +639,9 @@ class PCampReviewWidget:
   Step 3: Select series of interest
   '''
   def onStep3Selected(self):
+    if self.currentStep == 3:
+      return
+    self.currentStep = 3
     print('Entering step 3')
 
     self.cleanupDir(self.tempDir)
@@ -709,6 +738,9 @@ class PCampReviewWidget:
 
   def onStep4Selected(self):
     # set up editor
+    if self.currentStep == 4:
+      return
+    self.currentStep = 4
 
     self.editorWidget.enter()
 
@@ -798,6 +830,55 @@ class PCampReviewWidget:
     self.onViewUpdateRequested(2)
     self.onViewUpdateRequested(1)
     self.setOpacityOnAllSliceWidgets(1.0)
+
+  def onPIRADS(self):
+    '''
+    1) determine the number of lesions (should be the same in all labels)
+    2) for the volumes matching labels, identify T2, subtract and ADC
+    3) get the DCE curve for each label
+    4) get ADC statistics for each label
+    5) create lesion form for each label
+    '''
+
+    if self.currentStep == 'PIRADS':
+      return
+    self.currentStep = 'PIRADS'
+
+    self.step2frame.collapsed = 1
+    self.step3frame.collapsed = 1
+    self.step1frame.collapsed = 1
+    self.step4frame.collapsed = 1
+
+    # determine the number of lesions
+    allLabels = slicer.util.getNodes('*-label')
+    if not len(allLabels):
+      return
+
+    aLabel = allLabels.values()[0]
+    import SimpleITK as sitk
+    import sitkUtils
+
+    lesionIDs = []
+    statFilter = sitk.LabelStatisticsImageFilter()
+    for l in allLabels.values():
+      labelName = l.GetName()
+      print('Found label '+labelName)
+      img = sitk.ReadImage(sitkUtils.GetSlicerITKReadWriteAddress(labelName))
+      statFilter.Execute(img,img)
+      lesionIDs = [x for x in statFilter.GetValidLabels() if x]
+      if len(lesionIDs):
+        break
+
+    self.lesionFormWidgets = []
+    for lesionID in lesionIDs:
+      # add widget per each lesion
+      p = PCampReviewLib.LesionFormParameterNode()
+      p.lesionName = 'ROI '+str(lesionID)
+      p.x = range(10)
+      p.y = range(10)
+      w = PCampReviewLib.LesionFormWidget(p)
+      self.lesionFormWidgets.append(w)
+      self.piradsLayout.addWidget(w.widget)
 
   def onReferenceChanged(self, id):
 
@@ -915,6 +996,7 @@ class PCampReviewWidget:
       traceback.print_exc()
       qt.QMessageBox.warning(slicer.util.mainWindow(),
           "Reload and Test", 'Exception!\n\n' + str(e) + "\n\nSee Python Console for Stack Trace")
+
 
 
 #
