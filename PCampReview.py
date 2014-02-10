@@ -185,8 +185,8 @@ class PCampReviewWidget:
     #
     # Step 1: selection of the data directory
     #
-    self.step1frame = ctk.ctkCollapsibleButton()
-    self.step1frame.text = "Step 1: Data source"
+    self.step1frame = ctk.ctkCollapsibleGroupBox()
+    self.step1frame.setTitle("Step 1: Data source")
     self.layout.addWidget(self.step1frame)
 
     # Layout within the dummy collapsible button
@@ -207,34 +207,47 @@ class PCampReviewWidget:
     #
     # Step 2: selection of the study to be analyzed
     #
-    self.step2frame = ctk.ctkCollapsibleButton()
-    self.step2frame.text = "Step 2: Study selection"
+    self.step2frame = ctk.ctkCollapsibleGroupBox()
+    self.step2frame.setTitle("Step 2: Study selection")
     self.layout.addWidget(self.step2frame)
 
     # Layout within the dummy collapsible button
     step2Layout = qt.QFormLayout(self.step2frame)
     # TODO: add here source directory selector
 
-    self.studyTable = ItemTable(self.step2frame,headerName='Study Name')
-    step2Layout.addWidget(self.studyTable.widget)
-
     self.step2frame.collapsed = 1
     self.step2frame.connect('clicked()', self.onStep2Selected)
+
+    self.studiesView = qt.QListView()
+    self.studiesView.setObjectName('StudiesTable')
+    self.studiesView.setSpacing(3)
+    self.studiesModel = qt.QStandardItemModel()
+    self.studiesModel.setHorizontalHeaderLabels(['Study ID'])
+    self.studiesView.setModel(self.studiesModel)
+    self.studiesView.setEditTriggers(qt.QAbstractItemView.NoEditTriggers)
+    self.studiesView.connect('clicked(QModelIndex)', self.studySelected)
+    step2Layout.addWidget(self.studiesView)
 
     #
     # Step 3: series selection
     #
-    self.step3frame = ctk.ctkCollapsibleButton()
-    self.step3frame.text = "Step 3: Series selection"
+    self.step3frame = ctk.ctkCollapsibleGroupBox()
+    self.step3frame.setTitle("Step 3: Series selection")
     self.layout.addWidget(self.step3frame)
 
     # Layout within the dummy collapsible button
     step3Layout = qt.QFormLayout(self.step3frame)
 
-
-    self.seriesTable = ItemTable(self.step3frame,headerName='Series Number/Description',multiSelect=True)
-    step3Layout.addRow(qt.QLabel('Series to display:'))
-    step3Layout.addWidget(self.seriesTable.widget)
+    self.seriesView = qt.QListView()
+    self.seriesView.setObjectName('SeriesTable')
+    self.seriesView.setSpacing(3)
+    self.seriesModel = qt.QStandardItemModel()
+    self.seriesModel.setHorizontalHeaderLabels(['Series ID'])
+    self.seriesView.setModel(self.seriesModel)
+    self.seriesView.setSelectionMode(qt.QAbstractItemView.ExtendedSelection)
+    self.seriesView.connect('clicked(QModelIndex)', self.seriesSelected)
+    self.seriesView.setEditTriggers(qt.QAbstractItemView.NoEditTriggers)
+    step3Layout.addWidget(self.seriesView)
 
     self.step3frame.collapsed = 1
     self.step3frame.connect('clicked()', self.onStep3Selected)
@@ -245,8 +258,8 @@ class PCampReviewWidget:
     #
     # Step 4: segmentation tools
     #
-    self.step4frame = ctk.ctkCollapsibleButton()
-    self.step4frame.text = "Step 4: Segmentation"
+    self.step4frame = ctk.ctkCollapsibleGroupBox()
+    self.step4frame.setTitle("Step 4: Segmentation")
     self.layout.addWidget(self.step4frame)
 
     # Layout within the dummy collapsible button
@@ -292,8 +305,8 @@ class PCampReviewWidget:
 
     # Step 5: PI-RADS review
     #
-    self.step5frame = ctk.ctkCollapsibleButton()
-    self.step5frame.text = "Step 5: PI-RADS review"
+    self.step5frame = ctk.ctkCollapsibleGroupBox()
+    self.step5frame.setTitle("Step 5: PI-RADS review")
     self.layout.addWidget(self.step5frame)
     self.step5frame.connect('clicked()', self.onPIRADS)
 
@@ -339,6 +352,7 @@ class PCampReviewWidget:
     self.pkMaps = ['Ktrans','Ve','Auc','TTP','MaxSlope']
     self.volumeNodes = {}
     self.refSelectorIgnoreUpdates = False
+    self.selectedStudyName = None
 
   def enter(self):
     settings = qt.QSettings()
@@ -448,6 +462,20 @@ class PCampReviewWidget:
         #slicer.app.applicationLogic().PropagateVolumeSelection(0)
         # redSliceWidget.fitSliceToBackground()
 
+  def studySelected(self, modelIndex):
+    print('Row selected: '+self.studiesModel.item(modelIndex.row(),0).text())
+    selectionModel = self.studiesView.selectionModel()
+    print('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
+    print('Row number: '+str(modelIndex.row()))
+    self.selectedStudyName = self.studiesModel.item(modelIndex.row(),0).text()
+    self.step2frame.setTitle('Step 2: Study selection (current: '+self.selectedStudyName+')')
+
+  def seriesSelected(self, modelIndex):
+    print('Row selected: '+self.seriesModel.item(modelIndex.row(),0).text())
+    selectionModel = self.seriesView.selectionModel()
+    print('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
+    print('Row number: '+str(modelIndex.row()))
+
   def delayDisplay(self,message,msec=1000):
     """This utility method displays a small dialog and waits.
     This does two things: 1) it lets the event loop catch up
@@ -472,7 +500,7 @@ class PCampReviewWidget:
     self.webView.show()
     preFilledURL = self.webFormURL
     preFilledURL += '?entry.2057130045='+self.settings.value('PCampReview/UserName')
-    preFilledURL += '&entry.296646450='+self.studyName
+    preFilledURL += '&entry.296646450='+self.selectedStudyName
     u = qt.QUrl(preFilledURL)
     self.webView.setUrl(u)
 
@@ -493,8 +521,8 @@ class PCampReviewWidget:
         Convention: create a directory for each type of resource saved,
         then subdirectory for each scan that was analyzed
     """
-    segmentationsDir = self.settings.value('PCampReview/InputLocation')+'/'+self.studyName+'/Segmentations'
-    wlSettingsDir = self.settings.value('PCampReview/InputLocation')+'/'+self.studyName+'/WindowLevelSettings'
+    segmentationsDir = self.settings.value('PCampReview/InputLocation')+'/'+self.selectedStudyName+'/Segmentations'
+    wlSettingsDir = self.settings.value('PCampReview/InputLocation')+'/'+self.selectedStudyName+'/WindowLevelSettings'
     try:
       os.makedirs(segmentationsDir)
       os.makedirs(wlSettingsDir)
@@ -511,7 +539,7 @@ class PCampReviewWidget:
 
       # structure is root -> study -> resources -> series # ->
       # Segmentations/Reconstructions/OncoQuant -> files
-      segmentationsDir = self.settings.value('PCampReview/InputLocation')+'/'+self.studyName+'/RESOURCES/'+labelSeries+'/Segmentations'
+      segmentationsDir = self.settings.value('PCampReview/InputLocation')+'/'+self.selectedStudyName+'/RESOURCES/'+labelSeries+'/Segmentations'
       try:
         os.makedirs(segmentationsDir)
       except:
@@ -613,6 +641,9 @@ class PCampReviewWidget:
   def onStep2Selected(self):
     if self.currentStep == 2:
       return
+
+    self.step2frame.setTitle('Step 2: Study selection')
+
     self.currentStep = 2
     self.step2frame.collapsed = 0
     self.step1frame.collapsed = 1
@@ -631,16 +662,23 @@ class PCampReviewWidget:
         studyDirs.append(studyName)
         print('Appending '+studyName)
 
-    self.studyTable.setContent(studyDirs)
-
+    self.studiesModel.clear()
+    self.studyItems = []
+    for s in studyDirs:
+      sItem = qt.QStandardItem(s)
+      self.studyItems.append(sItem)
+      self.studiesModel.appendRow(sItem)
+      print('Appended to model study '+s)
     # TODO: unload all volume nodes that are already loaded
 
   '''
   Step 3: Select series of interest
   '''
   def onStep3Selected(self):
-    if self.currentStep == 3:
+    if self.currentStep == 3 or not self.selectedStudyName:
+      self.step3frame.collapsed = 1
       return
+
     self.currentStep = 3
     print('Entering step 3')
 
@@ -651,12 +689,6 @@ class PCampReviewWidget:
     self.step1frame.collapsed = 1
     self.step4frame.collapsed = 1
 
-    selectedItem = self.studyTable.getSelectedItem()
-    # check if the study has been selected, otherwise, go back to Step 2
-    if selectedItem == None:
-      self.onStep2Selected()
-      return
-
     # if any volumes have been loaded (we returned back from a previous step)
     # then remove all of them from the scene
     allVolumeNodes = slicer.util.getNodes('vtkMRMLScalarVolumeNode*')
@@ -664,12 +696,10 @@ class PCampReviewWidget:
       for key in allVolumeNodes.keys():
         slicer.mrmlScene.RemoveNode(allVolumeNodes[key])
 
-    self.parameters['StudyName'] = selectedItem.text()
-
-    self.studyName = selectedItem.text()
+    self.parameters['StudyName'] = self.selectedStudyName
 
     inputDir = self.settings.value('PCampReview/InputLocation')
-    self.resourcesDir = os.path.join(inputDir,self.studyName,'RESOURCES')
+    self.resourcesDir = os.path.join(inputDir,self.selectedStudyName,'RESOURCES')
 
     # expect one directory for each processed series, with the name
     # corresponding to the series number
@@ -723,14 +753,17 @@ class PCampReviewWidget:
       desc = self.seriesMap[str(num)]['LongName']
       tableItems.append(str(num)+':'+desc)
 
-    self.seriesTable.setContent(tableItems)
-
-    for row in xrange(self.seriesTable.widget.rowCount):
-      item = self.seriesTable.widget.item(row,0)
-      if self.isSeriesOfInterest(item.text()):
-        item.setCheckState(True)
-        print('Checked: '+str(item.checkState()))
-
+    self.seriesModel.clear()
+    self.seriesItems = []
+    
+    for s in numbers:
+      seriesText = str(s)+':'+self.seriesMap[str(s)]['LongName']
+      sItem = qt.QStandardItem(seriesText)
+      self.seriesItems.append(sItem)
+      self.seriesModel.appendRow(sItem)
+      sItem.setCheckable(1)
+      if self.isSeriesOfInterest(seriesText):
+        sItem.setCheckState(2)
 
   '''
   T2w, sub, ADC, T2map
@@ -749,7 +782,9 @@ class PCampReviewWidget:
     self.step1frame.collapsed = 1
     self.step4frame.collapsed = 0
 
-    checkedItems = self.seriesTable.getCheckedItems()
+    checkedItems = [x for x in self.seriesItems if x.checkState()]
+
+    # item.CheckState() != 0
 
     # if no series selected, go to the previous step
     if len(checkedItems) == 0:
@@ -1095,99 +1130,11 @@ class PCampReviewTest(unittest.TestCase):
 
     mainWidget.onStep3Selected()
     self.delayDisplay('3')
-    seriesItem = mainWidget.seriesTable.widget.item(0,0)
-    seriesItem.setCheckState(1)
+    #seriesItem = mainWidget.seriesTable.widget.item(0,0)
+    #seriesItem.setCheckState(1)
 
     mainWidget.onStep4Selected()
     self.delayDisplay('4')
 
 
     self.delayDisplay('Test passed!')
-
-
-class ItemTable(object):
-
-  def __init__(self,parent, headerName, multiSelect=False, width=100):
-    self.widget = qt.QTableWidget(parent)
-    # self.widget.setMinimumWidth(width)
-    self.widget.setColumnCount(1)
-    self.widget.setHorizontalHeaderLabels([headerName])
-    self.widget.horizontalHeader().setResizeMode(0, qt.QHeaderView.Stretch)
-    self.widget.horizontalHeader().stretchLastSection = 1
-    self.widget.setEditTriggers(qt.QAbstractItemView.NoEditTriggers)
-    self.multiSelect = multiSelect
-    if self.multiSelect == False:
-      self.widget.setSelectionMode(qt.QAbstractItemView.SingleSelection)
-    self.width = width
-    self.items = []
-    self.strings = []
-    #self.loadables = {}
-    #self.setLoadables([])
-
-  def addContentItemRow(self,string,row):
-    """Add a row to the loadable table
-    """
-    # name and check state
-    print('Appending '+string)
-    self.strings.append(string)
-    item = qt.QTableWidgetItem(string)
-    item.setCheckState(0)
-    if not self.multiSelect:
-      item.setFlags(33)
-    else:
-      # allow checkboxes interaction
-      item.setFlags(49)
-    self.items.append(item)
-    self.widget.setItem(row,0,item)
-    item.setToolTip('')
-    # reader
-
-  def setContent(self,strings):
-    """Load the table widget with a list
-    of volume options (of class DICOMVolume)
-    """
-    self.widget.clearContents()
-    self.widget.setColumnWidth(0,int(self.width))
-    self.widget.setRowCount(len(strings))
-    # self.items = []
-    row = 0
-
-    for s in strings:
-      self.addContentItemRow(s,row)
-      row += 1
-
-    self.widget.setVerticalHeaderLabels(row * [""])
-
-  def uncheckAll(self):
-    for row in xrange(self.widget.rowCount):
-      item = self.widget.item(row,0)
-      item.setCheckState(False)
-
-  def checkAll(self):
-    for row in xrange(self.widget.rowCount):
-      item = self.widget.item(row,0)
-      item.setCheckState(True)
-      print('Checked: '+str(item.checkState()))
-
-  def getSelectedItem(self):
-    for row in xrange(self.widget.rowCount):
-      item = self.widget.item(row,0)
-      if item.isSelected():
-        return item
-
-  def getCheckedItems(self):
-    checkedItems = []
-    for row in xrange(self.widget.rowCount):
-      item = self.widget.item(row,0)
-      if item.checkState():
-        checkedItems.append(item)
-    return checkedItems
-
-
-  '''
-  def updateCheckstate(self):
-    for row in xrange(self.widget.rowCount):
-      item = self.widget.item(row,0)
-      self.loadables[row].selected = (item.checkState() != 0)
-  '''
-
