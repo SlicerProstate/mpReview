@@ -17,9 +17,20 @@ Once annotation task is completed, the result can be saved in the directory hier
 
 The workflow can be linked with a Google form to support subject-specific form-based review, with the subject and reader IDs pre-populated, as illustrated in this module.
 
+WindowLevelExtension
+(http://wiki.slicer.org/slicerWiki/index.php/Documentation/Nightly/Extensions/WindowLevelEffect)
+can be used to simplify setting window/level for the Foreground volume in 3D
+Slicer.
+
 ### Data organization conventions
 
-The module expects that data is arranged in uniquely-named folders, each of which corresponds to an imaging study (in the DICOM meaning of a study). The data layout (see below, as printed by the Linux tree command line tool) is then somewhat mimics the layout used internally by XNAT (since this is what the author used internally for data organization). Each study is expected to have one top-level folder called RESOURCES. Within that folder, it is expected to have one folder for each imaging series, with the folder name matching the series number. Each series should have a sub-folder called Reconstructions. Reconstructions should contain image volume in NRRD format 
+The module expects that data is arranged in uniquely-named folders, each of which corresponds to an imaging study (in the DICOM meaning of a study). The data layout (see below, as printed by the Linux tree command line tool) is then somewhat mimics the layout used internally by XNAT (since this is what the author used internally for data organization). Each study is expected to have one top-level folder called RESOURCES. Within that folder, it is expected to have one folder for each imaging series, with the folder name matching the series number. Each series should have a sub-folder called Reconstructions. Reconstructions folder should contain 
+
+1. Image volume in NRRD format (see http://teem.sourceforge.net/nrrd/index.html), or any volumetric format recognized by 3D Slicer. 
+2. .xml file containing the output of DCMTK dcm2xml utility (see
+   http://support.dcmtk.org/docs/dcm2xml.html).
+
+TODO: add script converting a DICOM scalar volume into NRRD.
 
 ```
 └── RESOURCES
@@ -78,10 +89,13 @@ The module expects that data is arranged in uniquely-named folders, each of whic
 ``` 
 
 Missing features:
-  * provenance elements: who (user information), when (date), how (w/l), what
+  * provenance elements: who (user information), when (date), how (w/l, more?), what
      (no information about the structures being segmented)
 
  TODO:
+  * clean up the code
   * add a custom color LUT
     details: https://github.com/paulcm/LongitudinalPETCT/blob/master/Logic/vtkSlicerLongitudinalPETCTLogic.cxx#L240
   * add support for multiple readers and reading date
+  * support visualization of multi-volume (DCE) and plotting
+  * PI-RADS review

@@ -305,6 +305,7 @@ class PCampReviewWidget:
 
     # Step 5: PI-RADS review
     #
+    '''
     self.step5frame = ctk.ctkCollapsibleGroupBox()
     self.step5frame.setTitle("Step 5: PI-RADS review")
     self.layout.addWidget(self.step5frame)
@@ -314,6 +315,7 @@ class PCampReviewWidget:
     self.piradsLayout = qt.QFormLayout(self.step5frame)
     # will be populated on entry depending on the content of the
     # segmented labels
+    '''
 
     #
     # Step 6: save results
@@ -334,9 +336,11 @@ class PCampReviewWidget:
     self.layout.addWidget(self.saveButton)
     self.saveButton.connect('clicked()', self.onSaveClicked)
 
+    '''
     self.piradsButton = qt.QPushButton("PI-RADS review")
     self.layout.addWidget(self.piradsButton)
     # self.piradsButton.connect('clicked()',self.onPiradsClicked)
+    '''
 
     # Add vertical spacer
     self.layout.addStretch(1)
