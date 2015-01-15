@@ -531,6 +531,7 @@ class PCampReviewWidget:
       os.makedirs(segmentationsDir)
       os.makedirs(wlSettingsDir)
     except:
+      print('Failed to create one of the following directories: '+segmentationsDir+' or '+wlSettingsDir)
       pass
 
     # save all label nodes (there should be only one per volume!)
@@ -953,7 +954,20 @@ class PCampReviewWidget:
 
     print('Volume nodes: '+str(self.viewNames))
     cvLogic = CompareVolumes.CompareVolumesLogic()
-    cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel)
+
+    nVolumeNodes = float(len(self.volumeNodes))
+    rows = 0
+    cols = 0
+    if nVolumeNodes<=8:
+      rows = 2 # up to 8
+    elif nVolumeNodes>8 and nVolumeNodes<=12:
+      rows = 3 # up to 12
+    elif nVolumeNodes>12 and nVolumeNodes<=16:
+      rows = 4
+    cols = math.ceil(nVolumeNodes/rows)
+
+    cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[rows,cols])
+
     cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
 
     print('Setting master node for the Editor to '+self.volumeNodes[0].GetID())
