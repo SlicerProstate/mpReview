@@ -143,7 +143,7 @@ class PCampReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
             storageNode = node.CreateDefaultStorageNode()
             import os
             studyID = patientID+'_'+studyDate+'_'+studyTime
-            dirName = '/Users/fedorov/Temp/'+studyID+'/RESOURCES/'+seriesNumber+'/Reconstructions/'
+            dirName = outputDir + '/'+studyID+'/RESOURCES/'+seriesNumber+'/Reconstructions/'
             xmlName = dirName+seriesNumber+'.xml'
             # WARNING: this expects presence of dcm2xml and is not portable AT ALL!!!
             try:
@@ -193,45 +193,7 @@ class PCampReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
     detailsPopup = slicer.modules.dicom.widgetRepresentation().self().detailsPopup
     detailsPopup.loadCheckedLoadables()
 
-  def ConvertContoursToLabelmap(self):
-    import vtkSlicerContoursModuleLogic
-
-    labelmapsToSave = []
-    
-    # Get all contour nodes from the scene
-    contourNodes = slicer.util.getNodes('vtkMRMLContourNode*')
-
-    for contourNode in contourNodes.values():
-      print('  Converting contour ' + contourNode.GetName())
-      # Set referenced volume as rasterization reference
-      referenceVolume = vtkSlicerContoursModuleLogic.vtkSlicerContoursModuleLogic.GetReferencedVolumeByDicomForContour(contourNode)
-      if referenceVolume == None:
-        import sys
-        sys.stderr.write('No reference volume found for contour ' + contourNode.GetName())
-        continue
-      contourNode.SetAndObserveRasterizationReferenceVolumeNodeId(referenceVolume.GetID())
-
-      # Perform conversion
-      contourNode.GetLabelmapImageData()
-      contourLabelmapNode = vtkSlicerContoursModuleLogic.vtkSlicerContoursModuleLogic.ExtractLabelmapFromContour(contourNode)
-
-      # Append contour to list
-      labelmapsToSave.append(contourLabelmapNode)
-      
-    return labelmapsToSave
-
-  def SaveLabelmaps(self,labelmapsToSave,outputDir):
-    for labelmapNode in labelmapsToSave:
-      # Assemble file name from patient name and contour name
-      fileName = labelmapNode.GetName() + '.nrrd'
-      filePath = outputDir + '/' + fileName
-      print('  Saving contour ' + labelmapNode.GetName() + '\n    to file ' + fileName)
-
-      # Save to file
-      success = slicer.util.saveNode(labelmapNode, filePath)
-      if not success:
-        sys.stderr.write('Failed to save labelmap: ' + filePath)
-
+'''
 class PCampReviewPreprocessorTest(ScriptedLoadableModuleTest):
   """
   This is the test case for your scripted module.
@@ -366,7 +328,7 @@ class PCampReviewPreprocessorTest(ScriptedLoadableModuleTest):
     self.assertFalse( slicer.dicomDatabase.isOpen )
 
     #slicer.mrmlScene.Clear(0) #TODO
-
+'''
 
 def main(argv):
   try:
@@ -385,26 +347,8 @@ def main(argv):
     if args.output_folder == ".":
       print('Current directory is selected as output folder (default). To change it, please specify --output-folder')
 
-    # Convert to python path style
-    input_folder = args.input_folder.replace('\\','/')
-    output_folder = args.output_folder.replace('\\','/')
-
-    # Perform batch conversion
     logic = PCampReviewPreprocessorLogic()
-
-    print("Import DICOM data from " + input_folder)
-    logic.OpenDatabase()
-    logic.ImportStudy(input_folder)
-
-    print("Load first patient into Slicer")
-    logic.LoadFirstPatientIntoSlicer()
-
-    print("Convert loaded contours to labelmap volumes")
-    labelmaps = logic.ConvertContoursToLabelmap()
-
-    print("Save labelmaps to directory " + output_folder)
-    logic.SaveLabelmaps(labelmaps, output_folder)
-    print("DONE")
+    logic.Convert(args.input_folder,args.output_folder)
 
   except Exception, e:
     print e
