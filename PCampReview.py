@@ -74,11 +74,13 @@ class PCampReviewWidget:
       n = sum(1 for line in f)
     colorNode.SetNumberOfColors(n-1)
     import csv
+    self.structureNames = []
     with open(colorFile, 'rb') as csvfile:
       reader = csv.DictReader(csvfile, delimiter=',')
       for index,row in enumerate(reader):
         colorNode.SetColor(index,row['Label'],float(row['R'])/255,
                 float(row['G'])/255,float(row['B'])/255,float(row['A']))
+        self.structureNames.append(row['Label'])
 
     # TODO: figure out why module/class hierarchy is different
     # between developer builds ans packages
@@ -311,8 +313,20 @@ class PCampReviewWidget:
     editorWidgetParent = slicer.qMRMLWidget()
     editorWidgetParent.setLayout(qt.QVBoxLayout())
     editorWidgetParent.setMRMLScene(slicer.mrmlScene)
-    self.editorWidget = EditorWidget(parent=editorWidgetParent,showVolumesFrame=False)
+    self.editorWidget = EditorWidget(parent=editorWidgetParent)
     self.editorWidget.setup()
+
+    volumesFrame = self.editorWidget.volumes
+    # hide unwanted widgets
+    for widgetName in ['AllButtonsFrameButton','ReplaceModelsCheckBox',
+      'MasterVolumeFrame','MergeVolumeFrame','SplitStructureButton']:
+      widget = slicer.util.findChildren(volumesFrame,widgetName)[0]
+      widget.hide()
+
+    perSturctureFrame = slicer.util.findChildren(volumesFrame,
+                        'PerStructureVolumesFrame')[0]
+    perSturctureFrame.collapsed = False
+
     #self.editorWidget.toolsColor.frame.setVisible(False)
 
     self.editorParameterNode = self.editUtil.getParameterNode()
@@ -560,29 +574,37 @@ class PCampReviewWidget:
     for label in labelNodes.values():
 
       labelSeries = label.GetName().split(':')[0]
+      labelName =  label.GetName().split(':')[1]
 
       # structure is root -> study -> resources -> series # ->
       # Segmentations/Reconstructions/OncoQuant -> files
-      segmentationsDir = self.settings.value('PCampReview/InputLocation')+'/'+self.selectedStudyName+'/RESOURCES/'+labelSeries+'/Segmentations'
+      segmentationsDir = self.settings.value('PCampReview/InputLocation')+\
+      '/'+self.selectedStudyName+'/RESOURCES/'+labelSeries+'/Segmentations'
       try:
         os.makedirs(segmentationsDir)
       except:
         pass
 
       import datetime
-      uniqueID = self.settings.value('PCampReview/UserName')+\
-        '-'+datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 
-      labelFileName = os.path.join(segmentationsDir,uniqueID+'.nrrd')
+      structureName = labelName[labelName[:-6].rfind("-")+1:-6]
+      # Only save labels with known structure names
+      if any(structureName in s for s in self.structureNames):
+        print "structure name is:" ,structureName
+        uniqueID = self.settings.value('PCampReview/UserName')+\
+          '-' + structureName + '-' +\
+          datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 
-      sNode = slicer.vtkMRMLVolumeArchetypeStorageNode()
-      sNode.SetFileName(labelFileName)
-      sNode.SetWriteFileFormat('nrrd')
-      sNode.SetURI(None)
-      success = sNode.WriteData(label)
-      if success:
-        savedMessage = savedMessage + label.GetName()+'\n'
-        print(label.GetName()+' has been saved to '+labelFileName)
+        labelFileName = os.path.join(segmentationsDir,uniqueID+'.nrrd')
+
+        sNode = slicer.vtkMRMLVolumeArchetypeStorageNode()
+        sNode.SetFileName(labelFileName)
+        sNode.SetWriteFileFormat('nrrd')
+        sNode.SetURI(None)
+        success = sNode.WriteData(label)
+        if success:
+          savedMessage = savedMessage + label.GetName()+'\n'
+          print(label.GetName()+' has been saved to '+labelFileName)
 
     # save w/l settings for all non-label volume nodes
     '''
@@ -629,22 +651,37 @@ class PCampReviewWidget:
     if not len(previousSegmentations):
       return (False,None)
 
-    fileName = previousSegmentations[-1]
+    #fileName = previousSegmentations[-1]
 
-    (success,label) = slicer.util.loadVolume(fileName, returnNode=True)
-    if not success:
-      return (False,None)
-    print('Setting loaded label name to '+volumeName)
-    label.SetName(volumeName+'-label')
-    label.SetLabelMap(1)
-    label.RemoveAllDisplayNodeIDs()
+    timeStamps = []
+    for segmentation in previousSegmentations:
+        timeStamp = int(segmentation[segmentation.rfind("-")+1:-5])
+        print timeStamp
+        timeStamps.append(timeStamp)
+    latestTimeStamp = max(timeStamps)
 
-    dNode = slicer.vtkMRMLLabelMapVolumeDisplayNode()
-    slicer.mrmlScene.AddNode(dNode)
-    dNode.SetAndObserveColorNodeID(slicer.modules.colors.logic().GetDefaultLabelMapColorNodeID())
-    label.SetAndObserveDisplayNodeID(dNode.GetID())
+    globPath = os.path.join(self.resourcesDir,str(seriesNumber),"Segmentations",
+        self.settings.value('PCampReview/UserName')+'*'+str(latestTimeStamp)+'*')
+    latestSegmentations = glob.glob(globPath)
 
-    print('Label loaded, storage node is '+label.GetStorageNode().GetID())
+    for fileName in latestSegmentations:
+      (success,label) = slicer.util.loadVolume(fileName, returnNode=True)
+      if not success:
+        return (False,None)
+      print('Setting loaded label name to '+volumeName)
+      shortFileName = fileName[fileName.rfind("/")+1:]
+      structureID = shortFileName[shortFileName[:-5].find("-")+1:shortFileName[:-5].rfind("-")]
+      print structureID
+      label.SetName(volumeName+'-'+structureID+'-label')
+      label.SetLabelMap(1)
+      label.RemoveAllDisplayNodeIDs()
+
+      dNode = slicer.vtkMRMLLabelMapVolumeDisplayNode()
+      slicer.mrmlScene.AddNode(dNode)
+      dNode.SetAndObserveColorNodeID(self.PCampReviewColorNode.GetID())
+      label.SetAndObserveDisplayNodeID(dNode.GetID())
+
+      print('Label loaded, storage node is '+label.GetStorageNode().GetID())
 
     return (True,label)
   '''
@@ -853,8 +890,10 @@ class PCampReviewWidget:
         print('Failed to load image volume!')
         return
       (success,label) = self.checkAndLoadLabel(self.resourcesDir, seriesNumber, shortName)
+      '''
       if success:
         self.seriesMap[seriesNumber]['Label'] = label
+      '''
 
       try:
         if self.seriesMap[seriesNumber]['MetaInfo']['ResourceType'] == 'OncoQuant':
@@ -964,6 +1003,7 @@ class PCampReviewWidget:
 
     try:
       # check if already have a label for this node
+      print self.seriesMap
       refLabel = self.seriesMap[str(ref)]['Label']
     except KeyError:
       # create a new label
