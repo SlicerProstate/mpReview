@@ -1,3 +1,4 @@
+from __future__ import division
 import os, json, xml.dom.minidom, string, glob, re
 import unittest
 from __main__ import vtk, qt, ctk, slicer
@@ -60,6 +61,24 @@ class PCampReviewWidget:
     # module-specific initialization
     self.inputDataDir = ''
     self.webFormURL = 'https://docs.google.com/forms/d/1gWlcVayAYRpt0cs7GuSq6wiXPU46Ie3POHyl43lH8Ks/viewform'
+
+    self.PCampReviewColorNode = slicer.vtkMRMLColorTableNode()
+    colorNode = self.PCampReviewColorNode
+    colorNode.SetName('PCampReview')
+    slicer.mrmlScene.AddNode(colorNode)
+    colorNode.SetTypeToUser()
+    moduleName="PCampReview"
+    modulePath = eval('slicer.modules.%s.path' % moduleName.lower()).replace(moduleName+".py","")
+    colorFile = modulePath + "Resources/Colors/PCampReviewColors.csv"
+    with open(colorFile) as f:
+      n = sum(1 for line in f)
+    colorNode.SetNumberOfColors(n-1)
+    import csv
+    with open(colorFile, 'rb') as csvfile:
+      reader = csv.DictReader(csvfile, delimiter=',')
+      for index,row in enumerate(reader):
+        colorNode.SetColor(index,row['Label'],float(row['R'])/255,
+                float(row['G'])/255,float(row['B'])/255,float(row['A']))
 
     # TODO: figure out why module/class hierarchy is different
     # between developer builds ans packages
@@ -555,7 +574,7 @@ class PCampReviewWidget:
         '-'+datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 
       labelFileName = os.path.join(segmentationsDir,uniqueID+'.nrrd')
-    
+
       sNode = slicer.vtkMRMLVolumeArchetypeStorageNode()
       sNode.SetFileName(labelFileName)
       sNode.SetWriteFileFormat('nrrd')
@@ -609,14 +628,14 @@ class PCampReviewWidget:
     previousSegmentations = glob.glob(globPath)
     if not len(previousSegmentations):
       return (False,None)
-    
+
     fileName = previousSegmentations[-1]
 
     (success,label) = slicer.util.loadVolume(fileName, returnNode=True)
     if not success:
       return (False,None)
     print('Setting loaded label name to '+volumeName)
-    label.SetName(volumeName+'-label')    
+    label.SetName(volumeName+'-label')
     label.SetLabelMap(1)
     label.RemoveAllDisplayNodeIDs()
 
@@ -749,7 +768,7 @@ class PCampReviewWidget:
             self.seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+self.abbreviateName(self.seriesMap[seriesNumber]['MetaInfo'])
 
     print('All series found: '+str(self.seriesMap.keys()))
-  
+
     numbers = [int(x) for x in self.seriesMap.keys()]
     numbers.sort()
 
@@ -760,7 +779,7 @@ class PCampReviewWidget:
 
     self.seriesModel.clear()
     self.seriesItems = []
-    
+
     for s in numbers:
       seriesText = str(s)+':'+self.seriesMap[str(s)]['LongName']
       sItem = qt.QStandardItem(seriesText)
@@ -952,6 +971,8 @@ class PCampReviewWidget:
       refLabel = self.volumesLogic.CreateAndAddLabelVolume(slicer.mrmlScene,self.volumeNodes[0],labelName)
       self.seriesMap[str(ref)]['Label'] = refLabel
 
+    dNode = refLabel.GetDisplayNode()
+    dNode.SetAndObserveColorNodeID(self.PCampReviewColorNode.GetID())
     print('Volume nodes: '+str(self.viewNames))
     cvLogic = CompareVolumes.CompareVolumesLogic()
 
