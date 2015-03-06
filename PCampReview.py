@@ -60,7 +60,7 @@ class PCampReviewWidget:
 
     # module-specific initialization
     self.inputDataDir = ''
-    self.webFormURL = 'https://docs.google.com/forms/d/1gWlcVayAYRpt0cs7GuSq6wiXPU46Ie3POHyl43lH8Ks/viewform'
+    self.webFormURL = ''
 
     self.PCampReviewColorNode = slicer.vtkMRMLColorTableNode()
     colorNode = self.PCampReviewColorNode
@@ -347,7 +347,7 @@ class PCampReviewWidget:
     #step5Layout = qt.QFormLayout(self.step5frame)
     # TODO: add here source directory selector
 
-    self.qaButton = qt.QPushButton("QA Form")
+    self.qaButton = qt.QPushButton("PI-RADS v2 review form")
     self.layout.addWidget(self.qaButton)
     self.qaButton.connect('clicked()',self.onQAFormClicked)
 
@@ -382,6 +382,7 @@ class PCampReviewWidget:
     userName = settings.value('PCampReview/UserName')
     resultsLocation = settings.value('PCampReview/ResultsLocation')
     inputLocation = settings.value('PCampReview/InputLocation')
+    self.webFormURL = settings.value('PCampReview/webFormURL')
 
     if userName == None or userName == '':
       # prompt the user for ID (last name)
@@ -399,6 +400,25 @@ class PCampReviewWidget:
       self.namePrompt.exec_()
     else:
       self.parameters['UserName'] = userName
+
+    if self.webFormURL == None or self.webFormURL == '':
+      # prompt the user for the rewview form
+      # Note: it is expected that the module uses the form of the structure as
+      # in http://goo.gl/nT1z4L. The known structure of the form is used to
+      # pre-populate the fields corresponding to readerName, studyName and
+      # lesionID.
+      self.URLPrompt = qt.QDialog()
+      self.URLPromptLayout = qt.QVBoxLayout()
+      self.URLPrompt.setLayout(self.URLPromptLayout)
+      self.URLLabel = qt.QLabel('Enter review form URL:', self.URLPrompt)
+      # replace this if you are using a different form
+      self.URLText = qt.QLineEdit('https://docs.google.com/forms/d/1Xwhvjn_HjRJAtgV5VruLCDJ_eyj1C-txi8HWn8VyXa4/viewform')
+      self.URLButton = qt.QPushButton('OK', self.URLPrompt)
+      self.URLButton.connect('clicked()', self.onURLEntered)
+      self.URLPromptLayout.addWidget(self.URLLabel)
+      self.URLPromptLayout.addWidget(self.URLText)
+      self.URLPromptLayout.addWidget(self.URLButton)
+      self.URLPrompt.exec_()
 
     '''
     # ask where is the input
@@ -445,6 +465,13 @@ class PCampReviewWidget:
       self.settings.setValue('PCampReview/UserName',name)
       self.namePrompt.close()
       self.parameters['UserName'] = name
+
+  def onURLEntered(self):
+    url = self.URLText.text
+    if len(url)>0:
+      self.settings.setValue('PCampReview/webFormURL',url)
+      self.URLPrompt.close()
+      self.webFormURL = url
 
   def onResultsDirEntered(self):
     path = self.dirButton.directory
@@ -522,8 +549,9 @@ class PCampReviewWidget:
     self.webView.connect('loadFinished(bool)', self.webViewFormLoadedCallback)
     self.webView.show()
     preFilledURL = self.webFormURL
-    preFilledURL += '?entry.2057130045='+self.settings.value('PCampReview/UserName')
-    preFilledURL += '&entry.296646450='+self.selectedStudyName
+    preFilledURL += '?entry.2048953919='+self.settings.value('PCampReview/UserName')
+    preFilledURL += '&entry.347120626='+self.selectedStudyName
+    preFilledURL += '&entry.1734306468='+str(self.editorWidget.toolsColor.colorSpin.value)
     u = qt.QUrl(preFilledURL)
     self.webView.setUrl(u)
 
