@@ -653,25 +653,27 @@ class PCampReviewWidget:
 
     #fileName = previousSegmentations[-1]
 
+    # Iterate over segmentaion files and choose the latest for each structure
     timeStamps = []
+    latestSegmentations = {}
     for segmentation in previousSegmentations:
+        structureName = segmentation[segmentation.find("-")+1:segmentation.rfind("-")]
         timeStamp = int(segmentation[segmentation.rfind("-")+1:-5])
-        print timeStamp
-        timeStamps.append(timeStamp)
-    latestTimeStamp = max(timeStamps)
+        if structureName not in latestSegmentations.keys():
+          latestSegmentations[structureName] = segmentation
+        else:
+          storedSegmentation = latestSegmentations[structureName]
+          storedTimeStamp = storedSegmentation[storedSegmentation.rfind("-")+1:-5]
+          if timeStamp > storedTimeStamp:
+            latestSegmentations[structureName] = segmentation
 
-    globPath = os.path.join(self.resourcesDir,str(seriesNumber),"Segmentations",
-        self.settings.value('PCampReview/UserName')+'*'+str(latestTimeStamp)+'*')
-    latestSegmentations = glob.glob(globPath)
-
-    for fileName in latestSegmentations:
+    for structure,fileName in latestSegmentations.iteritems():
       (success,label) = slicer.util.loadVolume(fileName, returnNode=True)
       if not success:
         return (False,None)
       print('Setting loaded label name to '+volumeName)
       shortFileName = fileName[fileName.rfind("/")+1:]
       structureID = shortFileName[shortFileName[:-5].find("-")+1:shortFileName[:-5].rfind("-")]
-      print structureID
       label.SetName(volumeName+'-'+structureID+'-label')
       label.SetLabelMap(1)
       label.RemoveAllDisplayNodeIDs()
