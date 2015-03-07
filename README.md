@@ -30,8 +30,6 @@ The module expects that data is arranged in uniquely-named folders, each of whic
 2. .xml file containing the output of DCMTK dcm2xml utility (see
    http://support.dcmtk.org/docs/dcm2xml.html).
 
-TODO: add script converting a DICOM scalar volume into NRRD.
-
 ```
 └── RESOURCES
     ├── 1
