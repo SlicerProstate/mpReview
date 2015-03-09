@@ -327,6 +327,12 @@ class PCampReviewWidget:
                         'PerStructureVolumesFrame')[0]
     perSturctureFrame.collapsed = False
 
+    buttonsFrame = slicer.util.findChildren(volumesFrame,
+                        'ButtonsFrame')[0]
+    updateViewsButton = qt.QPushButton('Update Views')
+    buttonsFrame.layout().addWidget(updateViewsButton)
+    updateViewsButton.connect("clicked()", self.updateViews)
+
     #self.editorWidget.toolsColor.frame.setVisible(False)
 
     self.editorParameterNode = self.editUtil.getParameterNode()
@@ -713,7 +719,8 @@ class PCampReviewWidget:
 
       print('Label loaded, storage node is '+label.GetStorageNode().GetID())
 
-    return (True,label)
+    #return (True,label)
+    return True
   '''
   Step 1: Select the directory that has the data
   '''
@@ -919,7 +926,7 @@ class PCampReviewWidget:
       else:
         print('Failed to load image volume!')
         return
-      (success,label) = self.checkAndLoadLabel(self.resourcesDir, seriesNumber, shortName)
+      success = self.checkAndLoadLabel(self.resourcesDir, seriesNumber, shortName)
       '''
       if success:
         self.seriesMap[seriesNumber]['Label'] = label
@@ -949,7 +956,7 @@ class PCampReviewWidget:
     self.seriesMap = selectedSeries
 
     print('Selected series: '+str(selectedSeries)+', reference: '+str(ref))
-    self.cvLogic = CompareVolumes.CompareVolumesLogic()
+    #self.cvLogic = CompareVolumes.CompareVolumesLogic()
     #self.viewNames = [self.seriesMap[str(ref)]['ShortName']]
 
     self.refSelectorIgnoreUpdates = False
@@ -1033,7 +1040,6 @@ class PCampReviewWidget:
 
     try:
       # check if already have a label for this node
-      print self.seriesMap
       refLabel = self.seriesMap[str(ref)]['Label']
     except KeyError:
       # create a new label
@@ -1044,26 +1050,26 @@ class PCampReviewWidget:
     dNode = refLabel.GetDisplayNode()
     dNode.SetAndObserveColorNodeID(self.PCampReviewColorNode.GetID())
     print('Volume nodes: '+str(self.viewNames))
-    cvLogic = CompareVolumes.CompareVolumesLogic()
+    self.cvLogic = CompareVolumes.CompareVolumesLogic()
 
     nVolumeNodes = float(len(self.volumeNodes))
-    rows = 0
-    cols = 0
+    self.rows = 0
+    self.cols = 0
     if nVolumeNodes<=8:
-      rows = 2 # up to 8
+      self.rows = 2 # up to 8
     elif nVolumeNodes>8 and nVolumeNodes<=12:
-      rows = 3 # up to 12
+      self.rows = 3 # up to 12
     elif nVolumeNodes>12 and nVolumeNodes<=16:
-      rows = 4
-    cols = math.ceil(nVolumeNodes/rows)
+      self.rows = 4
+    self.cols = math.ceil(nVolumeNodes/self.rows)
 
-    cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[rows,cols])
-
-    cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
-
-    print('Setting master node for the Editor to '+self.volumeNodes[0].GetID())
     self.editorWidget.setMasterNode(self.volumeNodes[0])
     self.editorWidget.setMergeNode(self.seriesMap[str(ref)]['Label'])
+
+    self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[self.rows,self.cols])
+    self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
+
+    print('Setting master node for the Editor to '+self.volumeNodes[0].GetID())
 
     self.editorParameterNode.Modified()
 
@@ -1072,6 +1078,15 @@ class PCampReviewWidget:
     self.setOpacityOnAllSliceWidgets(1.0)
 
     print('Exiting onReferenceChanged')
+
+  def updateViews(self):
+    lm = slicer.app.layoutManager()
+    w = lm.sliceWidget('Red')
+    sl = w.sliceLogic()
+    ll = sl.GetLabelLayer()
+    lv = ll.GetVolumeNode()
+    self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=lv, layout=[self.rows,self.cols])
+
 
   def cleanupDir(self, d):
     if not os.path.exists(d):
