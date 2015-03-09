@@ -1087,6 +1087,8 @@ class PCampReviewWidget:
     lv = ll.GetVolumeNode()
     self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=lv, layout=[self.rows,self.cols])
 
+    self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
+    self.setOpacityOnAllSliceWidgets(1.0)
 
   def cleanupDir(self, d):
     if not os.path.exists(d):
