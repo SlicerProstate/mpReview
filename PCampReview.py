@@ -739,6 +739,12 @@ class PCampReviewWidget:
   Step 1: Select the directory that has the data
   '''
   def onStep1Selected(self):
+    if self.currentStep == 4:
+      continuteStep4 = self.showExitStep4Warning()
+      if continuteStep4:
+        self.step1frame.collapsed = 1
+        return
+
     if self.currentStep == 1:
       return
     self.currentStep = 1
@@ -751,6 +757,12 @@ class PCampReviewWidget:
   Step 2: Select the patient
   '''
   def onStep2Selected(self):
+    if self.currentStep == 4:
+      continuteStep4 = self.showExitStep4Warning()
+      if continuteStep4:
+        self.step2frame.collapsed = 1
+        return
+
     if self.currentStep == 2:
       return
 
@@ -787,6 +799,12 @@ class PCampReviewWidget:
   Step 3: Select series of interest
   '''
   def onStep3Selected(self):
+    if self.currentStep == 4:
+      continuteStep4 = self.showExitStep4Warning()
+      if continuteStep4:
+        self.step3frame.collapsed = 1
+        return
+
     if self.currentStep == 3 or not self.selectedStudyName:
       self.step3frame.collapsed = 1
       return
@@ -979,6 +997,17 @@ class PCampReviewWidget:
     self.onViewUpdateRequested(2)
     self.onViewUpdateRequested(1)
     self.setOpacityOnAllSliceWidgets(1.0)
+
+  def showExitStep4Warning(self):
+    msgBox = qt.QMessageBox()
+    msgBox.setWindowTitle('Warning')
+    msgBox.setText('Unsaved contours will be lost!\n Do you still want to exit?')
+    msgBox.setStandardButtons(qt.QMessageBox.Yes | qt.QMessageBox.No)
+    val = msgBox.exec_()
+    if(val == qt.QMessageBox.Yes):
+      return False
+    else:
+      return True
 
   def onPIRADS(self):
     '''
