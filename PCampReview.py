@@ -1021,7 +1021,7 @@ class PCampReviewWidget:
       return
     text = self.refSelector.currentText
     print('Current reference node: '+text)
-    if text != 'None':
+    if text != 'None' and text != '':
       self.refSeriesNumber = string.split(text,':')[0]
       ref = int(self.refSeriesNumber)
     else:
