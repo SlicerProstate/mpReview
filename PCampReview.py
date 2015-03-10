@@ -569,7 +569,7 @@ class PCampReviewWidget:
     self.webView.connect('loadFinished(bool)', self.webViewFormLoadedCallback)
     self.webView.show()
     preFilledURL = self.webFormURL
-    preFilledURL += '?entry.2048953919='+self.settings.value('PCampReview/UserName')
+    preFilledURL += '?entry.1455103354='+self.settings.value('PCampReview/UserName')
     preFilledURL += '&entry.347120626='+self.selectedStudyName
     preFilledURL += '&entry.1734306468='+str(self.editorWidget.toolsColor.colorSpin.value)
     u = qt.QUrl(preFilledURL)
