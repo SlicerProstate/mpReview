@@ -338,6 +338,15 @@ class PCampReviewWidget:
     buttonsFrame.layout().addWidget(updateViewsButton)
     updateViewsButton.connect("clicked()", self.updateViews)
 
+    lm = slicer.app.layoutManager()
+    redWidget = lm.sliceWidget('Red')
+    controller = redWidget.sliceController()
+    moreButton = slicer.util.findChildren(controller,'MoreButton')[0]
+    moreButton.toggle()
+    labelMapOutlineButton = slicer.util.findChildren(
+                            controller,'LabelMapOutlineButton')[0]
+    buttonsFrame.layout().addWidget(labelMapOutlineButton)
+
     #self.editorWidget.toolsColor.frame.setVisible(False)
 
     self.editorParameterNode = self.editUtil.getParameterNode()
