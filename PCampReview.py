@@ -323,6 +323,11 @@ class PCampReviewWidget:
       widget = slicer.util.findChildren(volumesFrame,widgetName)[0]
       widget.hide()
 
+    # Edit label maps frame (User will only pick labels from add structure)
+    editColorFrame = slicer.util.findChildren(
+                      self.editorWidget.editLabelMapsFrame,'EditColorFrame')[0]
+    editColorFrame.hide()
+
     perSturctureFrame = slicer.util.findChildren(volumesFrame,
                         'PerStructureVolumesFrame')[0]
     perSturctureFrame.collapsed = False
