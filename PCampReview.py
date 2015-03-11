@@ -326,7 +326,10 @@ class PCampReviewWidget:
     # Edit label maps frame (User will only pick labels from add structure)
     editColorFrame = slicer.util.findChildren(
                       self.editorWidget.editLabelMapsFrame,'EditColorFrame')[0]
-    editColorFrame.hide()
+    #editColorFrame.hide()
+    colorPatchButton = slicer.util.findChildren(
+                      editColorFrame,'ColorPatchButton')[0]
+    colorPatchButton.hide()
 
     perSturctureFrame = slicer.util.findChildren(volumesFrame,
                         'PerStructureVolumesFrame')[0]
@@ -355,20 +358,6 @@ class PCampReviewWidget:
 
     # keep here names of the views created by CompareVolumes logic
     self.viewNames = []
-
-    # Step 5: PI-RADS review
-    #
-    '''
-    self.step5frame = ctk.ctkCollapsibleGroupBox()
-    self.step5frame.setTitle("Step 5: PI-RADS review")
-    self.layout.addWidget(self.step5frame)
-    self.step5frame.connect('clicked()', self.onPIRADS)
-
-    # Layout within the dummy collapsible button
-    self.piradsLayout = qt.QFormLayout(self.step5frame)
-    # will be populated on entry depending on the content of the
-    # segmented labels
-    '''
 
     #
     # Step 6: save results
@@ -1015,55 +1004,6 @@ class PCampReviewWidget:
       return False
     else:
       return True
-
-  def onPIRADS(self):
-    '''
-    1) determine the number of lesions (should be the same in all labels)
-    2) for the volumes matching labels, identify T2, subtract and ADC
-    3) get the DCE curve for each label
-    4) get ADC statistics for each label
-    5) create lesion form for each label
-    '''
-
-    if self.currentStep == 'PIRADS':
-      return
-    self.currentStep = 'PIRADS'
-
-    self.step2frame.collapsed = 1
-    self.step3frame.collapsed = 1
-    self.step1frame.collapsed = 1
-    self.step4frame.collapsed = 1
-
-    # determine the number of lesions
-    allLabels = slicer.util.getNodes('*-label')
-    if not len(allLabels):
-      return
-
-    aLabel = allLabels.values()[0]
-    import SimpleITK as sitk
-    import sitkUtils
-
-    lesionIDs = []
-    statFilter = sitk.LabelStatisticsImageFilter()
-    for l in allLabels.values():
-      labelName = l.GetName()
-      print('Found label '+labelName)
-      img = sitk.ReadImage(sitkUtils.GetSlicerITKReadWriteAddress(labelName))
-      statFilter.Execute(img,img)
-      lesionIDs = [x for x in statFilter.GetValidLabels() if x]
-      if len(lesionIDs):
-        break
-
-    self.lesionFormWidgets = []
-    for lesionID in lesionIDs:
-      # add widget per each lesion
-      p = PCampReviewLib.LesionFormParameterNode()
-      p.lesionName = 'ROI '+str(lesionID)
-      p.x = range(10)
-      p.y = range(10)
-      w = PCampReviewLib.LesionFormWidget(p)
-      self.lesionFormWidgets.append(w)
-      self.piradsLayout.addWidget(w.widget)
 
   def onReferenceChanged(self, id):
 
