@@ -955,6 +955,10 @@ class PCampReviewWidget:
       if success:
         self.seriesMap[seriesNumber]['Volume'] = volume
         volume.SetName(shortName)
+        if volume.GetClassName() == 'vtkMRMLMultiVolumeNode':
+          d = volume.GetDisplayNode()
+          nFrames = volume.GetNumberOfFrames()
+          d.SetFrameComponent(nFrames-1)
       else:
         print('Failed to load image volume!')
         return
@@ -964,16 +968,19 @@ class PCampReviewWidget:
         self.seriesMap[seriesNumber]['Label'] = label
       '''
 
-      try:
-        if self.seriesMap[seriesNumber]['MetaInfo']['ResourceType'] == 'OncoQuant':
-          dNode = volume.GetDisplayNode()
-          dNode.SetWindowLevel(5.0,2.5)
-          dNode.SetAndObserveColorNodeID('vtkMRMLColorTableNodeFileColdToHotRainbow.txt')
-        else:
+      # cannot use multivolumes as reference, since they are not recognized by
+      # Editor
+      if volume.GetClassName() == 'vtkMRMLScalarVolumeNode':
+        try:
+          if self.seriesMap[seriesNumber]['MetaInfo']['ResourceType'] == 'OncoQuant':
+            dNode = volume.GetDisplayNode()
+            dNode.SetWindowLevel(5.0,2.5)
+            dNode.SetAndObserveColorNodeID('vtkMRMLColorTableNodeFileColdToHotRainbow.txt')
+          else:
+            self.refSelector.addItem(text)
+        except:
           self.refSelector.addItem(text)
-      except:
-        self.refSelector.addItem(text)
-        pass
+          pass
 
       self.seriesMap[seriesNumber]['Volume'].SetName(shortName)
 
