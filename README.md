@@ -24,7 +24,16 @@ Slicer.
 
 ### Data organization conventions
 
-The module expects that data is arranged in uniquely-named folders, each of which corresponds to an imaging study (in the DICOM meaning of a study). The data layout (see below, as printed by the Linux tree command line tool) is then somewhat mimics the layout used internally by XNAT (since this is what the author used internally for data organization). Each study is expected to have one top-level folder called RESOURCES. Within that folder, it is expected to have one folder for each imaging series, with the folder name matching the series number. Each series should have a sub-folder called Reconstructions. Reconstructions folder should contain 
+The module expects that data is arranged in uniquely-named folders, each of which corresponds to an imaging study (in the DICOM meaning of a study). The data layout (see below, as printed by the Linux tree command line tool) somewhat mimics the layout used internally by XNAT (since this is what the author used internally for data organization). Each study is expected to have one top-level folder called RESOURCES. Within that folder, it is expected to have one folder for each imaging series, with the folder name matching the series number. Each series should have a sub-folder called Reconstructions. Reconstructions folder should contain 
+
+A converter utility is provided in Util/PCampReviewPreprocessor.py to put a
+collection of DICOM files into the format and hierarchy expected by
+PCampReview. Here is how converter should be used:
+
+```
+Slicer --no-main-window --no-splash --python-script \
+Util/PCampReviewPreprocessor.py -i <input folder, can contain sub-folders> -o <output folder>
+```
 
 1. Image volume in NRRD format (see http://teem.sourceforge.net/nrrd/index.html), or any volumetric format recognized by 3D Slicer. 
 2. .xml file containing the output of DCMTK dcm2xml utility (see
@@ -92,8 +101,5 @@ Missing features:
 
  TODO:
   * clean up the code
-  * add a custom color LUT
-    details: https://github.com/paulcm/LongitudinalPETCT/blob/master/Logic/vtkSlicerLongitudinalPETCTLogic.cxx#L240
   * add support for multiple readers and reading date
   * support visualization of multi-volume (DCE) and plotting
-  * PI-RADS review
