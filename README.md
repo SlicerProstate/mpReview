@@ -24,7 +24,11 @@ Slicer.
 
 ### Data organization conventions
 
-The module expects that data is arranged in uniquely-named folders, each of which corresponds to an imaging study (in the DICOM meaning of a study). The data layout (see below, as printed by the Linux tree command line tool) somewhat mimics the layout used internally by XNAT (since this is what the author used internally for data organization). Each study is expected to have one top-level folder called RESOURCES. Within that folder, it is expected to have one folder for each imaging series, with the folder name matching the series number. Each series should have a sub-folder called Reconstructions. Reconstructions folder should contain 
+The module expects that data is arranged in uniquely-named folders, each of which corresponds to an imaging study (in the DICOM meaning of a study). The data layout (see below, as printed by the Linux tree command line tool) somewhat mimics the layout used internally by XNAT (since this is what the author used internally for data organization). Each study is expected to have one top-level folder called RESOURCES. Within that folder, it is expected to have one folder for each imaging series, with the folder name matching the series number. Each series should have a sub-folder called Reconstructions. Reconstructions folder should contain:
+
+1. Image volume in NRRD format (see http://teem.sourceforge.net/nrrd/index.html), or any volumetric format recognized by 3D Slicer. 
+2. .xml file containing the output of DCMTK dcm2xml utility (see
+   http://support.dcmtk.org/docs/dcm2xml.html).
 
 A converter utility is provided in Util/PCampReviewPreprocessor.py to put a
 collection of DICOM files into the format and hierarchy expected by
@@ -35,9 +39,7 @@ Slicer --no-main-window --no-splash --python-script \
 Util/PCampReviewPreprocessor.py -i <input folder, can contain sub-folders> -o <output folder>
 ```
 
-1. Image volume in NRRD format (see http://teem.sourceforge.net/nrrd/index.html), or any volumetric format recognized by 3D Slicer. 
-2. .xml file containing the output of DCMTK dcm2xml utility (see
-   http://support.dcmtk.org/docs/dcm2xml.html).
+And this is an example of the data layout after applying the converter.
 
 ```
 └── RESOURCES
