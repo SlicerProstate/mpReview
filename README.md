@@ -39,7 +39,7 @@ Slicer --no-main-window --no-splash --python-script \
 Util/PCampReviewPreprocessor.py -i <input folder, can contain sub-folders> -o <output folder>
 ```
 
-And this is an example of the data layout after applying the converter.
+And this is an example of the data layout for one imaging study after applying the converter.
 
 ```
 └── RESOURCES
