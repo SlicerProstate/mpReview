@@ -330,9 +330,11 @@ class PCampReviewWidget:
     perStructureFrame.collapsed = False
 
     buttonsFrame = slicer.util.findChildren(volumesFrame,'ButtonsFrame')[0]
+    '''
     updateViewsButton = qt.QPushButton('Update Views')
     buttonsFrame.layout().addWidget(updateViewsButton)
     updateViewsButton.connect("clicked()", self.updateViews)
+    '''
 
     lm = slicer.app.layoutManager()
     redWidget = lm.sliceWidget('Red')
@@ -346,6 +348,8 @@ class PCampReviewWidget:
     #self.editorWidget.toolsColor.frame.setVisible(False)
 
     self.editorParameterNode = self.editUtil.getParameterNode()
+    self.editorParameterNode.SetParameter('propagationMode',
+                             str(slicer.vtkMRMLApplicationLogic.LabelLayer))
 
     step4Layout.addRow(editorWidgetParent)
 
@@ -1202,6 +1206,7 @@ class PCampReviewWidget:
 
     print('Exiting onReferenceChanged')
 
+  '''
   def updateViews(self):
     lm = slicer.app.layoutManager()
     w = lm.sliceWidget('Red')
@@ -1212,6 +1217,7 @@ class PCampReviewWidget:
 
     self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
     self.setOpacityOnAllSliceWidgets(1.0)
+  '''
 
   def cleanupDir(self, d):
     if not os.path.exists(d):
