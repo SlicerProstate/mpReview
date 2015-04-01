@@ -637,7 +637,7 @@ class PCampReviewWidget:
 
       structureName = labelName[labelName[:-6].rfind("-")+1:-6]
       # Only save labels with known structure names
-      if any(structureName in s for s in self.structureNames):
+      if any(structureName == s for s in self.structureNames):
         print "structure name is:" ,structureName
         uniqueID = self.settings.value('PCampReview/UserName')+\
           '-' + structureName + '-' +\
