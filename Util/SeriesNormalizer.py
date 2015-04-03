@@ -35,10 +35,10 @@ def getCanonicalType(dom):
   import re
   desc = getElementValue(dom,'SeriesDescription')
   if re.search('[a-zA-Z]',desc) == None:
-    return "sutract"
+    return "SUB"
   elif re.search('AX',desc) and re.search('T2',desc):
-    return "Axial T2"
-  elif re.search('Apparent Diffusion',desc):
+    return "T2AX"
+  elif desc.startswith('Apparent Diffusion Coefficient'):
     # TODO: parse platform-specific b-values etc
     return 'ADC'
   elif re.search('Ax Dynamic',desc) or re.search('3D DCE',desc):
