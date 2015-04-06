@@ -101,7 +101,7 @@ seriesDescription2Type = {}
 studies = getValidDirs(data)
 
 # FYI: BWH study-specific
-series = [str(s) for s in range(1,31)]
+#series = [str(s) for s in range(1,31)]
 
 totalSeries = 0
 totalStudies = 0
