@@ -86,8 +86,10 @@ def getCanonicalType(dom):
   else:
     return "Unknown"
 
-logger = logging.getLogger()
-logger.setLevel(logging.ERROR)
+logger = logging.getLogger('checker')
+ch = logging.StreamHandler()
+ch.setLevel(logging.ERROR)
+logger.addHandler(ch)
 
 # if there is a label number mismatch, change the label id
 fixLabels = False
@@ -190,6 +192,8 @@ for c in studies:
           stats.Execute(label,label)
           totalLabels = stats.GetNumberOfLabels()
           labelID = stats.GetLabels()[-1]
+
+          logger.info('Checking '+segmentationFile+' total labels: '+str(totalLabels))
 
           if image.GetSize()[2] != label.GetSize()[2]:
             logger.error('Image/label sizes do not match: '+segmentationFile)
