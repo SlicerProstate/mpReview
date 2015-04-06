@@ -1,5 +1,6 @@
 import shutil, string, os, sys, glob, xml.dom.minidom, json
 import SimpleITK as sitk
+import logging
 
 # Given the location of data and a JSON configuration file that has the following
 # structure:
@@ -10,8 +11,9 @@ import SimpleITK as sitk
 # MeasurementTypes: <list of canonical names for the series>
 # Readers: <list of reader IDs>
 #
-# find series that match the list (study and series type), compute all
-# measurement types, and save them at the Measurements level.
+# Check the latest label that is available, if it is empty, find the most
+# recent non-empty, if any, and check if the label dimensions match those of
+# the image.
 
 data = sys.argv[1]
 
@@ -84,16 +86,37 @@ def getCanonicalType(dom):
   else:
     return "Unknown"
 
+logger = logging.getLogger()
+logger.setLevel(logging.ERROR)
+
+# if there is a label number mismatch, change the label id
+fixLabels = False
+
+# delete files with empty labels
+removeEmpty = False
+
 seriesDescription2Count = {}
 seriesDescription2Type = {}
 
 studies = getValidDirs(data)
+
+# FYI: BWH study-specific
+series = [str(s) for s in range(1,31)]
 
 totalSeries = 0
 totalStudies = 0
 
 mm = MeasurementsManager()
 mvalue = 0
+
+# read structure to label ID for consistency checking
+colorFile = "../Resources/Colors/PCampReviewColors.csv"
+import csv
+name2labelNumber = {}
+with open(colorFile,'rb') as csvfile:
+  reader = csv.DictReader(csvfile,delimiter=',')
+  for index,row in enumerate(reader):
+    name2labelNumber[row['Label']] = int(row['Number'])
 
 for c in studies:
 
@@ -148,75 +171,63 @@ for c in studies:
         if not len(segFiles):
           continue
         segFiles.sort()
+        segFiles.reverse()
 
-        # consider only the most recent seg file for the given reader
-        segmentationFile = segFiles[-1]
+        mostRecentProblematic = False
 
-        imageFile = os.path.join(studyDir,s,'Reconstructions',s+'.nrrd')
+        for segmentationFile in segFiles:
+          errorCode = 0
+          # consider only the most recent seg file for the given reader
+  
+          imageFile = os.path.join(studyDir,s,'Reconstructions',s+'.nrrd')
 
-        #print 'Reading ',imageFile,segmentationFile
+          #print 'Reading ',imageFile,segmentationFile
 
-        label = sitk.ReadImage(str(segmentationFile))
-        image = sitk.ReadImage(imageFile)
+          label = sitk.ReadImage(str(segmentationFile))
+          image = sitk.ReadImage(imageFile)
 
-        image.SetDirection(label.GetDirection())
-        image.SetSpacing(label.GetSpacing())
-        image.SetOrigin(label.GetOrigin())
+          stats = sitk.LabelStatisticsImageFilter()
+          stats.Execute(label,label)
+          totalLabels = stats.GetNumberOfLabels()
+          labelID = stats.GetLabels()[-1]
 
-        if image.GetSize()[2] != label.GetSize()[2]:
-          print 'ERROR: Image/label sizes do not match!'
-          abort()
+          if image.GetSize()[2] != label.GetSize()[2]:
+            logger.error('Image/label sizes do not match: '+segmentationFile)
+            errorCode = 1
 
-        stats = sitk.LabelStatisticsImageFilter()
-        stats.Execute(label,label)
-        totalLabels = stats.GetNumberOfLabels()
-        if totalLabels<2:
-          print segmentationFile
-          print "ERROR: Segmentation should have exactly 2 labels!"
-          continue
+          if totalLabels==1:
+            logger.error("Segmentation has only one label:"+str(labelID)+" for "+\
+                segmentationFile)
+            if removeEmpty:
+              os.unlink(segmentationFile)
+              logger.info('Removed empty '+segmentationFile)
+            errorCode = 2
 
-        # threshold to label 1
-        thresh = sitk.BinaryThresholdImageFilter()
-        thresh.SetLowerThreshold(1)
-        thresh.SetUpperThreshold(100)
-        thresh.SetInsideValue(1)
-        thresh.SetOutsideValue(0)
-        label = thresh.Execute(label)
+          if totalLabels>2:
+            logger.error("Segmentation has more than 2 labels:"+segmentationFile)
+            errorCode = 3
 
-        stats.Execute(image,label)
+          if totalLabels==2 and name2labelNumber[structure] != labelID:
+            logging.error("Label inconsistent: "+str(labelID)+\
+            ", expected "+str(name2labelNumber[structure])+\
+            " for "+structure+" in "+segmentationFile)
+            if fixLabels:
+              ff = sitk.ChangeLabelImageFilter()
+              ff.SetChangeMap({labelID:name2labelNumber[structure]})
+              newLabel = ff.Execute(label)
+              stats.Execute(newLabel,newLabel)
+              sitk.WriteImage(newLabel,str(segmentationFile),True)
+              logger.info('Fixed up label overwritten '+segmentationFile)
+            errorCode = 4
 
-        measurements = {}
-        measurements['SegmentationName'] = segmentationFile.split('/')[-1]
+          if errorCode:
+            if segmentationFile == segFiles[0]:
+              mostRecentProblematic = True
+            if segmentationFile == segFiles[-1]:
+              logger.critical('No valid segmentation found for '+segmentationFile)
+            continue
+          
+          if mostRecentProblematic:
+            logger.info('Error recovered in '+segmentationFile)
 
-        for mtype in settings['MeasurementTypes']:
-
-          if mtype == "Mean":
-            measurements["Mean"] = stats.GetMean(1)
-          if mtype == "Median":
-            measurements["Median"] = stats.GetMedian(1)
-          if mtype == "StandardDeviation":
-            measurements["StandardDeviation"] = stats.GetSigma(1)
-          if mtype == "Minimum":
-            measurements["Minimum"] = stats.GetMinimum(1)
-          if mtype == "Maximum":
-            measurements["Maximum"] = stats.GetMaximum(1)
-          if mtype == "Volume":
-            spacing = label.GetSpacing()
-            measurements["Volume"] = stats.GetCount(1)*spacing[0]*spacing[1]*spacing[2]
-
-        measurementsDir = os.path.join(studyDir,s,'Measurements')
-        try:
-          os.mkdir(measurementsDir)
-        except:
-          pass
-        measurementsFile = os.path.join(measurementsDir,s+'-'+structure+'-'+reader+'.json')
-        f = open(measurementsFile,'w')
-        f.write(json.dumps(measurements))
-        f.close()
-
-          #mm.recordMeasurement(study=c,series=s,struct=structure,reader=reader,mtype=mtype,mvalue=mvalue)
-          #mvalue = mvalue+1
-
-        #print str(measurements)
-
-print 'WARNING: ADD RESAMPLING OF THE LABEL TO IMAGE!!!'
+          break

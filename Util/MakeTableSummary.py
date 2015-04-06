@@ -143,6 +143,8 @@ for c in studies:
           'NormalROI_PZ_1',
           'NormalROI_CGTZ_1']
 
+      print 'Structures:'+str(allStructures)
+
       for structure in allStructures:
         # check if segmentation is available for this series
         

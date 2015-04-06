@@ -1,0 +1,6 @@
+{
+  "SeriesTypes": ["SUB","T2AX","ADC"],
+  "Structures": ["WholeGland","PeripheralZone","TumorROI_PZ_1","TumorROI_CGTZ_1"],
+  "Readers": ["fionafennessy"],
+  "MeasurementTypes": ["Volume"]
+}
