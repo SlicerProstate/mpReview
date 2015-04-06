@@ -837,7 +837,7 @@ class PCampReviewWidget:
           latestSegmentations[structureName] = segmentation
         else:
           storedSegmentation = latestSegmentations[structureName]
-          storedTimeStamp = storedSegmentation[storedSegmentation.rfind("-")+1:-5]
+          storedTimeStamp = int(storedSegmentation[storedSegmentation.rfind("-")+1:-5])
           if timeStamp > storedTimeStamp:
             latestSegmentations[structureName] = segmentation
 
