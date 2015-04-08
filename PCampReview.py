@@ -696,7 +696,7 @@ class PCampReviewWidget:
 
       for n in xrange(numNodes):
         node = slicer.mrmlScene.GetNthNodeByClass( n, "vtkMRMLModelHierarchyNode" )
-        if node.GetName() == refLongName:
+        if node.GetName() == 'PCampReview'+refLongName:
           outHierarchy = node
           break
 
@@ -714,7 +714,7 @@ class PCampReviewWidget:
       else:
         outHierarchy = slicer.vtkMRMLModelHierarchyNode()
         outHierarchy.SetScene( slicer.mrmlScene )
-        outHierarchy.SetName( refLongName )
+        outHierarchy.SetName( 'PCampReview-'+refLongName )
         slicer.mrmlScene.AddNode( outHierarchy )
 
       progress = qt.QProgressDialog()
@@ -783,6 +783,24 @@ class PCampReviewWidget:
       view = layoutManager.sliceWidget(wn).sliceView()
       view.scheduleRender()
 
+  def removeAllModels(self):
+    modelHierarchyNodes = []
+    numNodes = slicer.mrmlScene.GetNumberOfNodesByClass( "vtkMRMLModelHierarchyNode" )
+    for n in xrange(numNodes):
+      node = slicer.mrmlScene.GetNthNodeByClass( n, "vtkMRMLModelHierarchyNode")
+      if node.GetName()[:12] == 'PCampReview-':
+        modelHierarchyNodes.append(node)
+
+    for hierarchyNode in modelHierarchyNodes:
+      modelNodes = vtk.vtkCollection()
+      hierarchyNode.GetChildrenModelNodes(modelNodes)
+      for i in range(modelNodes.GetNumberOfItems()) :
+          slicer.mrmlScene.RemoveNode(modelNodes.GetItemAsObject(i))
+      slicer.mrmlScene.RemoveNode(hierarchyNode)
+
+    self.modelsVisibilityButton.checked = False
+    self.modelsVisibilityButton.setText('hide')
+    
   def onModelsVisibilityButton(self,toggled):
     if self.refSeriesNumber != '-1':
       ref = self.refSeriesNumber
@@ -793,7 +811,7 @@ class PCampReviewWidget:
       numNodes = slicer.mrmlScene.GetNumberOfNodesByClass( "vtkMRMLModelHierarchyNode" )
       for n in xrange(numNodes):
         node = slicer.mrmlScene.GetNthNodeByClass( n, "vtkMRMLModelHierarchyNode" )
-        if node.GetName() == refLongName:
+        if node.GetName() == 'PCampReview-'+refLongName:
           outHierarchy = node
           break
 
@@ -878,6 +896,8 @@ class PCampReviewWidget:
       if continuteStep4:
         self.step1frame.collapsed = 1
         return
+      else:
+        self.removeAllModels()
 
     if self.currentStep == 1:
       return
@@ -896,6 +916,8 @@ class PCampReviewWidget:
       if continuteStep4:
         self.step2frame.collapsed = 1
         return
+      else:
+        self.removeAllModels()
 
     if self.currentStep == 2:
       return
@@ -938,6 +960,8 @@ class PCampReviewWidget:
       if continuteStep4:
         self.step3frame.collapsed = 1
         return
+      else:
+        self.removeAllModels()
 
     if self.currentStep == 3 or not self.selectedStudyName:
       self.step3frame.collapsed = 1
@@ -1152,6 +1176,7 @@ class PCampReviewWidget:
       return True
 
   def onReferenceChanged(self, id):
+    self.removeAllModels()
     if self.refSelectorIgnoreUpdates:
       return
     text = self.refSelector.currentText
