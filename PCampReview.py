@@ -1,5 +1,6 @@
 from __future__ import division
 import os, json, xml.dom.minidom, string, glob, re
+import math
 import unittest
 from __main__ import vtk, qt, ctk, slicer
 import CompareVolumes
@@ -1151,7 +1152,6 @@ class PCampReviewWidget:
       return True
 
   def onReferenceChanged(self, id):
-
     if self.refSelectorIgnoreUpdates:
       return
     text = self.refSelector.currentText
