@@ -8,6 +8,7 @@ from EditorLib import EditColor
 import Editor
 from EditorLib import EditUtil
 from EditorLib import EditorLib
+import math
 
 import PCampReviewLib
 
