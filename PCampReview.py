@@ -713,12 +713,7 @@ class PCampReviewWidget:
       outHierarchy.SetName( "PCampReview Models" )
       slicer.mrmlScene.AddNode( outHierarchy )
 
-    progress = qt.QProgressDialog()
-    progress.minimumDuration = 0
-    progress.modal = True
-    progress.show()
-    progress.setValue(0)
-    progress.setMaximum(len(labelNodes))
+    progress = self.makeProgressIndicator(len(labelNodes))
     step = 0
     for label in labelNodes.values():
       labelName =  label.GetName().split(':')[1]
@@ -756,8 +751,7 @@ class PCampReviewWidget:
         except AttributeError:
           qt.QMessageBox.critical(slicer.util.mainWindow(),'Editor', 'The ModelMaker module is not available<p>Perhaps it was disabled in the application settings or did not load correctly.')
       step += 1
-    progress.close()
-      # 
+    progress.delete()
 
     if outHierarchy:
       collection = vtk.vtkCollection()
@@ -907,10 +901,16 @@ class PCampReviewWidget:
       return
 
     dirs = os.listdir(inputDir)
+    
+    progress = self.makeProgressIndicator(len(dirs))
+    nLoaded = 0
+    
     for studyName in dirs:
       if os.path.isdir(inputDir+'/'+studyName):
         studyDirs.append(studyName)
         print('Appending '+studyName)
+        progress.setValue(nLoaded)
+        nLoaded += 1
 
     self.studiesModel.clear()
     self.studyItems = []
@@ -920,6 +920,8 @@ class PCampReviewWidget:
       self.studiesModel.appendRow(sItem)
       print('Appended to model study '+s)
     # TODO: unload all volume nodes that are already loaded
+    
+    progress.delete()
 
   '''
   Step 3: Select series of interest
@@ -957,6 +959,10 @@ class PCampReviewWidget:
     inputDir = self.settings.value('PCampReview/InputLocation')
     self.resourcesDir = os.path.join(inputDir,self.selectedStudyName,'RESOURCES')
 
+    # Loading progress indicator
+    progress = self.makeProgressIndicator(len(os.listdir(self.resourcesDir)))
+    nLoaded = 0
+
     # expect one directory for each processed series, with the name
     # corresponding to the series number
     self.seriesMap = {}
@@ -977,6 +983,11 @@ class PCampReviewWidget:
             except:
               print('Failed to get from XML')
               continue
+              
+            progress.labelText = seriesName
+            progress.setValue(nLoaded)
+            nLoaded += 1
+            
             volumePath = os.path.join(root,seriesNumber+'.nrrd')
             self.seriesMap[seriesNumber] = {'MetaInfo':None, 'NRRDLocation':volumePath,'LongName':seriesName}
             self.seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+seriesName
@@ -1020,6 +1031,8 @@ class PCampReviewWidget:
       sItem.setCheckable(1)
       if self.isSeriesOfInterest(seriesText):
         sItem.setCheckState(2)
+
+    progress.delete()
 
   '''
   T2w, sub, ADC, T2map
@@ -1065,12 +1078,19 @@ class PCampReviewWidget:
 
     # ignore refSelector events until the selector is populated!
     self.refSelectorIgnoreUpdates = True
+    
+    # Loading progress indicator
+    progress = self.makeProgressIndicator(len(checkedItems))
+    nLoaded = 0
 
     # iterate over all selected items and add them to the reference selector
     selectedSeries = {}
     for i in checkedItems:
       text = i.text()
-      self.delayDisplay('Processing series '+text)
+      
+      progress.labelText = text
+      progress.setValue(nLoaded)
+      nLoaded += 1
 
       seriesNumber = text.split(':')[0]
       shortName = self.seriesMap[seriesNumber]['ShortName']
@@ -1119,6 +1139,8 @@ class PCampReviewWidget:
       selectedSeriesNumbers.append(int(seriesNumber))
 
     self.seriesMap = selectedSeries
+    
+    progress.delete()
 
     print('Selected series: '+str(selectedSeries)+', reference: '+str(ref))
     #self.cvLogic = CompareVolumes.CompareVolumesLogic()
@@ -1218,6 +1240,16 @@ class PCampReviewWidget:
     self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
     self.setOpacityOnAllSliceWidgets(1.0)
   '''
+  def makeProgressIndicator(self, maxVal):
+    progressIndicator = qt.QProgressDialog()
+    progressIndicator.minimumDuration = 0
+    progressIndicator.modal = True
+    progressIndicator.setMaximum(maxVal)
+    progressIndicator.setValue(0)
+    progressIndicator.setWindowTitle("Processing...")
+    progressIndicator.show()
+    return progressIndicator
+
 
   def cleanupDir(self, d):
     if not os.path.exists(d):
