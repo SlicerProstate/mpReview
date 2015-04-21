@@ -341,9 +341,9 @@ class PCampReviewWidget:
     controller = redWidget.sliceController()
     moreButton = slicer.util.findChildren(controller,'MoreButton')[0]
     moreButton.toggle()
-    labelMapOutlineButton = slicer.util.findChildren(
-                            controller,'LabelMapOutlineButton')[0]
-    buttonsFrame.layout().addWidget(labelMapOutlineButton)
+    # labelMapOutlineButton = slicer.util.findChildren(
+    #                         controller,'LabelMapOutlineButton')[0]
+    # buttonsFrame.layout().addWidget(labelMapOutlineButton)
 
     #self.editorWidget.toolsColor.frame.setVisible(False)
 
@@ -369,6 +369,11 @@ class PCampReviewWidget:
     self.modelsVisibilityButton.checkable = True
     modelsHLayout.addWidget(self.modelsVisibilityButton)
     self.modelsVisibilityButton.connect("toggled(bool)", self.onModelsVisibilityButton)
+    
+    labelMapOutlineButton = qt.QPushButton('Fill/Outline')
+    modelsHLayout.layout().addWidget(labelMapOutlineButton)
+    labelMapOutlineButton.connect('clicked()', self.editUtil.toggleLabelOutline)
+    
     modelsHLayout.addStretch(1)
 
     # keep here names of the views created by CompareVolumes logic
