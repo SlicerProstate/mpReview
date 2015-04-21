@@ -1,6 +1,5 @@
 from __future__ import division
-import os, json, xml.dom.minidom, string, glob, re
-import math
+import os, json, xml.dom.minidom, string, glob, re, math
 import unittest
 from __main__ import vtk, qt, ctk, slicer
 import CompareVolumes
@@ -9,7 +8,6 @@ from EditorLib import EditColor
 import Editor
 from EditorLib import EditUtil
 from EditorLib import EditorLib
-import math
 
 import PCampReviewLib
 
