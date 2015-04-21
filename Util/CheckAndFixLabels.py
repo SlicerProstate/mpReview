@@ -88,14 +88,17 @@ def getCanonicalType(dom):
 
 logger = logging.getLogger('checker')
 ch = logging.StreamHandler()
-ch.setLevel(logging.ERROR)
+ch.setLevel(logging.INFO)
 logger.addHandler(ch)
 
 # if there is a label number mismatch, change the label id
-fixLabels = False
+fixLabels = True
 
 # delete files with empty labels
 removeEmpty = False
+
+# resample label to the image reference
+resampleLabel = False
 
 seriesDescription2Count = {}
 seriesDescription2Type = {}
@@ -233,5 +236,13 @@ for c in studies:
           
           if mostRecentProblematic:
             logger.info('Error recovered in '+segmentationFile)
+
+          if resampleLabel:
+            logger.info('Resampling')
+            resample = sitk.ResampleImageFilter()
+            resample.SetReferenceImage(image)
+            resample.SetInterpolator(sitk.sitkNearestNeighbor)
+            label = resample.Execute(label)
+            sitk.WriteImage(label,str(segmentationFile),True)
 
           break

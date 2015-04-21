@@ -95,6 +95,10 @@ totalStudies = 0
 mm = MeasurementsManager()
 mvalue = 0
 
+# resample label to the image reference
+# should probably be done once during preprocessing
+resampleLabel = False
+
 for c in studies:
 
   try:
@@ -154,10 +158,14 @@ for c in studies:
 
         imageFile = os.path.join(studyDir,s,'Reconstructions',s+'.nrrd')
 
-        #print 'Reading ',imageFile,segmentationFile
-
         label = sitk.ReadImage(str(segmentationFile))
         image = sitk.ReadImage(imageFile)
+        
+        if resampleLabel:
+          resample = sitk.ResampleImageFilter()
+          resample.SetReferenceImage(image)
+          resample.SetInterpolator(sitk.sitkNearestNeighbor)
+          label = resample.Execute(label)
 
         image.SetDirection(label.GetDirection())
         image.SetSpacing(label.GetSpacing())
