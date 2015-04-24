@@ -96,19 +96,6 @@ And this is an example of the data layout for one imaging study after applying t
         └── Segmentations
             └── readerId-20140206103922.nrrd
 ``` 
-## Acknowledgments
-
-This work supported in part the National Institutes of Health, National Cancer Institute through the following grants:
-* Quantitative MRI of prostate cancer as a biomarker and guide for treatment, Quantitative Imaging Network (U01 CA151261, PI Fennessy)
-* Enabling technologies for MRI-guided prostate interventions (R01 CA111288, PI Tempany)
-* The National Center for Image-Guided Therapy (P41 EB015898, PI Tempany)
-* Quantitative Image Informatics for Cancer Research (QIICR) (U24 CA180918, PIs Kikinis and Fedorov)
-
-The following individuals and groups contributed directly to the development of SlicerProstate functionality:
-* Andrey Fedorov, Brigham and Women's Hospital
-* Alireza Mehrtash, Brigham and Women's Hospital
-* Robin Weiss, University of Chicago
-
 
 Missing features:
   * provenance elements: who (user information), when (date), how (w/l, more?), what
