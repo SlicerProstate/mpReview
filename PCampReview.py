@@ -1258,7 +1258,7 @@ class PCampReviewWidget:
     self.editorWidget.setMasterNode(self.volumeNodes[0])
     self.editorWidget.setMergeNode(self.seriesMap[str(ref)]['Label'])
 
-    self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[self.rows,self.cols])
+    self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[self.rows,self.cols], viewNames=self.viewNames)
     self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
 
     print('Setting master node for the Editor to '+self.volumeNodes[0].GetID())
