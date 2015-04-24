@@ -96,6 +96,13 @@ And this is an example of the data layout for one imaging study after applying t
         └── Segmentations
             └── readerId-20140206103922.nrrd
 ``` 
+
+TODO: update the above to follow the current organization and naming
+conventions!
+
+The list of labels used for segmentations is available as a spreadsheet here: 
+http://goo.gl/7Rtgqp
+
 ## Acknowledgments
 
 This work supported in part the National Institutes of Health, National Cancer Institute through the following grants:
