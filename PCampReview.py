@@ -8,6 +8,8 @@ from EditorLib import EditColor
 import Editor
 from EditorLib import EditUtil
 from EditorLib import EditorLib
+import SimpleITK as sitk
+import sitkUtils
 
 import PCampReviewLib
 
@@ -328,6 +330,9 @@ class PCampReviewWidget:
     perStructureFrame = slicer.util.findChildren(volumesFrame,
                         'PerStructureVolumesFrame')[0]
     perStructureFrame.collapsed = False
+    
+    structuresView = slicer.util.findChildren(volumesFrame,'StructuresView')[0]
+    structuresView.connect("activated(QModelIndex)", self.onStructureClicked)
 
     buttonsFrame = slicer.util.findChildren(volumesFrame,'ButtonsFrame')[0]
     '''
@@ -373,6 +378,10 @@ class PCampReviewWidget:
     labelMapOutlineButton = qt.QPushButton('Fill/Outline')
     modelsHLayout.layout().addWidget(labelMapOutlineButton)
     labelMapOutlineButton.connect('clicked()', self.editUtil.toggleLabelOutline)
+    
+    self.enableJumpToROI = qt.QCheckBox();
+    self.enableJumpToROI.setText("Jump to ROI")
+    modelsHLayout.addWidget(self.enableJumpToROI)
     
     modelsHLayout.addStretch(1)
 
@@ -803,7 +812,7 @@ class PCampReviewWidget:
       slicer.mrmlScene.RemoveNode(hierarchyNode)
 
     self.modelsVisibilityButton.checked = False
-    self.modelsVisibilityButton.setText('hide')
+    self.modelsVisibilityButton.setText('Hide')
     
   def onModelsVisibilityButton(self,toggled):
     if self.refSeriesNumber != '-1':
@@ -1293,6 +1302,81 @@ class PCampReviewWidget:
     progressIndicator.show()
     return progressIndicator
 
+
+  # Gets triggered on a click in the structures table
+  def onStructureClicked(self,index):
+    selectedLabelID = int(self.editorWidget.helper.structures.item(index.row(),0).text())
+    selectedLabelVol = self.editorWidget.helper.structures.item(index.row(),3).text()
+    if self.enableJumpToROI.checked:
+      print('calling onJumpToROI '+str(selectedLabelID) + ' ' + selectedLabelVol)
+      self.onJumpToROI(selectedLabelID,selectedLabelVol)
+      
+      
+  def onJumpToROI(self, selectedLabelID, selectedLabelVol):
+    
+    layoutNode = slicer.util.getNode('*LayoutNode*')
+    layoutManager = slicer.app.layoutManager()
+    redSliceWidget = layoutManager.sliceWidget('Red')
+    redSliceNode = redSliceWidget.mrmlSliceNode()
+    redSliceOffset = redSliceNode.GetSliceOffset()
+    
+    print('Jumping to ROI #' + str(selectedLabelID))
+    labelNode = slicer.util.getNode(selectedLabelVol)
+    print('Using label node '+labelNode.GetID())
+    labelAddress = sitkUtils.GetSlicerITKReadWriteAddress(labelNode.GetName())
+    labelImage = sitk.ReadImage(labelAddress)
+
+    ls = sitk.LabelStatisticsImageFilter()
+    ls.Execute(labelImage,labelImage)
+    bb = ls.GetBoundingBox(selectedLabelID)
+    
+    if len(bb) > 0:
+      # Averge to get the center of the BB
+      i_center = ((bb[0] + bb[1]) / 2)
+      j_center = ((bb[2] + bb[3]) / 2)
+      k_center = ((bb[4] + bb[5]) / 2)
+      print('BB is: ' + str(bb))
+      print('i_center = '+str(i_center))
+      print('j_center = '+str(j_center))
+      print('k_center = '+str(k_center))
+
+
+      # Now figure out which slice to go to in RAS space based on the i,j,k coords
+      # This *works* but I think its either not right or too complicated or both...
+      IJKtoRAS = vtk.vtkMatrix4x4()
+      labelNode.GetIJKToRASMatrix(IJKtoRAS)
+
+      IJKtoRASDir = vtk.vtkMatrix4x4()
+      labelNode.GetIJKToRASDirectionMatrix(IJKtoRASDir)
+
+      RAScoord = IJKtoRAS.MultiplyPoint((i_center, j_center, k_center, 1))
+      
+      # set these in case we fall through for some reason (like we can't handle that scan order)
+      sagittal_offset = redSliceOffset
+      coronal_offset = redSliceOffset
+      axial_offset = redSliceOffset
+
+      order = labelNode.ComputeScanOrderFromIJKToRAS(IJKtoRAS)
+      if order == 'IS':
+          RASDir = IJKtoRASDir.MultiplyPoint((RAScoord[0], RAScoord[1], RAScoord[2], 1))
+          sagittal_offset = -RASDir[0]
+          coronal_offset  = -RASDir[1]
+          axial_offset    =  RASDir[2]
+      elif order == 'AP':
+          RASDir = IJKtoRASDir.MultiplyPoint((RAScoord[0], RAScoord[1], RAScoord[2], 1))
+          sagittal_offset = -RASDir[0]
+          coronal_offset  = -RASDir[2]
+          axial_offset    = -RASDir[1]
+      elif order == 'LR':
+          RASDir = IJKtoRASDir.MultiplyPoint((RAScoord[2], RAScoord[1], RAScoord[0], 1))
+          sagittal_offset =  RASDir[0]
+          coronal_offset  = -RASDir[2]
+          axial_offset    = -RASDir[1]
+
+      # this assumes we're in axial offset (which we should be)...
+      # will need to visit if/when we are going to allow people to change orientation
+      self.setOffsetOnAllSliceWidgets(axial_offset)
+      
 
   def cleanupDir(self, d):
     if not os.path.exists(d):
