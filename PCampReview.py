@@ -504,13 +504,13 @@ class PCampReviewWidget:
     if os.path.isfile(lookupTableLoc):
       # use custom color table
       self.colorFile = lookupTableLoc
-      self.customLUTLabel.text = 'Using custom LUT'
+      self.customLUTLabel.text = 'Project-Specific LUT Found'
     else:   
       # use the module default color table 
       moduleName="PCampReview"
       modulePath = eval('slicer.modules.%s.path' % moduleName.lower()).replace(moduleName+".py","")
       self.colorFile = modulePath + "Resources/Colors/PCampReviewColors.csv"
-      self.customLUTLabel.text = 'Using default LUT'
+      self.customLUTLabel.text = 'Using Default LUT'
       
     # setup the color table
     self.PCampReviewColorNode = slicer.vtkMRMLColorTableNode()
@@ -655,13 +655,7 @@ class PCampReviewWidget:
 
 
     import datetime
-    import shutil
-    
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-    
-    # save the lookup table that was used along side the labels
-    colorFileName = os.path.join(segmentationsDir,self.settings.value('PCampReview/UserName')+'-LUT-'+timestamp+'.csv')
-    shutil.copyfile(self.colorFile, colorFileName)
     
     # save all label nodes (there should be only one per volume!)
     labelNodes = slicer.util.getNodes('*-label*')
