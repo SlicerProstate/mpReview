@@ -3,7 +3,7 @@ import unittest
 from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 import argparse
-import sys
+import sys, shutil
 
 #
 # PCampReviewPreprocessor
@@ -57,6 +57,10 @@ class PCampReviewPreprocessorWidget(ScriptedLoadableModuleWidget):
     self.outputDirButton = ctk.ctkDirectoryButton()
     parametersFormLayout.addRow("Output directory:",self.outputDirButton)
 
+    self.copyDICOMButton = qt.QCheckBox()
+    self.copyDICOMButton.setChecked(0)
+    parametersFormLayout.addRow("Organize DICOMs:",self.copyDICOMButton)
+
     applyButton = qt.QPushButton('Run')
     parametersFormLayout.addRow(applyButton)
 
@@ -64,7 +68,8 @@ class PCampReviewPreprocessorWidget(ScriptedLoadableModuleWidget):
 
   def onRunClicked(self):
     logic = PCampReviewPreprocessorLogic()
-    logic.Convert(self.inputDirButton.directory, self.outputDirButton.directory)
+    logic.Convert(self.inputDirButton.directory, self.outputDirButton.directory,
+        copyDICOM=self.copyDICOMButton.checked)
 
 #
 # PCampReviewPreprocessorLogic
@@ -89,7 +94,7 @@ class PCampReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
 
     self.dicomDatabaseDir = self.dataDir + '/CtkDicomDatabase'
 
-  def Convert(self, inputDir, outputDir):
+  def Convert(self, inputDir, outputDir, copyDICOM):
     # inputDir = '/Users/fedorov/ImageData/QIICR/QIN PROSTATE/QIN-PROSTATE-01-0001/1.3.6.1.4.1.14519.5.2.1.3671.7001.133687106572018334063091507027'
     print('Database location: '+self.dicomDatabaseDir)
     print('FIXME: revert back to the original DB location when done!')
@@ -150,13 +155,24 @@ class PCampReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
               os.makedirs(dirName)
             except:
               pass
-            print('Running: dcm2xml '+dcmFile.replace(' ','\ ')+' > '+xmlName.replace(' ','\ '))
+            #print('Running: dcm2xml '+dcmFile.replace(' ','\ ')+' > '+xmlName.replace(' ','\ '))
             os.system('/Users/fedorov/local/bin/dcm2xml '+dcmFile.replace(' ','\ ')+' > '+xmlName.replace(' ','\ '))
             nrrdName = dirName+seriesNumber+'.nrrd'
-            print(nrrdName)
+            #print(nrrdName)
             storageNode.SetFileName(nrrdName)
             storageNode.WriteData(node)
-            print 'Node saved!'
+
+            # copy original DICOMs
+            if copyDICOM:
+              fileCount = 0
+              dirName = outputDir + '/'+studyID+'/RESOURCES/'+seriesNumber+'/DICOM/'
+              try:
+                os.makedirs(dirName)
+              except:
+                pass
+              for dcm in loadable.files:
+                shutil.copy(dcm, dirName+'/'+ "%06d.dcm" % fileCount)
+                fileCount = fileCount+1
           else:
             print 'No node!'
 
@@ -201,6 +217,8 @@ def main(argv):
                         default="-", required=True, help="Folder of input DICOM files (can contain sub-folders)")
     parser.add_argument("-o", "--output-folder", dest="output_folder", metavar="PATH",
                         default=".", help="Folder to save converted datasets")
+    parser.add_argument("-d","--copyDICOM",dest=copyDICOM,type=bool,default=False,
+                        help="Organize DICOM files in the output directory")
     args = parser.parse_args(argv)
 
     # Check required arguments
@@ -210,7 +228,7 @@ def main(argv):
       print('Current directory is selected as output folder (default). To change it, please specify --output-folder')
 
     logic = PCampReviewPreprocessorLogic()
-    logic.Convert(args.input_folder,args.output_folder)
+    logic.Convert(args.input_folder,args.output_folder,copyDICOM=args.copyDICOM)
 
   except Exception, e:
     print e
