@@ -709,7 +709,7 @@ class PCampReviewWidget:
 
       for n in xrange(numNodes):
         node = slicer.mrmlScene.GetNthNodeByClass( n, "vtkMRMLModelHierarchyNode" )
-        if node.GetName() == 'PCampReview'+refLongName:
+        if node.GetName() == 'PCampReview-'+refLongName:
           outHierarchy = node
           break
 
