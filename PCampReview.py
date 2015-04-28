@@ -1000,7 +1000,7 @@ class PCampReviewWidget:
 
     # if any volumes have been loaded (we returned back from a previous step)
     # then remove all of them from the scene
-    allVolumeNodes = slicer.util.getNodes('vtkMRMLScalarVolumeNode*')
+    allVolumeNodes = slicer.util.getNodes('vtkMRML*VolumeNode*')
     if len(allVolumeNodes):
       for key in allVolumeNodes.keys():
         slicer.mrmlScene.RemoveNode(allVolumeNodes[key])
