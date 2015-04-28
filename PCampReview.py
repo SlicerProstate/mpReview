@@ -1285,8 +1285,7 @@ class PCampReviewWidget:
       self.rows = 4
     self.cols = math.ceil(nVolumeNodes/self.rows)
 
-    self.editorWidget.setMasterNode(self.volumeNodes[0])
-    self.editorWidget.setMergeNode(self.seriesMap[str(ref)]['Label'])
+    self.editorWidget.helper.setVolumes(self.volumeNodes[0], self.seriesMap[str(ref)]['Label'])
 
     self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[self.rows,self.cols],viewNames=self.viewNames)
     self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
