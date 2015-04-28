@@ -63,27 +63,7 @@ class PCampReviewWidget:
     # module-specific initialization
     self.inputDataDir = ''
     self.webFormURL = ''
-
-    self.PCampReviewColorNode = slicer.vtkMRMLColorTableNode()
-    colorNode = self.PCampReviewColorNode
-    colorNode.SetName('PCampReview')
-    slicer.mrmlScene.AddNode(colorNode)
-    colorNode.SetTypeToUser()
-    moduleName="PCampReview"
-    modulePath = eval('slicer.modules.%s.path' % moduleName.lower()).replace(moduleName+".py","")
-    colorFile = modulePath + "Resources/Colors/PCampReviewColors.csv"
-    with open(colorFile) as f:
-      n = sum(1 for line in f)
-    colorNode.SetNumberOfColors(n-1)
-    import csv
-    self.structureNames = []
-    with open(colorFile, 'rb') as csvfile:
-      reader = csv.DictReader(csvfile, delimiter=',')
-      for index,row in enumerate(reader):
-        colorNode.SetColor(index,row['Label'],float(row['R'])/255,
-                float(row['G'])/255,float(row['B'])/255,float(row['A']))
-        self.structureNames.append(row['Label'])
-
+    
     # TODO: figure out why module/class hierarchy is different
     # between developer builds ans packages
     try:
@@ -220,12 +200,16 @@ class PCampReviewWidget:
     self.dataDirButton = qt.QPushButton(str(self.settings.value('PCampReview/InputLocation')))
     self.dataDirButton.connect('clicked()', self.onInputDirSelected)
     step1Layout.addRow("Select data directory:", self.dataDirButton)
+    self.customLUTLabel = qt.QLabel()
+    step1Layout.addRow(self.customLUTLabel)
     self.inputDirLabel = qt.QLabel()
     step1Layout.addRow(self.inputDirLabel)
     self.resultsDirLabel = qt.QLabel()
     step1Layout.addRow(self.resultsDirLabel)
     self.step1frame.collapsed = 0
     self.step1frame.connect('clicked()', self.onStep1Selected)
+
+    self.checkAndSetLUT()
 
     # TODO: add here source directory selector
 
@@ -511,6 +495,42 @@ class PCampReviewWidget:
     #self.inputDirLabel.text = self.settings.value('PCampReview/InputLocation')
     #self.resultsDirLabel.text = self.settings.value('PCampReview/ResultsLocation')
 
+
+  def checkAndSetLUT(self):
+    
+    lookupTableLoc = self.settings.value('PCampReview/InputLocation') + os.sep + 'SETTINGS' + os.sep + self.settings.value('PCampReview/InputLocation').split(os.sep)[-1] + '-LUT.csv'
+    print('Checking for lookup table at : ' + lookupTableLoc)
+    self.colorFile = ""
+    if os.path.isfile(lookupTableLoc):
+      # use custom color table
+      self.colorFile = lookupTableLoc
+      self.customLUTLabel.text = 'Project-Specific LUT Found'
+    else:   
+      # use the module default color table 
+      moduleName="PCampReview"
+      modulePath = eval('slicer.modules.%s.path' % moduleName.lower()).replace(moduleName+".py","")
+      self.colorFile = modulePath + "Resources/Colors/PCampReviewColors.csv"
+      self.customLUTLabel.text = 'Using Default LUT'
+      
+    # setup the color table
+    self.PCampReviewColorNode = slicer.vtkMRMLColorTableNode()
+    colorNode = self.PCampReviewColorNode
+    colorNode.SetName('PCampReview')
+    slicer.mrmlScene.AddNode(colorNode)
+    colorNode.SetTypeToUser()
+    with open(self.colorFile) as f:
+      n = sum(1 for line in f)
+    colorNode.SetNumberOfColors(n-1)
+    import csv
+    self.structureNames = []
+    with open(self.colorFile, 'rb') as csvfile:
+      reader = csv.DictReader(csvfile, delimiter=',')
+      for index,row in enumerate(reader):
+        colorNode.SetColor(index,row['Label'],float(row['R'])/255,
+                float(row['G'])/255,float(row['B'])/255,float(row['A']))
+        self.structureNames.append(row['Label'])
+      
+      
   def onNameEntered(self):
     name = self.nameText.text
     if len(name)>0:
@@ -633,6 +653,10 @@ class PCampReviewWidget:
       print('Failed to create one of the following directories: '+segmentationsDir+' or '+wlSettingsDir)
       pass
 
+
+    import datetime
+    timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+    
     # save all label nodes (there should be only one per volume!)
     labelNodes = slicer.util.getNodes('*-label*')
     print('All label nodes found: '+str(labelNodes))
@@ -651,15 +675,11 @@ class PCampReviewWidget:
       except:
         pass
 
-      import datetime
-
       structureName = labelName[labelName[:-6].rfind("-")+1:-6]
       # Only save labels with known structure names
       if any(structureName == s for s in self.structureNames):
         print "structure name is:" ,structureName
-        uniqueID = self.settings.value('PCampReview/UserName')+\
-          '-' + structureName + '-' +\
-          datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        uniqueID = self.settings.value('PCampReview/UserName')+'-'+structureName+'-'+timestamp
 
         labelFileName = os.path.join(segmentationsDir,uniqueID+'.nrrd')
 
@@ -693,6 +713,7 @@ class PCampReviewWidget:
     self.inputDataDir = qt.QFileDialog.getExistingDirectory(self.parent,'Input data directory', '/Users/fedorov/Temp/XNAT-images')
     self.dataDirButton.text = self.inputDataDir
     self.settings.setValue('PCampReview/InputLocation', self.inputDataDir)
+    self.checkAndSetLUT()
     print('Directory selected:')
     print(self.inputDataDir)
     print(self.settings.value('PCampReview/InputLocation'))
@@ -709,7 +730,7 @@ class PCampReviewWidget:
 
       for n in xrange(numNodes):
         node = slicer.mrmlScene.GetNthNodeByClass( n, "vtkMRMLModelHierarchyNode" )
-        if node.GetName() == 'PCampReview'+refLongName:
+        if node.GetName() == 'PCampReview-'+refLongName:
           outHierarchy = node
           break
 
@@ -955,7 +976,7 @@ class PCampReviewWidget:
     nLoaded = 0
     
     for studyName in dirs:
-      if os.path.isdir(inputDir+'/'+studyName):
+      if os.path.isdir(inputDir+'/'+studyName) and studyName != 'SETTINGS':
         studyDirs.append(studyName)
         print('Appending '+studyName)
         progress.setValue(nLoaded)
