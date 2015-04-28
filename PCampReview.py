@@ -1004,6 +1004,11 @@ class PCampReviewWidget:
     if len(allVolumeNodes):
       for key in allVolumeNodes.keys():
         slicer.mrmlScene.RemoveNode(allVolumeNodes[key])
+    
+    allMultiVolumeNodes = slicer.util.getNodes('vtkMRMLMultiVolumeNode*')
+    if len(allMultiVolumeNodes):
+      for key in allMultiVolumeNodes.keys():
+        slicer.mrmlScene.RemoveNode(allMultiVolumeNodes[key])
 
     self.parameters['StudyName'] = self.selectedStudyName
 
