@@ -370,9 +370,10 @@ class PCampReviewWidget:
     modelsHLayout.addWidget(self.modelsVisibilityButton)
     self.modelsVisibilityButton.connect("toggled(bool)", self.onModelsVisibilityButton)
     
-    labelMapOutlineButton = qt.QPushButton('Fill/Outline')
-    modelsHLayout.layout().addWidget(labelMapOutlineButton)
-    labelMapOutlineButton.connect('clicked()', self.editUtil.toggleLabelOutline)
+    self.labelMapOutlineButton = qt.QPushButton('Outline')
+    self.labelMapOutlineButton.checkable = True
+    modelsHLayout.layout().addWidget(self.labelMapOutlineButton)
+    self.labelMapOutlineButton.connect('toggled(bool)', self.setLabelOutline)
     
     modelsHLayout.addStretch(1)
 
@@ -784,6 +785,23 @@ class PCampReviewWidget:
       view = layoutManager.sliceWidget(wn).sliceView()
       view.scheduleRender()
 
+  def setLabelOutline(self, toggled):
+    
+    # Update button text
+    if toggled:
+      self.labelMapOutlineButton.setText('Filled')
+    else:
+      self.labelMapOutlineButton.setText('Outline')
+    
+    # Toggle outline on widgets
+    layoutManager = slicer.app.layoutManager()
+    widgetNames = layoutManager.sliceViewNames()
+    for wn in widgetNames:
+      widget = layoutManager.sliceWidget(wn)
+      widgetController = widget.sliceController()
+      widgetController.showLabelOutline(toggled)
+      
+    
   def onModelsVisibilityButton(self,toggled):
     outHierarchy = None
     numNodes = slicer.mrmlScene.GetNumberOfNodesByClass( "vtkMRMLModelHierarchyNode" )
@@ -1200,6 +1218,7 @@ class PCampReviewWidget:
 
     self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[self.rows,self.cols])
     self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
+    self.setLabelOutline(self.labelMapOutlineButton.checked)
 
     print('Setting master node for the Editor to '+self.volumeNodes[0].GetID())
 
