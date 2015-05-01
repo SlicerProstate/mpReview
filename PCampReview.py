@@ -315,8 +315,8 @@ class PCampReviewWidget:
                         'PerStructureVolumesFrame')[0]
     perStructureFrame.collapsed = False
     
-    structuresView = slicer.util.findChildren(volumesFrame,'StructuresView')[0]
-    structuresView.connect("activated(QModelIndex)", self.onStructureClicked)
+    self.structuresView = slicer.util.findChildren(volumesFrame,'StructuresView')[0]
+    self.structuresView.connect("activated(QModelIndex)", self.onStructureClicked)
 
     buttonsFrame = slicer.util.findChildren(volumesFrame,'ButtonsFrame')[0]
     '''
@@ -333,6 +333,11 @@ class PCampReviewWidget:
     # labelMapOutlineButton = slicer.util.findChildren(
     #                         controller,'LabelMapOutlineButton')[0]
     # buttonsFrame.layout().addWidget(labelMapOutlineButton)
+
+    deleteStructureButton = qt.QPushButton('Delete Structure')
+    buttonsFrame.layout().addWidget(deleteStructureButton)
+    deleteStructureButton.connect('clicked()', self.onDeleteStructure)
+
 
     #self.editorWidget.toolsColor.frame.setVisible(False)
 
@@ -1330,7 +1335,25 @@ class PCampReviewWidget:
     if self.enableJumpToROI.checked:
       print('calling onJumpToROI '+str(selectedLabelID) + ' ' + selectedLabelVol)
       self.onJumpToROI(selectedLabelID,selectedLabelVol)
+  
+  def onDeleteStructure(self):
+    selectionModel = self.structuresView.selectionModel()
+    selected = selectionModel.currentIndex().row()
+    if selected >= 0:
+      selectedLabelVol = self.editorWidget.helper.structures.item(selected,3).text()
+      selectedModelVol = self.editorWidget.helper.structures.item(selected,2).text()
       
+      # Confirm with user
+      msgBox = qt.QMessageBox()
+      msgBox.setWindowTitle('Warning')
+      msgBox.setText(selectedModelVol+' will be deleted.\n\nProceed?')
+      msgBox.setStandardButtons(qt.QMessageBox.Yes | qt.QMessageBox.No)
+      val = msgBox.exec_()
+      
+      # do the delete
+      if(val == qt.QMessageBox.Yes):
+        slicer.mrmlScene.RemoveNode(slicer.util.getNode(selectedLabelVol))
+        slicer.mrmlScene.RemoveNode(slicer.util.getNode('Model*'+selectedModelVol))
       
   def onJumpToROI(self, selectedLabelID, selectedLabelVol):
     
