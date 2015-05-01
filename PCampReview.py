@@ -1352,8 +1352,40 @@ class PCampReviewWidget:
       
       # do the delete
       if(val == qt.QMessageBox.Yes):
-        slicer.mrmlScene.RemoveNode(slicer.util.getNode(selectedLabelVol))
-        slicer.mrmlScene.RemoveNode(slicer.util.getNode('Model*'+selectedModelVol))
+        import glob
+        import shutil
+
+        # create backup directory if necessary
+        backupSegmentationsDir = self.settings.value('PCampReview/InputLocation')+ \
+                                                      os.sep+self.selectedStudyName+ \
+                                                      os.sep+'RESOURCES'+ \
+                                                      os.sep+self.refSeriesNumber+ \
+                                                      os.sep+'Backup'
+        try:
+          os.makedirs(backupSegmentationsDir)
+        except:
+          print('Failed to create the following directory: '+backupSegmentationsDir)
+          pass
+
+        # move relevant nrrd files
+        globPath = os.path.join(self.resourcesDir,self.refSeriesNumber,"Segmentations",
+                                self.settings.value('PCampReview/UserName')+'-'+selectedModelVol+'-[0-9]*.nrrd')
+        previousSegmentations = glob.glob(globPath)
+                
+        filesMoved = True
+        for file in previousSegmentations:
+          try:
+            shutil.move(file, backupSegmentationsDir)
+          except:
+            print('Unable to move file: '+file)
+            filesMoved = False
+            pass
+        
+        # remove from scene only if we were able to move all of the files to Backup dir
+        if filesMoved:
+          slicer.mrmlScene.RemoveNode(slicer.util.getNode(selectedLabelVol))
+          slicer.mrmlScene.RemoveNode(slicer.util.getNode('Model*'+selectedModelVol))
+
       
   def onJumpToROI(self, selectedLabelID, selectedLabelVol):
     
