@@ -1280,7 +1280,9 @@ class PCampReviewWidget:
     nVolumeNodes = float(len(self.volumeNodes))
     self.rows = 0
     self.cols = 0
-    if nVolumeNodes<=8:
+    if nVolumeNodes == 1:
+      self.rows = 1
+    elif nVolumeNodes<=8:
       self.rows = 2 # up to 8
     elif nVolumeNodes>8 and nVolumeNodes<=12:
       self.rows = 3 # up to 12
