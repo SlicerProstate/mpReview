@@ -1256,9 +1256,12 @@ class PCampReviewWidget:
     seriesNumbers.sort()
     self.volumeNodes = [self.seriesMap[str(x)]['Volume'] for x in seriesNumbers if x != ref]
     self.viewNames = [self.seriesMap[str(x)]['ShortName'] for x in seriesNumbers if x != ref]
-
+    
     self.volumeNodes = [self.seriesMap[str(ref)]['Volume']]+self.volumeNodes
     self.viewNames = [self.seriesMap[str(ref)]['ShortName']]+self.viewNames
+    
+    sliceNames = [str(x) for x in seriesNumbers if x != ref]
+    sliceNames = [str(ref)]+sliceNames
 
     try:
       # check if already have a label for this node
@@ -1287,7 +1290,7 @@ class PCampReviewWidget:
 
     self.editorWidget.helper.setVolumes(self.volumeNodes[0], self.seriesMap[str(ref)]['Label'])
 
-    self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[self.rows,self.cols],viewNames=self.viewNames)
+    self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[self.rows,self.cols],viewNames=sliceNames)
     self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
 
     print('Setting master node for the Editor to '+self.volumeNodes[0].GetID())
