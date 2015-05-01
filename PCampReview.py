@@ -792,14 +792,10 @@ class PCampReviewWidget:
       self.labelMapOutlineButton.setText('Filled')
     else:
       self.labelMapOutlineButton.setText('Outline')
-    
-    # Toggle outline on widgets
-    layoutManager = slicer.app.layoutManager()
-    widgetNames = layoutManager.sliceViewNames()
-    for wn in widgetNames:
-      widget = layoutManager.sliceWidget(wn)
-      widgetController = widget.sliceController()
-      widgetController.showLabelOutline(toggled)
+
+    # Set outline on widgets      
+    for sliceNode in slicer.util.getNodes('vtkMRMLSliceNode*').values():
+      sliceNode.SetUseLabelOutline(toggled)
       
     
   def onModelsVisibilityButton(self,toggled):
