@@ -1213,7 +1213,7 @@ class PCampReviewWidget:
 
     self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[self.rows,self.cols])
     self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
-    self.setLabelOutline(self.labelMapOutlineButton.checked)
+    self.editUtil.setLabelOutline(self.labelMapOutlineButton.checked)
 
     print('Setting master node for the Editor to '+self.volumeNodes[0].GetID())
 
