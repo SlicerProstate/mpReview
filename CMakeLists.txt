@@ -23,6 +23,7 @@ set(MODULE_PYTHON_SCRIPTS
   )
 
 set(MODULE_PYTHON_RESOURCES
+  Resources/Colors/PCampReviewColors.csv
   )
 
 #-----------------------------------------------------------------------------
