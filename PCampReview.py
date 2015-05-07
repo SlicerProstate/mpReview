@@ -11,8 +11,6 @@ from EditorLib import EditorLib
 import SimpleITK as sitk
 import sitkUtils
 
-import PCampReviewLib
-
 #
 # PCampReview
 #
