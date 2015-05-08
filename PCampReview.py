@@ -1224,16 +1224,14 @@ class PCampReviewWidget:
     self.onViewUpdateRequested(1)
     self.setOpacityOnAllSliceWidgets(1.0)
 
+  def confirmDialog(self, message):
+    result = qt.QMessageBox.question(slicer.util.mainWindow(),
+                    'PCampReview', message,
+                    qt.QMessageBox.Ok, qt.QMessageBox.Cancel)
+    return result == qt.QMessageBox.Ok
+
   def showExitStep4Warning(self):
-    msgBox = qt.QMessageBox()
-    msgBox.setWindowTitle('Warning')
-    msgBox.setText('Unsaved contours will be lost!\n Do you still want to exit?')
-    msgBox.setStandardButtons(qt.QMessageBox.Yes | qt.QMessageBox.No)
-    val = msgBox.exec_()
-    if(val == qt.QMessageBox.Yes):
-      return False
-    else:
-      return True
+    return not self.confirmDialog('Unsaved contours will be lost!\n\nDo you still want to exit?')
 
   def onReferenceChanged(self, id):
     self.removeAllModels()
