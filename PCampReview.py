@@ -1,5 +1,5 @@
 from __future__ import division
-import os, json, xml.dom.minidom, string, glob, re
+import os, json, xml.dom.minidom, string, glob, re, math
 import unittest
 from __main__ import vtk, qt, ctk, slicer
 import CompareVolumes
