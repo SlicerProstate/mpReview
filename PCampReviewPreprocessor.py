@@ -217,7 +217,7 @@ def main(argv):
                         default="-", required=True, help="Folder of input DICOM files (can contain sub-folders)")
     parser.add_argument("-o", "--output-folder", dest="output_folder", metavar="PATH",
                         default=".", help="Folder to save converted datasets")
-    parser.add_argument("-d","--copyDICOM",dest=copyDICOM,type=bool,default=False,
+    parser.add_argument("-d","--copyDICOM",dest="copyDICOM",type=bool,default=False,
                         help="Organize DICOM files in the output directory")
     args = parser.parse_args(argv)
 

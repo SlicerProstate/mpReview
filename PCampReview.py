@@ -11,8 +11,6 @@ from EditorLib import EditorLib
 import SimpleITK as sitk
 import sitkUtils
 
-import PCampReviewLib
-
 #
 # PCampReview
 #
@@ -280,21 +278,26 @@ class PCampReviewWidget:
     self.refSelector = qt.QComboBox()
     step4Layout.addRow(qt.QLabel("Reference image: "), self.refSelector)
     self.refSelector.connect('currentIndexChanged(int)', self.onReferenceChanged)
-
-    groupLabel = qt.QLabel('Show series:')
+    
+    self.advancedSettingsArea = ctk.ctkCollapsibleButton()
+    self.advancedSettingsArea.text = "Advanced Settings"
+    self.advancedSettingsArea.collapsed = True
+    advancedSettingsLayout = qt.QFormLayout(self.advancedSettingsArea)
+    
+    # Show all/reference
     self.viewGroup = qt.QButtonGroup()
     self.multiView = qt.QRadioButton('All')
     self.singleView = qt.QRadioButton('Reference only')
     self.multiView.setChecked(1)
     self.viewGroup.addButton(self.multiView,1)
     self.viewGroup.addButton(self.singleView,2)
-    self.groupWidget = qt.QWidget()
+    self.viewGroup.connect('buttonClicked(int)', self.onViewUpdateRequested)
+    self.groupWidget = qt.QGroupBox()
     self.groupLayout = qt.QFormLayout(self.groupWidget)
     self.groupLayout.addRow(self.multiView, self.singleView)
-    step4Layout.addRow(groupLabel, self.groupWidget)
-    # step4Layout.addRow(groupLabel, self.viewGroup)
-
-    self.viewGroup.connect('buttonClicked(int)', self.onViewUpdateRequested)
+    advancedSettingsLayout.addRow("Show series: ", self.groupWidget)
+    
+    step4Layout.addRow(self.advancedSettingsArea)
 
     self.step4frame.collapsed = 1
     self.step4frame.connect('clicked()', self.onStep4Selected)
@@ -331,9 +334,6 @@ class PCampReviewWidget:
     controller = redWidget.sliceController()
     moreButton = slicer.util.findChildren(controller,'MoreButton')[0]
     moreButton.toggle()
-    # labelMapOutlineButton = slicer.util.findChildren(
-    #                         controller,'LabelMapOutlineButton')[0]
-    # buttonsFrame.layout().addWidget(labelMapOutlineButton)
 
     deleteStructureButton = qt.QPushButton('Delete Structure')
     buttonsFrame.layout().addWidget(deleteStructureButton)
@@ -365,9 +365,10 @@ class PCampReviewWidget:
     modelsHLayout.addWidget(self.modelsVisibilityButton)
     self.modelsVisibilityButton.connect("toggled(bool)", self.onModelsVisibilityButton)
     
-    labelMapOutlineButton = qt.QPushButton('Fill/Outline')
-    modelsHLayout.layout().addWidget(labelMapOutlineButton)
-    labelMapOutlineButton.connect('clicked()', self.editUtil.toggleLabelOutline)
+    self.labelMapOutlineButton = qt.QPushButton('Outline')
+    self.labelMapOutlineButton.checkable = True
+    modelsHLayout.layout().addWidget(self.labelMapOutlineButton)
+    self.labelMapOutlineButton.connect('toggled(bool)', self.setLabelOutline)
     
     self.enableJumpToROI = qt.QCheckBox();
     self.enableJumpToROI.setText("Jump to ROI")
@@ -840,6 +841,17 @@ class PCampReviewWidget:
 
     self.modelsVisibilityButton.checked = False
     self.modelsVisibilityButton.setText('Hide')
+  
+  def setLabelOutline(self, toggled):
+    
+    # Update button text
+    if toggled:
+      self.labelMapOutlineButton.setText('Filled')
+    else:
+      self.labelMapOutlineButton.setText('Outline')
+
+    # Set outline on widgets    
+    self.editUtil.setLabelOutline(toggled)
     
   def onModelsVisibilityButton(self,toggled):
     if self.refSeriesNumber != '-1':
@@ -1232,16 +1244,14 @@ class PCampReviewWidget:
     self.onViewUpdateRequested(1)
     self.setOpacityOnAllSliceWidgets(1.0)
 
+  def confirmDialog(self, message):
+    result = qt.QMessageBox.question(slicer.util.mainWindow(),
+                    'PCampReview', message,
+                    qt.QMessageBox.Ok, qt.QMessageBox.Cancel)
+    return result == qt.QMessageBox.Ok
+
   def showExitStep4Warning(self):
-    msgBox = qt.QMessageBox()
-    msgBox.setWindowTitle('Warning')
-    msgBox.setText('Unsaved contours will be lost!\n Do you still want to exit?')
-    msgBox.setStandardButtons(qt.QMessageBox.Yes | qt.QMessageBox.No)
-    val = msgBox.exec_()
-    if(val == qt.QMessageBox.Yes):
-      return False
-    else:
-      return True
+    return not self.confirmDialog('Unsaved contours will be lost!\n\nDo you still want to exit?')
 
   def onReferenceChanged(self, id):
     self.removeAllModels()
@@ -1262,9 +1272,12 @@ class PCampReviewWidget:
     seriesNumbers.sort()
     self.volumeNodes = [self.seriesMap[str(x)]['Volume'] for x in seriesNumbers if x != ref]
     self.viewNames = [self.seriesMap[str(x)]['ShortName'] for x in seriesNumbers if x != ref]
-
+    
     self.volumeNodes = [self.seriesMap[str(ref)]['Volume']]+self.volumeNodes
     self.viewNames = [self.seriesMap[str(ref)]['ShortName']]+self.viewNames
+    
+    sliceNames = [str(x) for x in seriesNumbers if x != ref]
+    sliceNames = [str(ref)]+sliceNames
 
     try:
       # check if already have a label for this node
@@ -1283,7 +1296,9 @@ class PCampReviewWidget:
     nVolumeNodes = float(len(self.volumeNodes))
     self.rows = 0
     self.cols = 0
-    if nVolumeNodes<=8:
+    if nVolumeNodes == 1:
+      self.rows = 1
+    elif nVolumeNodes<=8:
       self.rows = 2 # up to 8
     elif nVolumeNodes>8 and nVolumeNodes<=12:
       self.rows = 3 # up to 12
@@ -1293,8 +1308,9 @@ class PCampReviewWidget:
 
     self.editorWidget.helper.setVolumes(self.volumeNodes[0], self.seriesMap[str(ref)]['Label'])
 
-    self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[self.rows,self.cols],viewNames=self.viewNames)
+    self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[self.rows,self.cols],viewNames=sliceNames)
     self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
+    self.editUtil.setLabelOutline(self.labelMapOutlineButton.checked)
 
     print('Setting master node for the Editor to '+self.volumeNodes[0].GetID())
 
