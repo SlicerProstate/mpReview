@@ -328,9 +328,6 @@ class PCampReviewWidget:
     controller = redWidget.sliceController()
     moreButton = slicer.util.findChildren(controller,'MoreButton')[0]
     moreButton.toggle()
-    # labelMapOutlineButton = slicer.util.findChildren(
-    #                         controller,'LabelMapOutlineButton')[0]
-    # buttonsFrame.layout().addWidget(labelMapOutlineButton)
 
     #self.editorWidget.toolsColor.frame.setVisible(False)
 
@@ -357,9 +354,10 @@ class PCampReviewWidget:
     modelsHLayout.addWidget(self.modelsVisibilityButton)
     self.modelsVisibilityButton.connect("toggled(bool)", self.onModelsVisibilityButton)
     
-    labelMapOutlineButton = qt.QPushButton('Fill/Outline')
-    modelsHLayout.layout().addWidget(labelMapOutlineButton)
-    labelMapOutlineButton.connect('clicked()', self.editUtil.toggleLabelOutline)
+    self.labelMapOutlineButton = qt.QPushButton('Outline')
+    self.labelMapOutlineButton.checkable = True
+    modelsHLayout.layout().addWidget(self.labelMapOutlineButton)
+    self.labelMapOutlineButton.connect('toggled(bool)', self.setLabelOutline)
     
     self.enableJumpToROI = qt.QCheckBox();
     self.enableJumpToROI.setText("Jump to ROI")
@@ -832,6 +830,17 @@ class PCampReviewWidget:
 
     self.modelsVisibilityButton.checked = False
     self.modelsVisibilityButton.setText('Hide')
+  
+  def setLabelOutline(self, toggled):
+    
+    # Update button text
+    if toggled:
+      self.labelMapOutlineButton.setText('Filled')
+    else:
+      self.labelMapOutlineButton.setText('Outline')
+
+    # Set outline on widgets    
+    self.editUtil.setLabelOutline(toggled)
     
   def onModelsVisibilityButton(self,toggled):
     if self.refSeriesNumber != '-1':
@@ -1290,6 +1299,7 @@ class PCampReviewWidget:
 
     self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[self.rows,self.cols],viewNames=sliceNames)
     self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
+    self.editUtil.setLabelOutline(self.labelMapOutlineButton.checked)
 
     print('Setting master node for the Editor to '+self.volumeNodes[0].GetID())
 
