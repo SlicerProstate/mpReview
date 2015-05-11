@@ -277,21 +277,26 @@ class PCampReviewWidget:
     self.refSelector = qt.QComboBox()
     step4Layout.addRow(qt.QLabel("Reference image: "), self.refSelector)
     self.refSelector.connect('currentIndexChanged(int)', self.onReferenceChanged)
-
-    groupLabel = qt.QLabel('Show series:')
+    
+    self.advancedSettingsArea = ctk.ctkCollapsibleButton()
+    self.advancedSettingsArea.text = "Advanced Settings"
+    self.advancedSettingsArea.collapsed = True
+    advancedSettingsLayout = qt.QFormLayout(self.advancedSettingsArea)
+    
+    # Show all/reference
     self.viewGroup = qt.QButtonGroup()
     self.multiView = qt.QRadioButton('All')
     self.singleView = qt.QRadioButton('Reference only')
     self.multiView.setChecked(1)
     self.viewGroup.addButton(self.multiView,1)
     self.viewGroup.addButton(self.singleView,2)
-    self.groupWidget = qt.QWidget()
+    self.viewGroup.connect('buttonClicked(int)', self.onViewUpdateRequested)
+    self.groupWidget = qt.QGroupBox()
     self.groupLayout = qt.QFormLayout(self.groupWidget)
     self.groupLayout.addRow(self.multiView, self.singleView)
-    step4Layout.addRow(groupLabel, self.groupWidget)
-    # step4Layout.addRow(groupLabel, self.viewGroup)
-
-    self.viewGroup.connect('buttonClicked(int)', self.onViewUpdateRequested)
+    advancedSettingsLayout.addRow("Show series: ", self.groupWidget)
+    
+    step4Layout.addRow(self.advancedSettingsArea)
 
     self.step4frame.collapsed = 1
     self.step4frame.connect('clicked()', self.onStep4Selected)
