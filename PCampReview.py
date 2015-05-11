@@ -318,8 +318,8 @@ class PCampReviewWidget:
                         'PerStructureVolumesFrame')[0]
     perStructureFrame.collapsed = False
     
-    structuresView = slicer.util.findChildren(volumesFrame,'StructuresView')[0]
-    structuresView.connect("activated(QModelIndex)", self.onStructureClicked)
+    self.structuresView = slicer.util.findChildren(volumesFrame,'StructuresView')[0]
+    self.structuresView.connect("activated(QModelIndex)", self.onStructureClicked)
 
     buttonsFrame = slicer.util.findChildren(volumesFrame,'ButtonsFrame')[0]
     '''
@@ -333,6 +333,10 @@ class PCampReviewWidget:
     controller = redWidget.sliceController()
     moreButton = slicer.util.findChildren(controller,'MoreButton')[0]
     moreButton.toggle()
+
+    propagateButton = qt.QPushButton('Propagate Structure')
+    buttonsFrame.layout().addWidget(propagateButton)
+    propagateButton.connect('clicked()', self.onPropagateROI)
 
     #self.editorWidget.toolsColor.frame.setVisible(False)
 
@@ -1339,6 +1343,113 @@ class PCampReviewWidget:
     return progressIndicator
 
 
+  def onPropagateROI(self):
+    selectionModel = self.structuresView.selectionModel()
+    selected = selectionModel.currentIndex().row()
+    
+    # Nothing selected
+    if selected < 0:
+      return
+    
+    selectedLabelVol = self.editorWidget.helper.structures.item(selected,3).text()
+    print('Want to propagate '+selectedLabelVol)
+    
+    # Get a list of all series numbers currently loaded
+    seriesNumbers= [x for x in self.seriesMap.keys()]
+    seriesNumbers.sort()
+    loadedVolumes = [self.seriesMap[x] for x in seriesNumbers if x != self.refSeriesNumber]
+    
+    # See which volumes we want to propagate to
+    self.propagatePrompt = qt.QDialog()
+    propagatePromptLayout = qt.QVBoxLayout()
+    self.propagatePrompt.setLayout(propagatePromptLayout)
+    
+    propagateLabel = qt.QLabel('Select which volumes you wish to propagate '+ selectedLabelVol +' to...', self.propagatePrompt)
+    propagatePromptLayout.addWidget(propagateLabel)
+    
+    propagateView = qt.QListView()
+    propagateView.setSpacing(3)
+    propagateView.setEditTriggers(qt.QAbstractItemView.NoEditTriggers)
+    propagateModel = qt.QStandardItemModel()
+    propagateModel.setHorizontalHeaderLabels(['Volume'])
+    
+    self.propagateItems = []
+    for labelNode in loadedVolumes:
+        item = qt.QStandardItem(labelNode['ShortName'])
+        item.setCheckable(1)
+        item.setCheckState(2)
+        self.propagateItems.append(item)
+        propagateModel.appendRow(item)
+        
+    propagateView.setModel(propagateModel)
+    propagatePromptLayout.addWidget(propagateView)
+
+    propagateButton = qt.QPushButton('Propagate', propagateView)
+    propagateButton.connect('clicked()', self.propagateSelected)
+    propagatePromptLayout.addWidget(propagateButton)
+    
+    self.propagatePrompt.exec_()
+  
+  def propagateSelected(self):
+    self.propagatePrompt.close()
+    
+    propagateInto = []
+    for item in self.propagateItems:
+      if item.checkState() == 2:
+        selectedID = item.text().split(':')[0]
+        propagateInto.append(selectedID)
+    
+    selectionModel = self.structuresView.selectionModel()
+    selected = selectionModel.currentIndex().row()
+    selectedLabelVol = self.editorWidget.helper.structures.item(selected,3).text()
+    selectedLabelType = self.editorWidget.helper.structures.item(selected,2).text()
+    
+    # Check to make sure we don't propagate on top of something
+    exstingStructures = [self.seriesMap[x]['ShortName'] for x in propagateInto if len(slicer.util.getNodes(self.seriesMap[x]['ShortName']+'-'+selectedLabelType+'-label')) != 0]
+    if len(exstingStructures) != 0:
+      msg = 'ERROR\n\'' + selectedLabelType + '\' already exists in the following volumes:\n\n'
+      for vol in exstingStructures:
+        msg += vol + '\n'
+      msg += '\nCannot propagate on top of existing volumes.  Delete the existing ROIs and try again.\n'
+      self.infoPopup(msg)
+      return
+      
+    # Identity transform
+    transform = slicer.vtkMRMLLinearTransformNode()
+    slicer.mrmlScene.AddNode(transform)
+    
+    progress = self.makeProgressIndicator(len(propagateInto))
+    nProcessed = 0
+    for dstSeries in propagateInto:
+      labelName = self.seriesMap[dstSeries]['ShortName']+'-'+selectedLabelType+'-label'
+      dstLabel = self.volumesLogic.CreateAndAddLabelVolume(slicer.mrmlScene,self.seriesMap[dstSeries]['Volume'],labelName)
+      
+      # Resample srcSeries labels into the space of dstSeries, store result in tmpLabel
+      parameters = {}
+      parameters["inputVolume"] = slicer.util.getNode(selectedLabelVol).GetID()
+      parameters["referenceVolume"] = self.seriesMap[dstSeries]['Volume'].GetID()
+      parameters["outputVolume"] = dstLabel.GetID()
+      # This transformation node will have just been created so it *should* be set to identity at this point
+      parameters["warpTransform"] = transform.GetID()
+      parameters["pixelType"] = "short"
+      parameters["interpolationMode"] = "NearestNeighbor"
+      parameters["defaultValue"] = 0
+      parameters["numberOfThreads"] = -1
+
+      self.__cliNode = None
+      self.__cliNode = slicer.cli.run(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
+      
+      progress.setValue(nProcessed)
+      nProcessed += 1
+      if progress.wasCanceled:
+        break
+      
+    progress.delete()
+    
+    # Delete the transform node
+    slicer.mrmlScene.RemoveNode(transform)
+      
+    
   # Gets triggered on a click in the structures table
   def onStructureClicked(self,index):
     selectedLabelID = int(self.editorWidget.helper.structures.item(index.row(),0).text())
