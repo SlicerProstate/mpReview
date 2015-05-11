@@ -161,7 +161,8 @@ class PCampReviewWidget:
     #
     reloadCollapsibleButton = ctk.ctkCollapsibleButton()
     reloadCollapsibleButton.text = "Reload && Test"
-    #self.layout.addWidget(reloadCollapsibleButton)
+    self.layout.addWidget(reloadCollapsibleButton)
+    self.currentStep = 1
     reloadFormLayout = qt.QFormLayout(reloadCollapsibleButton)
 
     # reload button
@@ -318,8 +319,8 @@ class PCampReviewWidget:
                         'PerStructureVolumesFrame')[0]
     perStructureFrame.collapsed = False
     
-    structuresView = slicer.util.findChildren(volumesFrame,'StructuresView')[0]
-    structuresView.connect("activated(QModelIndex)", self.onStructureClicked)
+    self.structuresView = slicer.util.findChildren(volumesFrame,'StructuresView')[0]
+    self.structuresView.connect("activated(QModelIndex)", self.onStructureClicked)
 
     buttonsFrame = slicer.util.findChildren(volumesFrame,'ButtonsFrame')[0]
     '''
@@ -333,6 +334,11 @@ class PCampReviewWidget:
     controller = redWidget.sliceController()
     moreButton = slicer.util.findChildren(controller,'MoreButton')[0]
     moreButton.toggle()
+
+    deleteStructureButton = qt.QPushButton('Delete Structure')
+    buttonsFrame.layout().addWidget(deleteStructureButton)
+    deleteStructureButton.connect('clicked()', self.onDeleteStructure)
+
 
     #self.editorWidget.toolsColor.frame.setVisible(False)
 
@@ -1346,7 +1352,59 @@ class PCampReviewWidget:
     if self.enableJumpToROI.checked:
       print('calling onJumpToROI '+str(selectedLabelID) + ' ' + selectedLabelVol)
       self.onJumpToROI(selectedLabelID,selectedLabelVol)
+  
+  def confirmDialog(self, message):
+    result = qt.QMessageBox.question(slicer.util.mainWindow(),
+                    'PCampReview', message,
+                    qt.QMessageBox.Ok, qt.QMessageBox.Cancel)
+    return result == qt.QMessageBox.Ok
+  
+  def onDeleteStructure(self):
+    selectionModel = self.structuresView.selectionModel()
+    selected = selectionModel.currentIndex().row()
+    if selected >= 0:
+      selectedLabelVol = self.editorWidget.helper.structures.item(selected,3).text()
+      selectedModelVol = self.editorWidget.helper.structures.item(selected,2).text()
       
+      # Confirm with user
+      if not self.confirmDialog( "Delete \'%s\' volume?" % selectedModelVol ):
+        return
+      
+      # Cleanup files
+      import glob
+      import shutil
+
+      # create backup directory if necessary
+      backupSegmentationsDir = self.settings.value('PCampReview/InputLocation')+ \
+                                                    os.sep+self.selectedStudyName+ \
+                                                    os.sep+'RESOURCES'+ \
+                                                    os.sep+self.refSeriesNumber+ \
+                                                    os.sep+'Backup'
+      try:
+        os.makedirs(backupSegmentationsDir)
+      except:
+        print('Failed to create the following directory: '+backupSegmentationsDir)
+        pass
+
+      # move relevant nrrd files
+      globPath = os.path.join(self.resourcesDir,self.refSeriesNumber,"Segmentations",
+                              self.settings.value('PCampReview/UserName')+'-'+selectedModelVol+'-[0-9]*.nrrd')
+      previousSegmentations = glob.glob(globPath)
+              
+      filesMoved = True
+      for file in previousSegmentations:
+        try:
+          shutil.move(file, backupSegmentationsDir)
+        except:
+          print('Unable to move file: '+file)
+          filesMoved = False
+          pass
+      
+      # Cleanup mrml scene
+      if filesMoved:
+        self.editorWidget.helper.deleteSelectedStructure(confirm=False)
+        slicer.mrmlScene.RemoveNode(slicer.util.getNode('Model*'+selectedModelVol))
+
       
   def onJumpToROI(self, selectedLabelID, selectedLabelVol):
     
