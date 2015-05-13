@@ -314,7 +314,7 @@ class PCampReviewWidget:
     self.mvSlider = ctk.ctkSliderWidget()
     self.mvSlider.connect('valueChanged(double)', self.onSliderChanged)
     self.mvSlider.enabled = False
-    advancedSettingsLayout.addRow('MV Frame Number: ', self.mvSlider)
+    advancedSettingsLayout.addRow('Frame Number: ', self.mvSlider)
     
     step4Layout.addRow(self.advancedSettingsArea)
 
