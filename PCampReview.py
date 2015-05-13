@@ -310,6 +310,12 @@ class PCampReviewWidget:
     self.currentOrientation = 'Axial'
     advancedSettingsLayout.addRow('View orientation: ', self.orientationBox)
     
+    # Multi-volume frame controller
+    self.mvSlider = ctk.ctkSliderWidget()
+    self.mvSlider.connect('valueChanged(double)', self.onSliderChanged)
+    self.mvSlider.enabled = False
+    advancedSettingsLayout.addRow('Frame Number: ', self.mvSlider)
+    
     step4Layout.addRow(self.advancedSettingsArea)
 
     self.step4frame.collapsed = 1
@@ -1202,12 +1208,18 @@ class PCampReviewWidget:
       fileName = self.seriesMap[seriesNumber]['NRRDLocation']
       (success,volume) = slicer.util.loadVolume(fileName,returnNode=True)
       if success:
-        self.seriesMap[seriesNumber]['Volume'] = volume
-        volume.SetName(shortName)
-        if volume.GetClassName() == 'vtkMRMLMultiVolumeNode':
-          d = volume.GetDisplayNode()
-          nFrames = volume.GetNumberOfFrames()
-          d.SetFrameComponent(nFrames-1)
+        
+        if volume.GetClassName() == 'vtkMRMLScalarVolumeNode':
+          self.seriesMap[seriesNumber]['Volume'] = volume
+          self.seriesMap[seriesNumber]['Volume'].SetName(shortName)
+        elif volume.GetClassName() == 'vtkMRMLMultiVolumeNode':
+          self.seriesMap[seriesNumber]['MultiVolume'] = volume
+          self.seriesMap[seriesNumber]['MultiVolume'].SetName(shortName+'_multivolume')
+          self.seriesMap[seriesNumber]['FrameNumber'] = volume.GetNumberOfFrames()-1
+          self.seriesMap[seriesNumber]['Volume'] = self.extractFrame(None,
+                                                                     self.seriesMap[seriesNumber]['MultiVolume'], 
+                                                                     self.seriesMap[seriesNumber]['FrameNumber'])
+          
       else:
         print('Failed to load image volume!')
         return
@@ -1216,22 +1228,16 @@ class PCampReviewWidget:
       if success:
         self.seriesMap[seriesNumber]['Label'] = label
       '''
-
-      # cannot use multivolumes as reference, since they are not recognized by
-      # Editor
-      if volume.GetClassName() == 'vtkMRMLScalarVolumeNode':
-        try:
-          if self.seriesMap[seriesNumber]['MetaInfo']['ResourceType'] == 'OncoQuant':
-            dNode = volume.GetDisplayNode()
-            dNode.SetWindowLevel(5.0,2.5)
-            dNode.SetAndObserveColorNodeID('vtkMRMLColorTableNodeFileColdToHotRainbow.txt')
-          else:
-            self.refSelector.addItem(text)
-        except:
+      try:
+        if self.seriesMap[seriesNumber]['MetaInfo']['ResourceType'] == 'OncoQuant':
+          dNode = volume.GetDisplayNode()
+          dNode.SetWindowLevel(5.0,2.5)
+          dNode.SetAndObserveColorNodeID('vtkMRMLColorTableNodeFileColdToHotRainbow.txt')
+        else:
           self.refSelector.addItem(text)
-          pass
-
-      self.seriesMap[seriesNumber]['Volume'].SetName(shortName)
+      except:
+        self.refSelector.addItem(text)
+        pass
 
       if longName.find('T2')>=0 and longName.find('AX')>=0:
         ref = int(seriesNumber)
@@ -1255,6 +1261,7 @@ class PCampReviewWidget:
     self.onViewUpdateRequested(2)
     self.onViewUpdateRequested(1)
     self.setOpacityOnAllSliceWidgets(1.0)
+
 
   def confirmDialog(self, message):
     result = qt.QMessageBox.question(slicer.util.mainWindow(),
@@ -1299,7 +1306,20 @@ class PCampReviewWidget:
       labelName = self.seriesMap[str(ref)]['ShortName']+'-label'
       refLabel = self.volumesLogic.CreateAndAddLabelVolume(slicer.mrmlScene,self.volumeNodes[0],labelName)
       self.seriesMap[str(ref)]['Label'] = refLabel
-
+      
+    # Check for MultiVolume
+    try:
+      mvNode = self.seriesMap[str(ref)]['MultiVolume']
+      nFrames = mvNode.GetNumberOfFrames()
+      self.mvSlider.minimum = 0
+      self.mvSlider.maximum = nFrames-1
+      self.mvSlider.value = self.seriesMap[str(ref)]['FrameNumber']
+      self.mvSlider.enabled = True
+    except KeyError:
+      self.mvSlider.minimum = 0
+      self.mvSlider.maximum = 0
+      self.mvSlider.enabled = False
+      
     dNode = refLabel.GetDisplayNode()
     dNode.SetAndObserveColorNodeID(self.PCampReviewColorNode.GetID())
     print('Volume nodes: '+str(self.viewNames))
@@ -1422,6 +1442,56 @@ class PCampReviewWidget:
       if filesMoved:
         self.editorWidget.helper.deleteSelectedStructure(confirm=False)
         slicer.mrmlScene.RemoveNode(slicer.util.getNode('Model*'+selectedModelVol))
+  
+  def onSliderChanged(self, newValue):
+    newValue = int(newValue)
+    self.seriesMap[self.refSeriesNumber]['FrameNumber'] = newValue
+    self.seriesMap[self.refSeriesNumber]['Volume'] = self.extractFrame(self.seriesMap[self.refSeriesNumber]['Volume'], 
+                                                                       self.seriesMap[self.refSeriesNumber]['MultiVolume'], 
+                                                                       newValue)
+    self.seriesMap[self.refSeriesNumber]['MultiVolume'].GetDisplayNode().SetFrameComponent(newValue)
+
+  # Extract frame from multiVolumeNode and put it into scalarVolumeNode
+  def extractFrame(self, scalarVolumeNode, multiVolumeNode, frameId):
+    # if no scalar volume given, create one
+    if scalarVolumeNode == None:
+      scalarVolumeNode = slicer.vtkMRMLScalarVolumeNode()
+      scalarVolumeNode.SetScene(slicer.mrmlScene)
+      # name = mv node name minus _multivolume 
+      scalarVolumeName = multiVolumeNode.GetName().split('_multivolume')[0]
+      scalarVolumeNode.SetName(scalarVolumeName)
+      slicer.mrmlScene.AddNode(scalarVolumeNode)
+  
+    # Extract the image data
+    mvImage = multiVolumeNode.GetImageData()
+    extract = vtk.vtkImageExtractComponents()
+    if vtk.VTK_MAJOR_VERSION <= 5:
+      extract.SetInput(mvImage)
+    else:
+      extract.SetInputData(mvImage)
+    extract.SetComponents(frameId)
+    extract.Update()
+
+    ras2ijk = vtk.vtkMatrix4x4()
+    ijk2ras = vtk.vtkMatrix4x4()
+    multiVolumeNode.GetRASToIJKMatrix(ras2ijk)
+    multiVolumeNode.GetIJKToRASMatrix(ijk2ras)
+    scalarVolumeNode.SetRASToIJKMatrix(ras2ijk)
+    scalarVolumeNode.SetIJKToRASMatrix(ijk2ras)
+
+    scalarVolumeNode.SetAndObserveImageData(extract.GetOutput())
+
+    # Create display node if missing
+    displayNode = scalarVolumeNode.GetDisplayNode()
+    if displayNode == None:
+      displayNode = slicer.mrmlScene.CreateNodeByClass('vtkMRMLScalarVolumeDisplayNode')
+      displayNode.SetReferenceCount(1)
+      displayNode.SetScene(slicer.mrmlScene)
+      slicer.mrmlScene.AddNode(displayNode)
+      displayNode.SetDefaultColorMap()
+      scalarVolumeNode.SetAndObserveDisplayNodeID(displayNode.GetID())
+    
+    return scalarVolumeNode
         
 
   # Gets triggered on a click in the structures table
