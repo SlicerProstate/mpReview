@@ -1449,6 +1449,7 @@ class PCampReviewWidget:
     self.seriesMap[self.refSeriesNumber]['Volume'] = self.extractFrame(self.seriesMap[self.refSeriesNumber]['Volume'], 
                                                                        self.seriesMap[self.refSeriesNumber]['MultiVolume'], 
                                                                        newValue)
+    self.seriesMap[self.refSeriesNumber]['MultiVolume'].GetDisplayNode().SetFrameComponent(newValue)
 
   # Extract frame from multiVolumeNode and put it into scalarVolumeNode
   def extractFrame(self, scalarVolumeNode, multiVolumeNode, frameId):
