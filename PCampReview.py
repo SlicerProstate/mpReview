@@ -915,6 +915,9 @@ class PCampReviewWidget:
     dom = xml.dom.minidom.parse(f)
     number = self.findElement(dom, 'SeriesNumber')
     name = self.findElement(dom, 'SeriesDescription')
+    name = name.replace('-','')
+    name = name.replace('(','')
+    name = name.replace(')','')
     return (number,name)
 
   def checkAndLoadLabel(self, resourcesDir, seriesNumber, volumeName):
