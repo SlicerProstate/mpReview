@@ -143,20 +143,16 @@ class PCampReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
               break
         
           if node:
-            # get path to dcmdump
-            dcm2xml = '/Users/fedorov/local/bin/dcm2xml'
             storageNode = node.CreateDefaultStorageNode()
             import os
             studyID = patientID+'_'+studyDate+'_'+studyTime
             dirName = outputDir + '/'+studyID+'/RESOURCES/'+seriesNumber+'/Reconstructions/'
             xmlName = dirName+seriesNumber+'.xml'
-            # WARNING: this expects presence of dcm2xml and is not portable AT ALL!!!
             try:
               os.makedirs(dirName)
             except:
               pass
-            #print('Running: dcm2xml '+dcmFile.replace(' ','\ ')+' > '+xmlName.replace(' ','\ '))
-            os.system('/Users/fedorov/local/bin/dcm2xml '+dcmFile.replace(' ','\ ')+' > '+xmlName.replace(' ','\ '))
+            os.system('dcm2xml '+dcmFile.replace(' ','\ ')+' > '+xmlName.replace(' ','\ '))
             nrrdName = dirName+seriesNumber+'.nrrd'
             #print(nrrdName)
             storageNode.SetFileName(nrrdName)
