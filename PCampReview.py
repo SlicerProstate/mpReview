@@ -1685,13 +1685,6 @@ class PCampReviewWidget:
         self.setOffsetOnAllSliceWidgets(coronal_offset)
       elif self.currentOrientation == 'Sagittal':
         self.setOffsetOnAllSliceWidgets(sagittal_offset)
-
-      # snap to IJK to try and avoid rounding errors
-      sliceLogics = slicer.app.layoutManager().mrmlSliceLogics()
-      numLogics = sliceLogics.GetNumberOfItems()
-      for n in range(numLogics):
-        l = sliceLogics.GetItemAsObject(n)
-        l.SnapSliceOffsetToIJK()
       
 
   def cleanupDir(self, d):
