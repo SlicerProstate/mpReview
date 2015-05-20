@@ -1393,12 +1393,6 @@ class PCampReviewWidget:
       if self.refSelector.currentText != 'None':    
         # Update viewers
         self.onViewUpdateRequested(self.viewGroup.checkedId())
-        
-        # pretend we clicked the structure in the list to trigger a jump to ROI if necessary
-        selectedStructure = self.structuresView.currentIndex()
-        if (selectedStructure.row() >= 0):
-          self.structuresView.activated(self.structuresView.currentIndex())
-        
 
   def onDeleteStructure(self):
     selectionModel = self.structuresView.selectionModel()
