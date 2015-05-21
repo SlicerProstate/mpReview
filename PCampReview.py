@@ -1452,11 +1452,15 @@ class PCampReviewWidget:
   
   def onSliderChanged(self, newValue):
     newValue = int(newValue)
-    self.seriesMap[self.refSeriesNumber]['FrameNumber'] = newValue
-    self.seriesMap[self.refSeriesNumber]['Volume'] = self.extractFrame(self.seriesMap[self.refSeriesNumber]['Volume'], 
+    try:
+      self.seriesMap[self.refSeriesNumber]['Volume'] = self.extractFrame(self.seriesMap[self.refSeriesNumber]['Volume'], 
                                                                        self.seriesMap[self.refSeriesNumber]['MultiVolume'], 
                                                                        newValue)
-    self.seriesMap[self.refSeriesNumber]['MultiVolume'].GetDisplayNode().SetFrameComponent(newValue)
+      self.seriesMap[self.refSeriesNumber]['FrameNumber'] = newValue
+      self.seriesMap[self.refSeriesNumber]['MultiVolume'].GetDisplayNode().SetFrameComponent(newValue)
+    except:
+      # can get an event on reference switchover from a multivolume
+      pass
 
   # Extract frame from multiVolumeNode and put it into scalarVolumeNode
   def extractFrame(self, scalarVolumeNode, multiVolumeNode, frameId):
