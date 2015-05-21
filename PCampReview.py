@@ -1062,12 +1062,19 @@ class PCampReviewWidget:
     self.step1frame.collapsed = 1
     self.step4frame.collapsed = 1
 
+    # Block the signals to master selector while removing the old nodes.
+    # If signals are not blocked, a new volume node is selected automatically
+    # on delete of a previously selected one leading to "Create merge ..."
+    # popup
+    self.editorWidget.helper.masterSelector.blockSignals(True)
+
     # if any volumes have been loaded (we returned back from a previous step)
     # then remove all of them from the scene
     allVolumeNodes = slicer.util.getNodes('vtkMRML*VolumeNode*')
-    if len(allVolumeNodes):
-      for key in allVolumeNodes.keys():
-        slicer.mrmlScene.RemoveNode(allVolumeNodes[key])
+    for node in allVolumeNodes.values():
+        slicer.mrmlScene.RemoveNode(node)
+
+    self.editorWidget.helper.masterSelector.blockSignals(False)
 
     self.parameters['StudyName'] = self.selectedStudyName
 
