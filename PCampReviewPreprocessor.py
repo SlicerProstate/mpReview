@@ -112,36 +112,31 @@ class PCampReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
         for series in [l for l in slicer.dicomDatabase.seriesForStudy(study)]:
           #print 'Series:',series
           #print seriesUIDs
-          detailsPopup.offerLoadables([series], 'SeriesUIDList')
-          detailsPopup.examineForLoading()
+  
+          files = slicer.dicomDatabase.filesForSeries(series)
 
-          #print detailsPopup.loadableTable.loadables
-    
-          # take the first one selected
-          #for l in detailsPopup.loadableTable.loadables.values()[1:]:
-          #  l.selected = False
+          pluginNames = ['MultiVolumeImporterPlugin','DICOMScalarVolumePlugin']
 
-          #loadables = [l for l in detailsPopup.loadableTable.loadables.values() if l.selected][0]
-          #loadables = [l for l in detailsPopup.loadableTable.loadables.values()][0]
-
-          seriesLoaded = False
+          loadable = None
           node = None
-          for plugin in detailsPopup.loadablesByPlugin:
-            for loadable in detailsPopup.loadablesByPlugin[plugin]:
-              if loadable.selected:
-                node = plugin.load(loadable)
-                if node:
-                  seriesLoaded = True
-                  dcmFile = loadable.files[0]
-                  seriesNumber = slicer.dicomDatabase.fileValue(loadable.files[0], "0020,0011")
-                  patientID = slicer.dicomDatabase.fileValue(loadable.files[0], "0010,0020")
-                  studyDate = slicer.dicomDatabase.fileValue(loadable.files[0], "0008,0020")
-                  studyTime = slicer.dicomDatabase.fileValue(loadable.files[0], "0008,0030")[0:4]
-              if seriesLoaded:
-                break
-            if seriesLoaded:
+
+          for pn in pluginNames:
+            plugin = slicer.modules.dicomPlugins[pn]()
+            loadables = plugin.examine([files])
+            if len(loadables) == 0:
+              continue
+            if loadables[0].confidence > 0.5:
+              loadable = loadables[0]
               break
-        
+
+          if loadable:
+            node = plugin.load(loadable)
+            dcmFile = loadable.files[0]
+            seriesNumber = slicer.dicomDatabase.fileValue(loadable.files[0], "0020,0011")
+            patientID = slicer.dicomDatabase.fileValue(loadable.files[0], "0010,0020")
+            studyDate = slicer.dicomDatabase.fileValue(loadable.files[0], "0008,0020")
+            studyTime = slicer.dicomDatabase.fileValue(loadable.files[0], "0008,0030")[0:4]
+
           if node:
             storageNode = node.CreateDefaultStorageNode()
             import os
