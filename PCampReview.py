@@ -137,8 +137,13 @@ class PCampReviewWidget:
       node = widget.mrmlSliceNode()
       node.SetSliceOffset(offset)
 
+  def linkAllSliceWidgets(self,link):
+    layoutManager = slicer.app.layoutManager()
+    widgetNames = layoutManager.sliceViewNames()
+    for wn in widgetNames:
+      widget = layoutManager.sliceWidget(wn)
       sc = widget.mrmlSliceCompositeNode()
-      sc.SetLinkedControl(1)
+      sc.SetLinkedControl(link)
       sc.SetInteractionFlagsModifier(4+8+16)
 
   def setOpacityOnAllSliceWidgets(self,opacity):
@@ -582,36 +587,21 @@ class PCampReviewWidget:
       self.parameters['ResultsLocation'] = path
 
   def onViewUpdateRequested(self, id):
+    
+    # Skip if not in a ref image yet
+    if self.refSeriesNumber == '-1':
+      return
+    
+    # Be sure the viewers are linked, they should be but who knows
+    self.linkAllSliceWidgets(1)
+    
     layoutNode = slicer.util.getNode('*LayoutNode*')
-    layoutManager = slicer.app.layoutManager()
     if id == 1:
-      # get slice offset from Red slice viewer
-      redSliceWidget = layoutManager.sliceWidget('Red')
-      redSliceNode = redSliceWidget.mrmlSliceNode()
-      redSliceOffset = redSliceNode.GetSliceOffset()
-      print('Red slice offset: '+str(redSliceOffset))
-
-      self.setOffsetOnAllSliceWidgets(redSliceOffset)
-
-      # set linking properties on one composite node -- should it apply to
-      # all?
-      sc = redSliceWidget.mrmlSliceCompositeNode()
-      sc.SetLinkedControl(1)
-      sc.SetInteractionFlags(4+8+16)
-
+       # If view all
       layoutNode.SetViewArrangement(layoutNode.SlicerLayoutUserView)
-
-    # FIXME: look at labelNodes array
     if id == 2:
+      # If view ref only
       layoutNode.SetViewArrangement(layoutNode.SlicerLayoutOneUpRedSliceView)
-      if self.refSeriesNumber != '-1':
-        ref = self.refSeriesNumber
-        redSliceWidget = layoutManager.sliceWidget('Red')
-        compositeNode = redSliceWidget.mrmlSliceCompositeNode()
-        compositeNode.SetBackgroundVolumeID(self.seriesMap[str(ref)]['Volume'].GetID())
-        compositeNode.SetLabelVolumeID(self.seriesMap[str(ref)]['Label'].GetID())
-        #slicer.app.applicationLogic().PropagateVolumeSelection(0)
-        # redSliceWidget.fitSliceToBackground()
 
   def studySelected(self, modelIndex):
     print('Row selected: '+self.studiesModel.item(modelIndex.row(),0).text())
@@ -1271,11 +1261,6 @@ class PCampReviewWidget:
 
     self.refSelectorIgnoreUpdates = False
 
-    self.onReferenceChanged(0)
-    self.onViewUpdateRequested(2)
-    self.onViewUpdateRequested(1)
-    self.setOpacityOnAllSliceWidgets(1.0)
-
 
   def confirmDialog(self, message):
     result = qt.QMessageBox.question(slicer.util.mainWindow(),
@@ -1355,16 +1340,24 @@ class PCampReviewWidget:
     self.editorWidget.helper.setVolumes(self.volumeNodes[0], self.seriesMap[str(ref)]['Label'])
 
     self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[self.rows,self.cols],viewNames=self.sliceNames,orientation=self.currentOrientation)
+
+    # Make sure redslice has the ref image (the others were set with viewerPerVolume)
+    layoutManager = slicer.app.layoutManager()
+    redSliceWidget = layoutManager.sliceWidget('Red')
+    redSliceNode = redSliceWidget.mrmlSliceNode()
+    redSliceNode.SetOrientation(self.currentOrientation)
+    compositeNode = redSliceWidget.mrmlSliceCompositeNode()
+    compositeNode.SetBackgroundVolumeID(self.volumeNodes[0].GetID())
+    
     self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
+    self.setOpacityOnAllSliceWidgets(1.0)
     self.editUtil.setLabelOutline(self.labelMapOutlineButton.checked)
+    
+    self.onViewUpdateRequested(self.viewGroup.checkedId())
 
     print('Setting master node for the Editor to '+self.volumeNodes[0].GetID())
 
     self.editorParameterNode.Modified()
-
-    self.onViewUpdateRequested(2)
-    self.onViewUpdateRequested(1)
-    self.setOpacityOnAllSliceWidgets(1.0)
 
     print('Exiting onReferenceChanged')
 
@@ -1394,23 +1387,19 @@ class PCampReviewWidget:
     
     if orientation in self.orientations:
       self.currentOrientation = orientation
-      
-      if self.refSelector.currentText != 'None':    
-        # set slice node orientation
-        layoutManager = slicer.app.layoutManager()
+
+      layoutManager = slicer.app.layoutManager()
+
+      if self.refSelector.currentText != 'None':
+        # set slice node orientation 
         for view in layoutManager.sliceViewNames():
           widget = layoutManager.sliceWidget(view)
           node = widget.mrmlSliceNode()
           node.SetOrientation(self.currentOrientation)
-        
+          
         self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
+         
         
-        # pretend we clicked the structure in the list to trigger a jump to ROI if necessary
-        selectedStructure = self.structuresView.currentIndex()
-        if (selectedStructure.row() >= 0):
-          self.structuresView.activated(self.structuresView.currentIndex())
-        
-
   def onDeleteStructure(self):
     selectionModel = self.structuresView.selectionModel()
     selected = selectionModel.currentIndex().row()
