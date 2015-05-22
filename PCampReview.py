@@ -1358,15 +1358,15 @@ class PCampReviewWidget:
       self.currentOrientation = orientation
       
       if self.refSelector.currentText != 'None':    
-        # Update viewers
-        self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=self.seriesMap[self.refSeriesNumber]['Label'], layout=[self.rows,self.cols],viewNames=self.sliceNames,orientation=self.currentOrientation)
+        # set slice node orientation
+        layoutManager = slicer.app.layoutManager()
+        for view in layoutManager.sliceViewNames():
+          widget = layoutManager.sliceWidget(view)
+          node = widget.mrmlSliceNode()
+          node.SetOrientation(self.currentOrientation)
+        
         self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
-        self.editUtil.setLabelOutline(self.labelMapOutlineButton.checked)
-
-        self.onViewUpdateRequested(2)
-        self.onViewUpdateRequested(1)
-        self.setOpacityOnAllSliceWidgets(1.0)
-      
+        
         # pretend we clicked the structure in the list to trigger a jump to ROI if necessary
         selectedStructure = self.structuresView.currentIndex()
         if (selectedStructure.row() >= 0):
