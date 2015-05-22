@@ -140,13 +140,6 @@ class PCampReviewWidget:
       sc = widget.mrmlSliceCompositeNode()
       sc.SetLinkedControl(1)
       sc.SetInteractionFlagsModifier(4+8+16)
-      
-    # snap to IJK to try and avoid rounding errors
-    sliceLogics = slicer.app.layoutManager().mrmlSliceLogics()
-    numLogics = sliceLogics.GetNumberOfItems()
-    for n in range(numLogics):
-      l = sliceLogics.GetItemAsObject(n)
-      l.SnapSliceOffsetToIJK()
 
   def setOpacityOnAllSliceWidgets(self,opacity):
     layoutManager = slicer.app.layoutManager()
@@ -589,43 +582,36 @@ class PCampReviewWidget:
       self.parameters['ResultsLocation'] = path
 
   def onViewUpdateRequested(self, id):
-    
-    # retain the current offset incase we're toggling between all/ref-only
+    layoutNode = slicer.util.getNode('*LayoutNode*')
     layoutManager = slicer.app.layoutManager()
-    redSliceWidget = layoutManager.sliceWidget('Red')
-    redSliceNode = redSliceWidget.mrmlSliceNode()
-    redSliceOffset = redSliceNode.GetSliceOffset()
-    
     if id == 1:
-      # Create a viewer for each volume
-      self.cvLogic.viewerPerVolume(self.volumeNodes, 
-                                   background=self.volumeNodes[0], 
-                                   label=self.seriesMap[self.refSeriesNumber]['Label'], 
-                                   layout=[self.rows,self.cols],
-                                   viewNames=self.sliceNames,
-                                   orientation=self.currentOrientation)
-                                   
+      # get slice offset from Red slice viewer
+      redSliceWidget = layoutManager.sliceWidget('Red')
+      redSliceNode = redSliceWidget.mrmlSliceNode()
+      redSliceOffset = redSliceNode.GetSliceOffset()
+      print('Red slice offset: '+str(redSliceOffset))
+
+      self.setOffsetOnAllSliceWidgets(redSliceOffset)
+
+      # set linking properties on one composite node -- should it apply to
+      # all?
+      sc = redSliceWidget.mrmlSliceCompositeNode()
+      sc.SetLinkedControl(1)
+      sc.SetInteractionFlags(4+8+16)
+
+      layoutNode.SetViewArrangement(layoutNode.SlicerLayoutUserView)
+
+    # FIXME: look at labelNodes array
     if id == 2:
-      # Create one viewer for the ref image
-      self.cvLogic.viewerPerVolume([self.volumeNodes[0]], 
-                                   background=self.volumeNodes[0], 
-                                   label=self.seriesMap[self.refSeriesNumber]['Label'], 
-                                   layout=[1,1], 
-                                   viewNames=[self.sliceNames[0]], 
-                                   orientation=self.currentOrientation)
-    
-    # rotate to volume plane and set offset
-    self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
-    self.setOffsetOnAllSliceWidgets(redSliceOffset)
-        
-    # 'click' the selected structure in the list to trigger a jump to ROI and set label node in editor
-    selectedStructure = self.structuresView.currentIndex()
-    if (selectedStructure.row() >= 0):
-      self.structuresView.activated(self.structuresView.currentIndex())
-    
-    # set opacity and label outline
-    self.setOpacityOnAllSliceWidgets(1.0)
-    self.editUtil.setLabelOutline(self.labelMapOutlineButton.checked)
+      layoutNode.SetViewArrangement(layoutNode.SlicerLayoutOneUpRedSliceView)
+      if self.refSeriesNumber != '-1':
+        ref = self.refSeriesNumber
+        redSliceWidget = layoutManager.sliceWidget('Red')
+        compositeNode = redSliceWidget.mrmlSliceCompositeNode()
+        compositeNode.SetBackgroundVolumeID(self.seriesMap[str(ref)]['Volume'].GetID())
+        compositeNode.SetLabelVolumeID(self.seriesMap[str(ref)]['Label'].GetID())
+        #slicer.app.applicationLogic().PropagateVolumeSelection(0)
+        # redSliceWidget.fitSliceToBackground()
 
   def studySelected(self, modelIndex):
     print('Row selected: '+self.studiesModel.item(modelIndex.row(),0).text())
@@ -1076,12 +1062,19 @@ class PCampReviewWidget:
     self.step1frame.collapsed = 1
     self.step4frame.collapsed = 1
 
+    # Block the signals to master selector while removing the old nodes.
+    # If signals are not blocked, a new volume node is selected automatically
+    # on delete of a previously selected one leading to "Create merge ..."
+    # popup
+    self.editorWidget.helper.masterSelector.blockSignals(True)
+
     # if any volumes have been loaded (we returned back from a previous step)
     # then remove all of them from the scene
     allVolumeNodes = slicer.util.getNodes('vtkMRML*VolumeNode*')
-    if len(allVolumeNodes):
-      for key in allVolumeNodes.keys():
-        slicer.mrmlScene.RemoveNode(allVolumeNodes[key])
+    for node in allVolumeNodes.values():
+        slicer.mrmlScene.RemoveNode(node)
+
+    self.editorWidget.helper.masterSelector.blockSignals(False)
 
     self.parameters['StudyName'] = self.selectedStudyName
 
@@ -1278,6 +1271,12 @@ class PCampReviewWidget:
 
     self.refSelectorIgnoreUpdates = False
 
+    # self.onReferenceChanged(0)
+    # self.onViewUpdateRequested(2)
+    # self.onViewUpdateRequested(1)
+    # self.setOpacityOnAllSliceWidgets(1.0)
+
+
   def confirmDialog(self, message):
     result = qt.QMessageBox.question(slicer.util.mainWindow(),
                     'PCampReview', message,
@@ -1355,8 +1354,12 @@ class PCampReviewWidget:
 
     self.editorWidget.helper.setVolumes(self.volumeNodes[0], self.seriesMap[str(ref)]['Label'])
 
+    self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[self.rows,self.cols],viewNames=self.sliceNames,orientation=self.currentOrientation)
+    self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
+    self.setOpacityOnAllSliceWidgets(1.0)
+    self.editUtil.setLabelOutline(self.labelMapOutlineButton.checked)
     self.onViewUpdateRequested(self.viewGroup.checkedId())
-    
+
     print('Setting master node for the Editor to '+self.volumeNodes[0].GetID())
 
     self.editorParameterNode.Modified()
@@ -1392,7 +1395,19 @@ class PCampReviewWidget:
       
       if self.refSelector.currentText != 'None':    
         # Update viewers
-        self.onViewUpdateRequested(self.viewGroup.checkedId())
+        self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=self.seriesMap[self.refSeriesNumber]['Label'], layout=[self.rows,self.cols],viewNames=self.sliceNames,orientation=self.currentOrientation)
+        self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
+        self.editUtil.setLabelOutline(self.labelMapOutlineButton.checked)
+
+        self.onViewUpdateRequested(2)
+        self.onViewUpdateRequested(1)
+        self.setOpacityOnAllSliceWidgets(1.0)
+      
+        # pretend we clicked the structure in the list to trigger a jump to ROI if necessary
+        selectedStructure = self.structuresView.currentIndex()
+        if (selectedStructure.row() >= 0):
+          self.structuresView.activated(self.structuresView.currentIndex())
+        
 
   def onDeleteStructure(self):
     selectionModel = self.structuresView.selectionModel()
@@ -1442,11 +1457,15 @@ class PCampReviewWidget:
   
   def onSliderChanged(self, newValue):
     newValue = int(newValue)
-    self.seriesMap[self.refSeriesNumber]['FrameNumber'] = newValue
-    self.seriesMap[self.refSeriesNumber]['Volume'] = self.extractFrame(self.seriesMap[self.refSeriesNumber]['Volume'], 
+    try:
+      self.seriesMap[self.refSeriesNumber]['Volume'] = self.extractFrame(self.seriesMap[self.refSeriesNumber]['Volume'], 
                                                                        self.seriesMap[self.refSeriesNumber]['MultiVolume'], 
                                                                        newValue)
-    self.seriesMap[self.refSeriesNumber]['MultiVolume'].GetDisplayNode().SetFrameComponent(newValue)
+      self.seriesMap[self.refSeriesNumber]['FrameNumber'] = newValue
+      self.seriesMap[self.refSeriesNumber]['MultiVolume'].GetDisplayNode().SetFrameComponent(newValue)
+    except:
+      # can get an event on reference switchover from a multivolume
+      pass
 
   # Extract frame from multiVolumeNode and put it into scalarVolumeNode
   def extractFrame(self, scalarVolumeNode, multiVolumeNode, frameId):
@@ -1679,6 +1698,13 @@ class PCampReviewWidget:
         self.setOffsetOnAllSliceWidgets(coronal_offset)
       elif self.currentOrientation == 'Sagittal':
         self.setOffsetOnAllSliceWidgets(sagittal_offset)
+
+      # snap to IJK to try and avoid rounding errors
+      sliceLogics = slicer.app.layoutManager().mrmlSliceLogics()
+      numLogics = sliceLogics.GetNumberOfItems()
+      for n in range(numLogics):
+        l = sliceLogics.GetItemAsObject(n)
+        l.SnapSliceOffsetToIJK()
       
 
   def cleanupDir(self, d):
