@@ -161,7 +161,8 @@ class PCampReviewWidget:
     #
     reloadCollapsibleButton = ctk.ctkCollapsibleButton()
     reloadCollapsibleButton.text = "Reload && Test"
-    #self.layout.addWidget(reloadCollapsibleButton)
+    self.layout.addWidget(reloadCollapsibleButton)
+    self.currentStep = 1
     reloadFormLayout = qt.QFormLayout(reloadCollapsibleButton)
 
     # reload button
@@ -317,6 +318,48 @@ class PCampReviewWidget:
     advancedSettingsLayout.addRow('Frame Number: ', self.mvSlider)
     
     step4Layout.addRow(self.advancedSettingsArea)
+    
+    
+    self.translateArea = ctk.ctkCollapsibleButton()
+    self.translateArea.text = "Translate Selected Label Map"
+    
+    translateAreaLayout = qt.QFormLayout(self.translateArea)
+    
+    self.translateLR = slicer.qMRMLSliderWidget()
+    self.translateLR.minimum = -200
+    self.translateLR.maximum = 200
+    self.translateLR.connect('valueChanged(double)', self.onTranslate)
+    
+    self.translatePA = slicer.qMRMLSliderWidget()
+    self.translatePA.minimum = -200
+    self.translatePA.maximum = 200
+    self.translatePA.connect('valueChanged(double)', self.onTranslate)
+    
+    self.translateIS = slicer.qMRMLSliderWidget()
+    self.translateIS.minimum = -200
+    self.translateIS.maximum = 200
+    self.translateIS.connect('valueChanged(double)', self.onTranslate)
+    
+    translateAreaLayout.addRow("Translate LR: ", self.translateLR)
+    translateAreaLayout.addRow("Translate PA: ", self.translatePA)
+    translateAreaLayout.addRow("Translate IS: ", self.translateIS)
+    
+    self.hardenTransformButton = qt.QPushButton("Harden Transform")
+    self.hardenTransformButton.enabled = False
+    self.hardenTransformButton.connect('clicked(bool)', self.onHardenTransform)
+    translateAreaLayout.addRow(self.hardenTransformButton)
+    
+    self.translateArea.collapsed = 1
+    
+    self.ignoreTranslate = False
+    
+    # Create a transform node
+    self.transformNode = slicer.vtkMRMLLinearTransformNode()
+    self.transformNode.SetName('PCampReview-transform')
+    slicer.mrmlScene.AddNode(self.transformNode)
+    
+    step4Layout.addRow(self.translateArea)
+    
 
     self.step4frame.collapsed = 1
     self.step4frame.connect('clicked()', self.onStep4Selected)
@@ -1068,7 +1111,7 @@ class PCampReviewWidget:
     if len(allVolumeNodes):
       for key in allVolumeNodes.keys():
         slicer.mrmlScene.RemoveNode(allVolumeNodes[key])
-
+    
     self.parameters['StudyName'] = self.selectedStudyName
 
     inputDir = self.settings.value('PCampReview/InputLocation')
@@ -1160,6 +1203,8 @@ class PCampReviewWidget:
     self.currentStep = 4
 
     self.editorWidget.enter()
+    
+    self.resetTranslate()
 
     self.step2frame.collapsed = 1
     self.step3frame.collapsed = 1
@@ -1357,6 +1402,7 @@ class PCampReviewWidget:
 
     self.onViewUpdateRequested(2)
     self.onViewUpdateRequested(1)
+    
     self.setOpacityOnAllSliceWidgets(1.0)
 
     print('Exiting onReferenceChanged')
@@ -1500,16 +1546,139 @@ class PCampReviewWidget:
     
     return scalarVolumeNode
   
-  
-  def onPropagateROI(self):
-    selectionModel = self.structuresView.selectionModel()
-    selected = selectionModel.currentIndex().row()
+  def resetTranslate(self):
     
-    # Nothing selected
-    if selected < 0:
+    # Reset sliders and buttons
+    self.ignoreTranslate = True
+    self.translateLR.value = 0
+    self.translatePA.value = 0
+    self.translateIS.value = 0
+    self.ignoreTranslate = False
+    self.hardenTransformButton.enabled = False
+    
+    # Restore out the editor, ref selector, and save
+    self.editorWidget.volumes.enabled = True
+    self.editorWidget.editLabelMapsFrame.enabled = True
+    self.refSelector.enabled = True
+    self.saveButton.enabled = True
+  
+  
+  def getSelectedStructure(self):
+    selectedIdx = self.structuresView.currentIndex()
+    if (selectedIdx.row() < 0):
+      return (None, None)
+    
+    selectedStructure = self.editorWidget.helper.structures.item(selectedIdx.row(),2).text()  
+    selectedLabel = self.editorWidget.helper.structures.item(selectedIdx.row(),3).text()
+    return (selectedStructure, selectedLabel)
+  
+  def restoreForeground(self):
+    # This relies on slice view names and also (aparently) trashes zoom levels
+    # Is there a better way to do this?
+    layoutManager = slicer.app.layoutManager()
+    for view in layoutManager.sliceViewNames():
+      widget = layoutManager.sliceWidget(view)
+      compositeNode = widget.mrmlSliceCompositeNode()
+      try:
+        compositeNode.SetForegroundVolumeID(self.seriesMap[view]['Volume'].GetID())
+      except:
+        pass
+  
+  def onHardenTransform(self):
+
+    # Get the selected label
+    (selectedStructure, selectedLabel) = self.getSelectedStructure()
+    if (selectedLabel == None):
+      return
+      
+    labelNode = slicer.util.getNode(selectedLabel)
+    
+    # Harden transform
+    slicer.modules.transforms.logic().hardenTransform(labelNode)
+    
+    # Reset transform node to identity
+    self.transformNode.Reset()
+    
+    # Resample labels to fix the origin
+    parameters = {}
+    parameters["inputVolume"] = labelNode.GetID()
+    parameters["referenceVolume"] = self.seriesMap[self.refSeriesNumber]['Volume'].GetID()
+    parameters["outputVolume"] = labelNode.GetID()
+    parameters["warpTransform"] = self.transformNode.GetID()
+    parameters["pixelType"] = "short"
+    parameters["interpolationMode"] = "NearestNeighbor"
+    parameters["defaultValue"] = 0
+    parameters["numberOfThreads"] = -1
+
+    self.__cliNode = None
+    self.__cliNode = slicer.cli.run(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
+    
+    # Reset sliders, button, and restore editor
+    self.resetTranslate()
+    
+    # Restore the foreground images that get knocked out by calling a cli
+    self.restoreForeground()
+    
+  def onTranslate(self):
+    
+    if self.ignoreTranslate:
       return
     
-    selectedLabelVol = self.editorWidget.helper.structures.item(selected,3).text()
+    # Get the label node to translate
+    (selectedStructure, selectedLabel) = self.getSelectedStructure()
+    if (selectedLabel == None):
+      self.resetTranslate()
+      return
+      
+    labelNode = slicer.util.getNode(selectedLabel)
+    
+    # Lock out the editor and ref selector
+    self.editorWidget.volumes.enabled = False
+    self.editorWidget.editLabelMapsFrame.enabled = False
+    self.refSelector.enabled = False
+    self.saveButton.enabled = False
+    
+    # enable Harden
+    self.hardenTransformButton.enabled = True
+  
+    # Reset transformnode
+    self.transformNode.Reset()
+      
+    # Get the IJKtoRAS matrix
+    IJKtoRAS = vtk.vtkMatrix4x4()
+    labelNode.GetIJKToRASMatrix(IJKtoRAS)
+
+    # is this safe to do so many times?
+    labelNode.SetAndObserveTransformNodeID(self.transformNode.GetID())
+
+    # create vtkTransform object
+    vTransform = vtk.vtkTransform()
+
+    # Figure out the scan order
+    order = labelNode.ComputeScanOrderFromIJKToRAS(IJKtoRAS)
+    if order == 'IS':
+        print('Using order = IS')
+        result = IJKtoRAS.MultiplyPoint((self.translateLR.value, self.translatePA.value, self.translateIS.value, 0))
+        vTransform.Translate(result[0],result[1],result[2])
+    elif order == 'AP':
+        print('Using order = AP')
+        result = IJKtoRAS.MultiplyPoint((self.translateLR.value, self.translateIS.value, self.translatePA.value, 0))
+        vTransform.Translate(result[0],result[1],result[2])
+    elif order == 'LR':
+        print('Using order = LR')
+        result = IJKtoRAS.MultiplyPoint((self.translatePA.value, self.translateIS.value, self.translateLR.value, 0))
+        vTransform.Translate(-result[0],result[1],result[2])
+
+    print result
+    
+    # Tell the transform node to observe vTransform's matrix
+    self.transformNode.SetMatrixTransformToParent(vTransform.GetMatrix())
+    
+  def onPropagateROI(self):
+    
+    (selectedStructure, selectedLabel) = self.getSelectedStructure()
+    if (selectedLabel == None):
+      return
     
     # Get a list of all series numbers currently loaded
     seriesNumbers= [x for x in self.seriesMap.keys()]
@@ -1521,7 +1690,7 @@ class PCampReviewWidget:
     propagatePromptLayout = qt.QVBoxLayout()
     self.propagatePrompt.setLayout(propagatePromptLayout)
     
-    propagateLabel = qt.QLabel('Select which volumes you wish to propagate '+ selectedLabelVol +' to...', self.propagatePrompt)
+    propagateLabel = qt.QLabel('Select which volumes you wish to propagate '+ selectedLabel +' to...', self.propagatePrompt)
     propagatePromptLayout.addWidget(propagateLabel)
     
     propagateView = qt.QListView()
@@ -1558,15 +1727,14 @@ class PCampReviewWidget:
         propagateInto.append(selectedID)
     
     # get the source structure
-    selectionModel = self.structuresView.selectionModel()
-    selected = selectionModel.currentIndex().row()
-    selectedLabelVol = self.editorWidget.helper.structures.item(selected,3).text()
-    selectedLabelType = self.editorWidget.helper.structures.item(selected,2).text()
-    
+    (selectedStructure, selectedLabel) = self.getSelectedStructure()
+    if (selectedLabel == None):
+      return
+      
     # Check to make sure we don't propagate on top of something
-    exstingStructures = [self.seriesMap[x]['ShortName'] for x in propagateInto if len(slicer.util.getNodes(self.seriesMap[x]['ShortName']+'-'+selectedLabelType+'-label')) != 0]
+    exstingStructures = [self.seriesMap[x]['ShortName'] for x in propagateInto if len(slicer.util.getNodes(self.seriesMap[x]['ShortName']+'-'+selectedStructure+'-label')) != 0]
     if len(exstingStructures) != 0:
-      msg = 'ERROR\n\n\'' + selectedLabelType + '\' already exists in the following volumes:\n\n'
+      msg = 'ERROR\n\n\'' + selectedStructure + '\' already exists in the following volumes:\n\n'
       for vol in exstingStructures:
         msg += vol + '\n'
       msg += '\nCannot propagate on top of existing structures.  Delete the existing structures and try again.\n'
@@ -1581,14 +1749,14 @@ class PCampReviewWidget:
     progress = self.makeProgressIndicator(len(propagateInto))
     nProcessed = 0
     for dstSeries in propagateInto:
-      labelName = self.seriesMap[dstSeries]['ShortName']+'-'+selectedLabelType+'-label'
+      labelName = self.seriesMap[dstSeries]['ShortName']+'-'+selectedStructure+'-label'
       dstLabel = self.volumesLogic.CreateAndAddLabelVolume(slicer.mrmlScene,self.seriesMap[dstSeries]['Volume'],labelName)
       
       progress.labelText = labelName
       
       # Resample srcSeries labels into the space of dstSeries, store result in tmpLabel
       parameters = {}
-      parameters["inputVolume"] = slicer.util.getNode(selectedLabelVol).GetID()
+      parameters["inputVolume"] = slicer.util.getNode(selectedLabel).GetID()
       parameters["referenceVolume"] = self.seriesMap[dstSeries]['Volume'].GetID()
       parameters["outputVolume"] = dstLabel.GetID()
       # This transformation node will have just been created so it *should* be set to identity at this point
@@ -1611,6 +1779,8 @@ class PCampReviewWidget:
     # Delete the transform node
     slicer.mrmlScene.RemoveNode(transform)
     
+    # Restore the foreground images that get knocked out by calling a cli
+    self.restoreForeground()
 
   # Gets triggered on a click in the structures table
   def onStructureClicked(self,index):
