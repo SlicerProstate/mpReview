@@ -588,16 +588,13 @@ class PCampReviewWidget:
       # get slice offset from Red slice viewer
       redSliceWidget = layoutManager.sliceWidget('Red')
       redSliceNode = redSliceWidget.mrmlSliceNode()
+      redSliceNode.SetOrientation(self.currentOrientation)
+      redSliceNode.RotateToVolumePlane(self.volumeNodes[0])
       redSliceOffset = redSliceNode.GetSliceOffset()
       print('Red slice offset: '+str(redSliceOffset))
 
+      # assumes setOffsetOnAllSliceWidgets also links viewers
       self.setOffsetOnAllSliceWidgets(redSliceOffset)
-
-      # set linking properties on one composite node -- should it apply to
-      # all?
-      sc = redSliceWidget.mrmlSliceCompositeNode()
-      sc.SetLinkedControl(1)
-      sc.SetInteractionFlags(4+8+16)
 
       layoutNode.SetViewArrangement(layoutNode.SlicerLayoutUserView)
 
@@ -1271,11 +1268,6 @@ class PCampReviewWidget:
 
     self.refSelectorIgnoreUpdates = False
 
-    self.onReferenceChanged(0)
-    self.onViewUpdateRequested(2)
-    self.onViewUpdateRequested(1)
-    self.setOpacityOnAllSliceWidgets(1.0)
-
 
   def confirmDialog(self, message):
     result = qt.QMessageBox.question(slicer.util.mainWindow(),
@@ -1356,15 +1348,13 @@ class PCampReviewWidget:
 
     self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[self.rows,self.cols],viewNames=self.sliceNames,orientation=self.currentOrientation)
     self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
+    self.setOpacityOnAllSliceWidgets(1.0)
     self.editUtil.setLabelOutline(self.labelMapOutlineButton.checked)
+    self.onViewUpdateRequested(self.viewGroup.checkedId())
 
     print('Setting master node for the Editor to '+self.volumeNodes[0].GetID())
 
     self.editorParameterNode.Modified()
-
-    self.onViewUpdateRequested(2)
-    self.onViewUpdateRequested(1)
-    self.setOpacityOnAllSliceWidgets(1.0)
 
     print('Exiting onReferenceChanged')
 
