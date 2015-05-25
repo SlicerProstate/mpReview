@@ -125,7 +125,7 @@ class PCampReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
             loadables = plugin.examine([files])
             if len(loadables) == 0:
               continue
-            if loadables[0].confidence > 0.5:
+            if loadables[0].confidence > 0.1:
               loadable = loadables[0]
               break
 
