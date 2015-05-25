@@ -104,7 +104,6 @@ class PCampReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
 
     print('Import completed, total '+str(len(slicer.dicomDatabase.patients()))+' patients imported')
 
-    detailsPopup = slicer.modules.dicom.widgetRepresentation().self().detailsPopup
     for patient in slicer.dicomDatabase.patients():
       #print patient
       for study in slicer.dicomDatabase.studiesForPatient(patient):
@@ -183,22 +182,6 @@ class PCampReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
     # Import study to database
     indexer.addDirectory( slicer.dicomDatabase, dicomDataDir )
     indexer.waitForImportFinished()
-
-  def LoadFirstPatientIntoSlicer(self):
-    # Choose first patient from the patient list
-    detailsPopup = slicer.modules.dicom.widgetRepresentation().self().detailsPopup
-    patient = slicer.dicomDatabase.patients()[0]
-    studies = slicer.dicomDatabase.studiesForPatient(patient)
-    series = [slicer.dicomDatabase.seriesForStudy(study) for study in studies]
-    seriesUIDs = [uid for uidList in series for uid in uidList]
-    detailsPopup.offerLoadables(seriesUIDs, 'SeriesUIDList')
-    detailsPopup.examineForLoading()
-
-    loadables = detailsPopup.loadableTable.loadables
-
-    # Load into Slicer
-    detailsPopup = slicer.modules.dicom.widgetRepresentation().self().detailsPopup
-    detailsPopup.loadCheckedLoadables()
 
 def main(argv):
   try:
