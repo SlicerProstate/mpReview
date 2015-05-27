@@ -1271,10 +1271,10 @@ class PCampReviewWidget:
 
     self.refSelectorIgnoreUpdates = False
 
-    self.onReferenceChanged(0)
-    self.onViewUpdateRequested(2)
-    self.onViewUpdateRequested(1)
-    self.setOpacityOnAllSliceWidgets(1.0)
+    # self.onReferenceChanged(0)
+    # self.onViewUpdateRequested(2)
+    # self.onViewUpdateRequested(1)
+    # self.setOpacityOnAllSliceWidgets(1.0)
 
 
   def confirmDialog(self, message):
@@ -1356,15 +1356,13 @@ class PCampReviewWidget:
 
     self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[self.rows,self.cols],viewNames=self.sliceNames,orientation=self.currentOrientation)
     self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
+    self.setOpacityOnAllSliceWidgets(1.0)
     self.editUtil.setLabelOutline(self.labelMapOutlineButton.checked)
+    self.onViewUpdateRequested(self.viewGroup.checkedId())
 
     print('Setting master node for the Editor to '+self.volumeNodes[0].GetID())
 
     self.editorParameterNode.Modified()
-
-    self.onViewUpdateRequested(2)
-    self.onViewUpdateRequested(1)
-    self.setOpacityOnAllSliceWidgets(1.0)
 
     print('Exiting onReferenceChanged')
 
