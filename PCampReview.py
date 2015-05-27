@@ -1593,17 +1593,17 @@ class PCampReviewWidget:
       
     labelNode = slicer.util.getNode(selectedLabel)
     
-    # Harden transform
-    slicer.modules.transforms.logic().hardenTransform(labelNode)
-    
-    # Reset transform node to identity
-    self.transformNode.Reset()
+    # do not observe the transform
+    labelNode.SetAndObserveTransformNodeID(None)
+
+    # somehow writing the output to the input node does not behave, need a temp
+    resampledLabelNode = slicer.modules.volumes.logic().CloneVolume(slicer.mrmlScene,labelNode,"translated")
     
     # Resample labels to fix the origin
     parameters = {}
     parameters["inputVolume"] = labelNode.GetID()
     parameters["referenceVolume"] = self.seriesMap[self.refSeriesNumber]['Volume'].GetID()
-    parameters["outputVolume"] = labelNode.GetID()
+    parameters["outputVolume"] = resampledLabelNode.GetID()
     parameters["warpTransform"] = self.transformNode.GetID()
     parameters["pixelType"] = "short"
     parameters["interpolationMode"] = "NearestNeighbor"
@@ -1613,6 +1613,10 @@ class PCampReviewWidget:
     self.__cliNode = None
     self.__cliNode = slicer.cli.run(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
     
+    # get the image data and get rid of the temp
+    labelNode.SetAndObserveImageData(resampledLabelNode.GetImageData())
+    slicer.mrmlScene.RemoveNode(resampledLabelNode)
+
     # Reset sliders, button, and restore editor
     self.resetTranslate()
     
