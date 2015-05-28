@@ -1388,6 +1388,8 @@ class PCampReviewWidget:
     if orientation in self.orientations:
       self.currentOrientation = orientation
       
+      layoutManager = slicer.app.layoutManager()
+
       if self.refSelector.currentText != 'None':
         # set slice node orientation 
         for view in layoutManager.sliceViewNames():
