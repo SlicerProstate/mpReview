@@ -527,6 +527,9 @@ class PCampReviewWidget:
 
   def checkAndSetLUT(self):
     
+    if (self.settings.value('PCampReview/InputLocation') == None):
+      return
+    
     lookupTableLoc = self.settings.value('PCampReview/InputLocation') + os.sep + 'SETTINGS' + os.sep + self.settings.value('PCampReview/InputLocation').split(os.sep)[-1] + '-LUT.csv'
     print('Checking for lookup table at : ' + lookupTableLoc)
     self.colorFile = ""
