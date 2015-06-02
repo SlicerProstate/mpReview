@@ -1606,7 +1606,9 @@ class PCampReviewWidget:
     
     # Delete the transform node
     slicer.mrmlScene.RemoveNode(transform)
-    
+
+    # Restore the foreground images that get knocked out by calling a cli
+    self.restoreForeground()
       
   # Returns info about the currently selected structure in structuresView
   def getSelectedStructure(self):
@@ -1618,6 +1620,18 @@ class PCampReviewWidget:
     selectedStructure = self.editorWidget.helper.structures.item(selectedRow,2).text()  
     selectedLabel = self.editorWidget.helper.structures.item(selectedRow,3).text()
     return (selectedRow, selectedStructure, selectedLabel)
+  
+  def restoreForeground(self):
+    # This relies on slice view names and also (apparently) trashes zoom levels
+    # Is there a better way to do this?
+    layoutManager = slicer.app.layoutManager()
+    for view in layoutManager.sliceViewNames():
+      widget = layoutManager.sliceWidget(view)
+      compositeNode = widget.mrmlSliceCompositeNode()
+      try:
+        compositeNode.SetForegroundVolumeID(self.seriesMap[view]['Volume'].GetID())
+      except:
+        pass
 
   # Gets triggered on a click in the structures table
   def onStructureClicked(self,index):
