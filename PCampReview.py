@@ -1579,6 +1579,7 @@ class PCampReviewWidget:
     for dstSeries in propagateInto:
       labelName = self.seriesMap[dstSeries]['ShortName']+'-'+selectedStructure+'-label'
       dstLabel = self.volumesLogic.CreateAndAddLabelVolume(slicer.mrmlScene,self.seriesMap[dstSeries]['Volume'],labelName)
+      dstLabel.GetDisplayNode().SetAndObserveColorNodeID(self.PCampReviewColorNode.GetID())
       
       progress.labelText = labelName
       
