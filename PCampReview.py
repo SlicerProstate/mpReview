@@ -532,20 +532,21 @@ class PCampReviewWidget:
 
   def checkAndSetLUT(self):
     
-    lookupTableLoc = self.settings.value('PCampReview/InputLocation') + os.sep + 'SETTINGS' + os.sep + self.settings.value('PCampReview/InputLocation').split(os.sep)[-1] + '-LUT.csv'
-    print('Checking for lookup table at : ' + lookupTableLoc)
-    self.colorFile = ""
-    if os.path.isfile(lookupTableLoc):
-      # use custom color table
-      self.colorFile = lookupTableLoc
-      self.customLUTLabel.text = 'Project-Specific LUT Found'
-    else:   
-      # use the module default color table 
-      moduleName="PCampReview"
-      modulePath = eval('slicer.modules.%s.path' % moduleName.lower()).replace(moduleName+".py","")
-      self.colorFile = modulePath + "Resources/Colors/PCampReviewColors.csv"
-      self.customLUTLabel.text = 'Using Default LUT'
-      
+    # Default to module color table 
+    moduleName="PCampReview"
+    modulePath = eval('slicer.modules.%s.path' % moduleName.lower()).replace(moduleName+".py","")
+    self.colorFile = modulePath + "Resources/Colors/PCampReviewColors.csv"
+    self.customLUTLabel.text = 'Using Default LUT'
+
+    # Check for custom LUT
+    if (self.settings.value('PCampReview/InputLocation') != None):
+      lookupTableLoc = self.settings.value('PCampReview/InputLocation') + os.sep + 'SETTINGS' + os.sep + self.settings.value('PCampReview/InputLocation').split(os.sep)[-1] + '-LUT.csv'
+      print('Checking for lookup table at : ' + lookupTableLoc)
+      if os.path.isfile(lookupTableLoc):
+        # use custom color table
+        self.colorFile = lookupTableLoc
+        self.customLUTLabel.text = 'Project-Specific LUT Found'
+
     # setup the color table
     self.PCampReviewColorNode = slicer.vtkMRMLColorTableNode()
     colorNode = self.PCampReviewColorNode
