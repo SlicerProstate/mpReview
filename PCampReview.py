@@ -1502,14 +1502,10 @@ class PCampReviewWidget:
   
   
   def onPropagateROI(self):
-    selectionModel = self.structuresView.selectionModel()
-    selected = selectionModel.currentIndex().row()
     
-    # Nothing selected
-    if selected < 0:
+    (rowIdx, selectedStructure, selectedLabel) = self.getSelectedStructure()
+    if (selectedLabel == None):
       return
-    
-    selectedLabelVol = self.editorWidget.helper.structures.item(selected,3).text()
     
     # Get a list of all series numbers currently loaded
     seriesNumbers= [x for x in self.seriesMap.keys()]
@@ -1521,7 +1517,7 @@ class PCampReviewWidget:
     propagatePromptLayout = qt.QVBoxLayout()
     self.propagatePrompt.setLayout(propagatePromptLayout)
     
-    propagateLabel = qt.QLabel('Select which volumes you wish to propagate '+ selectedLabelVol +' to...', self.propagatePrompt)
+    propagateLabel = qt.QLabel('Select which volumes you wish to propagate '+ selectedLabel +' to...', self.propagatePrompt)
     propagatePromptLayout.addWidget(propagateLabel)
     
     propagateView = qt.QListView()
@@ -1558,15 +1554,14 @@ class PCampReviewWidget:
         propagateInto.append(selectedID)
     
     # get the source structure
-    selectionModel = self.structuresView.selectionModel()
-    selected = selectionModel.currentIndex().row()
-    selectedLabelVol = self.editorWidget.helper.structures.item(selected,3).text()
-    selectedLabelType = self.editorWidget.helper.structures.item(selected,2).text()
-    
+    (rowIdx, selectedStructure, selectedLabel) = self.getSelectedStructure()
+    if (selectedLabel == None):
+      return
+      
     # Check to make sure we don't propagate on top of something
-    exstingStructures = [self.seriesMap[x]['ShortName'] for x in propagateInto if len(slicer.util.getNodes(self.seriesMap[x]['ShortName']+'-'+selectedLabelType+'-label')) != 0]
+    exstingStructures = [self.seriesMap[x]['ShortName'] for x in propagateInto if len(slicer.util.getNodes(self.seriesMap[x]['ShortName']+'-'+selectedStructure+'-label')) != 0]
     if len(exstingStructures) != 0:
-      msg = 'ERROR\n\n\'' + selectedLabelType + '\' already exists in the following volumes:\n\n'
+      msg = 'ERROR\n\n\'' + selectedStructure + '\' already exists in the following volumes:\n\n'
       for vol in exstingStructures:
         msg += vol + '\n'
       msg += '\nCannot propagate on top of existing structures.  Delete the existing structures and try again.\n'
@@ -1581,14 +1576,14 @@ class PCampReviewWidget:
     progress = self.makeProgressIndicator(len(propagateInto))
     nProcessed = 0
     for dstSeries in propagateInto:
-      labelName = self.seriesMap[dstSeries]['ShortName']+'-'+selectedLabelType+'-label'
+      labelName = self.seriesMap[dstSeries]['ShortName']+'-'+selectedStructure+'-label'
       dstLabel = self.volumesLogic.CreateAndAddLabelVolume(slicer.mrmlScene,self.seriesMap[dstSeries]['Volume'],labelName)
       
       progress.labelText = labelName
       
       # Resample srcSeries labels into the space of dstSeries, store result in tmpLabel
       parameters = {}
-      parameters["inputVolume"] = slicer.util.getNode(selectedLabelVol).GetID()
+      parameters["inputVolume"] = slicer.util.getNode(selectedLabel).GetID()
       parameters["referenceVolume"] = self.seriesMap[dstSeries]['Volume'].GetID()
       parameters["outputVolume"] = dstLabel.GetID()
       # This transformation node will have just been created so it *should* be set to identity at this point
@@ -1611,6 +1606,17 @@ class PCampReviewWidget:
     # Delete the transform node
     slicer.mrmlScene.RemoveNode(transform)
     
+      
+  # Returns info about the currently selected structure in structuresView
+  def getSelectedStructure(self):
+    selectedIdx = self.structuresView.currentIndex()
+    selectedRow = selectedIdx.row()
+    if (selectedRow < 0):
+      return (selectedRow, None, None)
+    
+    selectedStructure = self.editorWidget.helper.structures.item(selectedRow,2).text()  
+    selectedLabel = self.editorWidget.helper.structures.item(selectedRow,3).text()
+    return (selectedRow, selectedStructure, selectedLabel)
 
   # Gets triggered on a click in the structures table
   def onStructureClicked(self,index):
