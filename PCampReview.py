@@ -1359,6 +1359,10 @@ class PCampReviewWidget:
     print('Setting master node for the Editor to '+self.volumeNodes[0].GetID())
 
     self.editorParameterNode.Modified()
+    
+    # default to selecting the first available structure for this volume 
+    if (self.editorWidget.helper.structures.rowCount() > 0):
+      self.editorWidget.helper.selectStructure(0)
 
     print('Exiting onReferenceChanged')
 
