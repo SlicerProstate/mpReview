@@ -976,14 +976,13 @@ class PCampReviewWidget:
             latestSegmentations[structureName] = segmentation
 
     for structure,fileName in latestSegmentations.iteritems():
-      (success,label) = slicer.util.loadVolume(fileName, returnNode=True)
+      (success,label) = slicer.util.loadLabelVolume(fileName, returnNode=True)
       if not success:
         return (False,None)
       print('Setting loaded label name to '+volumeName)
       shortFileName = fileName[fileName.rfind("/")+1:]
       structureID = shortFileName[shortFileName[:-5].find("-")+1:shortFileName[:-5].rfind("-")]
       label.SetName(volumeName+'-'+structureID+'-label')
-      label.SetLabelMap(1)
       label.RemoveAllDisplayNodeIDs()
 
       dNode = slicer.vtkMRMLLabelMapVolumeDisplayNode()
