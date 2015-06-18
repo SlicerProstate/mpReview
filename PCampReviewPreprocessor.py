@@ -1,4 +1,5 @@
 import os
+import re
 import unittest
 from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
@@ -138,7 +139,6 @@ class PCampReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
 
           if node:
             storageNode = node.CreateDefaultStorageNode()
-            import os
             studyID = patientID+'_'+studyDate+'_'+studyTime
             dirName = outputDir + '/'+studyID+'/RESOURCES/'+seriesNumber+'/Reconstructions/'
             xmlName = dirName+seriesNumber+'.xml'
@@ -146,7 +146,8 @@ class PCampReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
               os.makedirs(dirName)
             except:
               pass
-            os.system('dcm2xml '+dcmFile.replace(' ','\ ')+' > '+xmlName.replace(' ','\ '))
+            returnValue = os.system(slicer.app.slicerHome+'/bin/dcm2xml '+re.escape(dcmFile)+' > '+re.escape(xmlName))
+            assert returnValue == 0, "Error during execution of dcm2xml. Probably the dcm2xml is not in your path."
             nrrdName = dirName+seriesNumber+'.nrrd'
             #print(nrrdName)
             storageNode.SetFileName(nrrdName)
