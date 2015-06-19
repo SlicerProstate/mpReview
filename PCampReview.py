@@ -10,14 +10,17 @@ from EditorLib import EditUtil
 from EditorLib import EditorLib
 import SimpleITK as sitk
 import sitkUtils
+from slicer.ScriptedLoadableModule import *
+
 
 #
 # PCampReview
 #
 
-class PCampReview:
+class PCampReview(ScriptedLoadableModule):
   def __init__(self, parent):
-    parent.title = "PCampReview" # TODO make this more human readable by adding spaces
+    ScriptedLoadableModule.__init__(self, parent)
+    parent.title = "PCampReview"
     parent.categories = ["Radiology"]
     parent.dependencies = []
     parent.contributors = ["PCampReview"] # replace with "Firstname Lastname (Org)"
@@ -25,7 +28,7 @@ class PCampReview:
     """
     parent.acknowledgementText = """
     Supported by NIH U01CA151261 (PI Fennessy)
-""" # replace with organization, grant and thanks.
+    """ # replace with organization, grant and thanks.
     self.parent = parent
 
     # Add this test to the SelfTest module's list for discovery when the module
@@ -45,18 +48,9 @@ class PCampReview:
 # qPCampReviewWidget
 #
 
-class PCampReviewWidget:
+class PCampReviewWidget(ScriptedLoadableModuleWidget):
   def __init__(self, parent = None):
-    if not parent:
-      self.parent = slicer.qMRMLWidget()
-      self.parent.setLayout(qt.QVBoxLayout())
-      self.parent.setMRMLScene(slicer.mrmlScene)
-    else:
-      self.parent = parent
-    self.layout = self.parent.layout()
-    if not parent:
-      self.setup()
-      self.parent.show()
+    ScriptedLoadableModuleWidget.__init__(self, parent)
 
     # module-specific initialization
     self.inputDataDir = ''
