@@ -51,7 +51,9 @@ class PCampReview(ScriptedLoadableModule):
 class PCampReviewWidget(ScriptedLoadableModuleWidget):
   def __init__(self, parent = None):
     ScriptedLoadableModuleWidget.__init__(self, parent)
+    self.resourcesPath = slicer.modules.pcampreview.path.replace(self.moduleName+".py","") + 'Resources/'
 
+    #self.modulePath = slicer.modules.pcampreview.path.replace(self.moduleName+".py","")
     # module-specific initialization
     self.inputDataDir = ''
     self.webFormURL = ''
@@ -66,6 +68,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       self.editUtil = EditorLib.EditUtil()
     # mrml node for invoking command line modules
     self.CLINode = None
+    self.currentStep = 1
 
   def isSeriesOfInterest(self,desc):
     discardThose = ['SAG','COR','PURE','mapping','DWI','breath','3D DCE','loc','Expo','Map','MAP','POST','ThreeParameter','AutoAIF','BAT','-Slope','PkRsqr']
@@ -152,15 +155,81 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     messageBox = qt.QMessageBox()
     messageBox.information(None, 'Slicer mpMRI review', message)
 
+  def setupIcons(self):
+
+    def createQIconFromPath(path):
+      return qt.QIcon(qt.QPixmap(path))
+
+    iconPath = self.resourcesPath + 'Icons/'
+    self.dataSourceSelectionIcon = createQIconFromPath(iconPath +'icon-dataselection_fit.png')
+    self.studySelectionIcon = createQIconFromPath(iconPath +'icon-studyselection_fit.png')
+    self.seriesSelectionIcon = createQIconFromPath(iconPath + 'icon-seriesselection_fit.png')
+    self.segmentationIcon = createQIconFromPath(iconPath + 'icon-segmentation_fit.png')
+    self.completionIcon = createQIconFromPath(iconPath + 'icon-completion_fit.png')
+
+
+  def setupTabBarNavigation(self):
+    self.tabWidget = qt.QTabWidget()
+    self.layout.addWidget(self.tabWidget)
+    self.tabBar = self.tabWidget.childAt(1, 1)
+
+    self.dataSourceSelectionGroupBox = qt.QGroupBox()
+    self.studySelectionGroupBox = qt.QGroupBox()
+    self.seriesSelectionGroupBox = qt.QGroupBox()
+    self.segmentationGroupBox = qt.QGroupBox()
+    self.completionGroupBox = qt.QGroupBox()
+
+    self.dataSourceSelectionGroupBoxLayout = qt.QFormLayout()
+    self.studySelectionGroupBoxLayout = qt.QFormLayout()
+    self.seriesSelectionGroupBoxLayout = qt.QFormLayout()
+    self.segmentationGroupBoxLayout = qt.QFormLayout()
+    self.completionGroupBoxLayout = qt.QFormLayout()
+
+    self.dataSourceSelectionGroupBox.setLayout(self.dataSourceSelectionGroupBoxLayout)
+    self.studySelectionGroupBox.setLayout(self.studySelectionGroupBoxLayout)
+    self.seriesSelectionGroupBox.setLayout(self.seriesSelectionGroupBoxLayout)
+    self.segmentationGroupBox.setLayout(self.segmentationGroupBoxLayout)
+    self.completionGroupBox.setLayout(self.completionGroupBoxLayout)
+
+    size = qt.QSize()
+    size.setHeight(50)
+    size.setWidth(110)
+    self.tabWidget.setIconSize(size)
+
+    self.tabWidget.addTab(self.dataSourceSelectionGroupBox,self.dataSourceSelectionIcon, '')
+    self.tabWidget.addTab(self.studySelectionGroupBox, self.studySelectionIcon, '')
+    self.tabWidget.addTab(self.seriesSelectionGroupBox, self.seriesSelectionIcon, '')
+    self.tabWidget.addTab(self.segmentationGroupBox, self.segmentationIcon, '')
+    self.tabWidget.addTab(self.completionGroupBox, self.completionIcon, '')
+    self.tabWidget.connect('currentChanged(int)',self.onTabWidgetClicked)
+
+    self.tabBar.setTabEnabled(1,False)
+    self.tabBar.setTabEnabled(2,False)
+    self.tabBar.setTabEnabled(3,False)
+    self.tabBar.setTabEnabled(4,False)
+
+  def onTabWidgetClicked(self, currentIndex):
+    if currentIndex == 0:
+      self.onStep1Selected()
+    if currentIndex == 1:
+      self.onStep2Selected()
+    if currentIndex == 2:
+      self.onStep3Selected()
+    if currentIndex == 3:
+      self.onStep4Selected()
+
   def setup(self):
     # Instantiate and connect widgets ...
+
+    self.setupIcons()
+    self.setupTabBarNavigation()
 
     #
     # Reload and Test area
     #
     reloadCollapsibleButton = ctk.ctkCollapsibleButton()
     reloadCollapsibleButton.text = "Reload && Test"
-    #self.layout.addWidget(reloadCollapsibleButton)
+    self.layout.addWidget(reloadCollapsibleButton)
     reloadFormLayout = qt.QFormLayout(reloadCollapsibleButton)
 
     # reload button
@@ -187,43 +256,22 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     #
     # Step 1: selection of the data directory
     #
-    self.step1frame = ctk.ctkCollapsibleGroupBox()
-    self.step1frame.setTitle("Step 1: Data source")
-    self.layout.addWidget(self.step1frame)
-
-    # Layout within the dummy collapsible button
-    step1Layout = qt.QFormLayout(self.step1frame)
-
     self.dataDirButton = qt.QPushButton(str(self.settings.value('PCampReview/InputLocation')))
     self.dataDirButton.connect('clicked()', self.onInputDirSelected)
-    step1Layout.addRow("Select data directory:", self.dataDirButton)
+    self.dataSourceSelectionGroupBoxLayout.addRow("Select data directory:", self.dataDirButton)
     self.customLUTLabel = qt.QLabel()
-    step1Layout.addRow(self.customLUTLabel)
+    self.dataSourceSelectionGroupBoxLayout.addRow(self.customLUTLabel)
     self.inputDirLabel = qt.QLabel()
-    step1Layout.addRow(self.inputDirLabel)
+    self.dataSourceSelectionGroupBoxLayout.addRow(self.inputDirLabel)
     self.resultsDirLabel = qt.QLabel()
-    step1Layout.addRow(self.resultsDirLabel)
-    self.step1frame.collapsed = 0
-    self.step1frame.connect('clicked()', self.onStep1Selected)
-
+    self.dataSourceSelectionGroupBoxLayout.addRow(self.resultsDirLabel)
     self.checkAndSetLUT()
 
-    # TODO: add here source directory selector
 
     #
     # Step 2: selection of the study to be analyzed
     #
-    self.step2frame = ctk.ctkCollapsibleGroupBox()
-    self.step2frame.setTitle("Step 2: Study selection")
-    self.layout.addWidget(self.step2frame)
-
-    # Layout within the dummy collapsible button
-    step2Layout = qt.QFormLayout(self.step2frame)
     # TODO: add here source directory selector
-
-    self.step2frame.collapsed = 1
-    self.step2frame.connect('clicked()', self.onStep2Selected)
-
     self.studiesView = qt.QListView()
     self.studiesView.setObjectName('StudiesTable')
     self.studiesView.setSpacing(3)
@@ -232,18 +280,11 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.studiesView.setModel(self.studiesModel)
     self.studiesView.setEditTriggers(qt.QAbstractItemView.NoEditTriggers)
     self.studiesView.connect('clicked(QModelIndex)', self.studySelected)
-    step2Layout.addWidget(self.studiesView)
+    self.studySelectionGroupBoxLayout.addWidget(self.studiesView)
 
     #
     # Step 3: series selection
     #
-    self.step3frame = ctk.ctkCollapsibleGroupBox()
-    self.step3frame.setTitle("Step 3: Series selection")
-    self.layout.addWidget(self.step3frame)
-
-    # Layout within the dummy collapsible button
-    step3Layout = qt.QFormLayout(self.step3frame)
-
     self.seriesView = qt.QListView()
     self.seriesView.setObjectName('SeriesTable')
     self.seriesView.setSpacing(3)
@@ -253,28 +294,16 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.seriesView.setSelectionMode(qt.QAbstractItemView.ExtendedSelection)
     self.seriesView.connect('clicked(QModelIndex)', self.seriesSelected)
     self.seriesView.setEditTriggers(qt.QAbstractItemView.NoEditTriggers)
-    step3Layout.addWidget(self.seriesView)
-
-    self.step3frame.collapsed = 1
-    self.step3frame.connect('clicked()', self.onStep3Selected)
-
-    # get the list of all series for the selected study
-
+    self.seriesSelectionGroupBoxLayout.addWidget(self.seriesView)
 
     #
     # Step 4: segmentation tools
     #
-    self.step4frame = ctk.ctkCollapsibleGroupBox()
-    self.step4frame.setTitle("Step 4: Segmentation")
-    self.layout.addWidget(self.step4frame)
-
-    # Layout within the dummy collapsible button
-    step4Layout = qt.QFormLayout(self.step4frame)
 
     # reference node selector
     # TODO: use MRML selector here ?
     self.refSelector = qt.QComboBox()
-    step4Layout.addRow(qt.QLabel("Reference image: "), self.refSelector)
+    self.segmentationGroupBoxLayout.addRow(qt.QLabel("Reference image: "), self.refSelector)
     self.refSelector.connect('currentIndexChanged(int)', self.onReferenceChanged)
     
     self.advancedSettingsArea = ctk.ctkCollapsibleButton()
@@ -315,7 +344,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.mvSlider.enabled = False
     advancedSettingsLayout.addRow('Frame Number: ', self.mvSlider)
     
-    step4Layout.addRow(self.advancedSettingsArea)
+    self.segmentationGroupBoxLayout.addRow(self.advancedSettingsArea)
     
     self.translateArea = ctk.ctkCollapsibleButton()
     self.translateArea.text = "Translate Selected Label Map"
@@ -355,10 +384,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.transformNode.SetName('PCampReview-transform')
     slicer.mrmlScene.AddNode(self.transformNode)
     
-    step4Layout.addRow(self.translateArea)
-
-    self.step4frame.collapsed = 1
-    self.step4frame.connect('clicked()', self.onStep4Selected)
+    self.segmentationGroupBoxLayout.addRow(self.translateArea)
 
     editorWidgetParent = slicer.qMRMLWidget()
     editorWidgetParent.setLayout(qt.QVBoxLayout())
@@ -407,7 +433,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.editorParameterNode.SetParameter('propagationMode',
                              str(slicer.vtkMRMLApplicationLogic.LabelLayer))
 
-    step4Layout.addRow(editorWidgetParent)
+    self.segmentationGroupBoxLayout.addRow(editorWidgetParent)
 
     self.modelsVisibility = True
     modelsFrame = qt.QFrame()
@@ -452,11 +478,11 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     # TODO: add here source directory selector
 
     self.qaButton = qt.QPushButton("PI-RADS v2 review form")
-    self.layout.addWidget(self.qaButton)
+    self.completionGroupBoxLayout.addWidget(self.qaButton)
     self.qaButton.connect('clicked()',self.onQAFormClicked)
 
     self.saveButton = qt.QPushButton("Save")
-    self.layout.addWidget(self.saveButton)
+    self.completionGroupBoxLayout.addWidget(self.saveButton)
     self.saveButton.connect('clicked()', self.onSaveClicked)
 
     '''
@@ -644,13 +670,15 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     print('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
     print('Row number: '+str(modelIndex.row()))
     self.selectedStudyName = self.studiesModel.item(modelIndex.row(),0).text()
-    self.step2frame.setTitle('Step 2: Study selection (current: '+self.selectedStudyName+')')
+    self.tabWidget.setCurrentIndex(2)
+    self.setTabsEnabled([3], True)
 
   def seriesSelected(self, modelIndex):
     print('Row selected: '+self.seriesModel.item(modelIndex.row(),0).text())
     selectionModel = self.seriesView.selectionModel()
     print('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
     print('Row number: '+str(modelIndex.row()))
+    self.tabWidget.setCurrentIndex(3)
 
   def delayDisplay(self,message,msec=1000):
     """This utility method displays a small dialog and waits.
@@ -765,12 +793,15 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
   def onInputDirSelected(self):
     self.inputDataDir = qt.QFileDialog.getExistingDirectory(self.parent,'Input data directory', '/Users/fedorov/Temp/XNAT-images')
-    self.dataDirButton.text = self.inputDataDir
-    self.settings.setValue('PCampReview/InputLocation', self.inputDataDir)
-    self.checkAndSetLUT()
-    print('Directory selected:')
-    print(self.inputDataDir)
-    print(self.settings.value('PCampReview/InputLocation'))
+    if self.inputDataDir != "":
+      self.dataDirButton.text = self.inputDataDir
+      self.settings.setValue('PCampReview/InputLocation', self.inputDataDir)
+      self.checkAndSetLUT()
+      print('Directory selected:')
+      print(self.inputDataDir)
+      print(self.settings.value('PCampReview/InputLocation'))
+      self.tabWidget.setCurrentIndex(1)
+
 
   def onBuildModels(self):
     """make models of the structure label nodesvolume"""
@@ -988,14 +1019,18 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     #return (True,label)
     return True
+
+  def setTabsEnabled(self, indizes, enabled):
+    for index in indizes:
+      self.tabBar.setTabEnabled(index, enabled)
+
   '''
   Step 1: Select the directory that has the data
   '''
   def onStep1Selected(self):
-    if self.currentStep == 4:
+    if self.currentStep == 4 or self.currentStep == 5:
       continuteStep4 = self.showExitStep4Warning()
       if continuteStep4:
-        self.step1frame.collapsed = 1
         return
       else:
         self.removeAllModels()
@@ -1003,33 +1038,25 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     if self.currentStep == 1:
       return
     self.currentStep = 1
-    self.step1frame.collapsed = 0
-    self.step2frame.collapsed = 1
-    self.step3frame.collapsed = 1
-    self.step4frame.collapsed = 1
+    self.setTabsEnabled([1,2,3,4], False)
+
 
   '''
   Step 2: Select the patient
   '''
   def onStep2Selected(self):
-    if self.currentStep == 4:
-      continuteStep4 = self.showExitStep4Warning()
-      if continuteStep4:
-        self.step2frame.collapsed = 1
+    if self.currentStep == 4 or self.currentStep == 5:
+      continueStep4 = self.showExitStep4Warning()
+      if continueStep4:
         return
       else:
         self.removeAllModels()
 
     if self.currentStep == 2:
       return
-
-    self.step2frame.setTitle('Step 2: Study selection')
-
     self.currentStep = 2
-    self.step2frame.collapsed = 0
-    self.step1frame.collapsed = 1
-    self.step3frame.collapsed = 1
-    self.step4frame.collapsed = 1
+    self.setTabsEnabled([1],True)
+    self.setTabsEnabled([2,3,4], False)
 
     studyDirs = []
     # get list of studies
@@ -1067,24 +1094,20 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     if self.currentStep == 4:
       continuteStep4 = self.showExitStep4Warning()
       if continuteStep4:
-        self.step3frame.collapsed = 1
         return
       else:
         self.removeAllModels()
 
     if self.currentStep == 3 or not self.selectedStudyName:
-      self.step3frame.collapsed = 1
       return
 
     self.currentStep = 3
+
+    self.setTabsEnabled([2],True)
+    self.setTabsEnabled([4], False)
     print('Entering step 3')
 
     self.cleanupDir(self.tempDir)
-
-    self.step3frame.collapsed = 0
-    self.step2frame.collapsed = 1
-    self.step1frame.collapsed = 1
-    self.step4frame.collapsed = 1
 
     # Block the signals to master selector while removing the old nodes.
     # If signals are not blocked, a new volume node is selected automatically
@@ -1189,15 +1212,11 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     if self.currentStep == 4:
       return
     self.currentStep = 4
+    self.setTabsEnabled([3,4],True)
 
     self.editorWidget.enter()
     
     self.resetTranslate()
-
-    self.step2frame.collapsed = 1
-    self.step3frame.collapsed = 1
-    self.step1frame.collapsed = 1
-    self.step4frame.collapsed = 0
 
     checkedItems = [x for x in self.seriesItems if x.checkState()]
 
