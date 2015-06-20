@@ -203,10 +203,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.tabWidget.addTab(self.completionGroupBox, self.completionIcon, '')
     self.tabWidget.connect('currentChanged(int)',self.onTabWidgetClicked)
 
-    self.tabBar.setTabEnabled(1,False)
-    self.tabBar.setTabEnabled(2,False)
-    self.tabBar.setTabEnabled(3,False)
-    self.tabBar.setTabEnabled(4,False)
+    self.setTabsEnabled([1,2,3,4], False)
 
   def onTabWidgetClicked(self, currentIndex):
     if currentIndex == 0:
@@ -217,6 +214,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       self.onStep3Selected()
     if currentIndex == 3:
       self.onStep4Selected()
+    if currentIndex == 4:
+      self.onStep5Selected()
 
   def setup(self):
     # Instantiate and connect widgets ...
@@ -422,7 +421,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     deleteStructureButton = qt.QPushButton('Delete Structure')
     buttonsFrame.layout().addWidget(deleteStructureButton)
     deleteStructureButton.connect('clicked()', self.onDeleteStructure)
-    
+
     propagateButton = qt.QPushButton('Propagate Structure')
     buttonsFrame.layout().addWidget(propagateButton)
     propagateButton.connect('clicked()', self.onPropagateROI)
@@ -506,6 +505,10 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.volumeNodes = {}
     self.refSelectorIgnoreUpdates = False
     self.selectedStudyName = None
+
+    self.inputDataDir = self.settings.value('PCampReview/InputLocation')
+    if os.path.exists(self.inputDataDir):
+      self.tabWidget.setCurrentIndex(1)
 
   def enter(self):
     settings = qt.QSettings()
@@ -670,15 +673,14 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     print('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
     print('Row number: '+str(modelIndex.row()))
     self.selectedStudyName = self.studiesModel.item(modelIndex.row(),0).text()
-    self.tabWidget.setCurrentIndex(2)
-    self.setTabsEnabled([3], True)
+    self.setTabsEnabled([2], True)
 
   def seriesSelected(self, modelIndex):
     print('Row selected: '+self.seriesModel.item(modelIndex.row(),0).text())
     selectionModel = self.seriesView.selectionModel()
     print('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
     print('Row number: '+str(modelIndex.row()))
-    self.tabWidget.setCurrentIndex(3)
+    self.setTabsEnabled([3], True)
 
   def delayDisplay(self,message,msec=1000):
     """This utility method displays a small dialog and waits.
@@ -792,7 +794,9 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.infoPopup(savedMessage)
 
   def onInputDirSelected(self):
-    self.inputDataDir = qt.QFileDialog.getExistingDirectory(self.parent,'Input data directory', '/Users/fedorov/Temp/XNAT-images')
+    self.inputDataDir = qt.QFileDialog.getExistingDirectory(self.parent,
+                                                            'Input data directory',
+                                                            self.settings.value('PCampReview/InputLocation'))
     if self.inputDataDir != "":
       self.dataDirButton.text = self.inputDataDir
       self.settings.setValue('PCampReview/InputLocation', self.inputDataDir)
@@ -1024,34 +1028,35 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     for index in indizes:
       self.tabBar.setTabEnabled(index, enabled)
 
+  def checkStep4or5Leave(self):
+    if self.currentStep == 4 or self.currentStep == 5:
+      continueCurrentStep = self.showExitStep4Or5Warning()
+      if continueCurrentStep:
+        self.tabWidget.setCurrentIndex(self.currentStep-1)
+        return True
+      else:
+        self.removeAllModels()
+    return False
+
   '''
   Step 1: Select the directory that has the data
   '''
   def onStep1Selected(self):
-    if self.currentStep == 4 or self.currentStep == 5:
-      continuteStep4 = self.showExitStep4Warning()
-      if continuteStep4:
-        return
-      else:
-        self.removeAllModels()
-
+    if self.checkStep4or5Leave() is True:
+      return
     if self.currentStep == 1:
       return
     self.currentStep = 1
-    self.setTabsEnabled([1,2,3,4], False)
-
+    self.setTabsEnabled([2,3,4], False)
+    if self.inputDataDir != "":
+      self.setTabsEnabled([1], True)
 
   '''
   Step 2: Select the patient
   '''
   def onStep2Selected(self):
-    if self.currentStep == 4 or self.currentStep == 5:
-      continueStep4 = self.showExitStep4Warning()
-      if continueStep4:
-        return
-      else:
-        self.removeAllModels()
-
+    if self.checkStep4or5Leave() is True:
+      return
     if self.currentStep == 2:
       return
     self.currentStep = 2
@@ -1091,13 +1096,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
   Step 3: Select series of interest
   '''
   def onStep3Selected(self):
-    if self.currentStep == 4:
-      continuteStep4 = self.showExitStep4Warning()
-      if continuteStep4:
-        return
-      else:
-        self.removeAllModels()
-
+    if self.checkStep4or5Leave() is True:
+      return
     if self.currentStep == 3 or not self.selectedStudyName:
       return
 
@@ -1202,6 +1202,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         sItem.setCheckState(2)
 
     progress.delete()
+    self.setTabsEnabled([3], True)
 
   '''
   T2w, sub, ADC, T2map
@@ -1210,6 +1211,9 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
   def onStep4Selected(self):
     # set up editor
     if self.currentStep == 4:
+      return
+    if self.currentStep == 5:
+      self.currentStep = 4
       return
     self.currentStep = 4
     self.setTabsEnabled([3,4],True)
@@ -1316,6 +1320,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     self.refSelectorIgnoreUpdates = False
 
+  def onStep5Selected(self):
+    self.currentStep = 5
 
   def confirmDialog(self, message):
     result = qt.QMessageBox.question(slicer.util.mainWindow(),
@@ -1323,7 +1329,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
                     qt.QMessageBox.Ok, qt.QMessageBox.Cancel)
     return result == qt.QMessageBox.Ok
 
-  def showExitStep4Warning(self):
+  def showExitStep4Or5Warning(self):
     return not self.confirmDialog('Unsaved contours will be lost!\n\nDo you still want to exit?')
 
   def onReferenceChanged(self, id):
