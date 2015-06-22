@@ -1,12 +1,9 @@
 from __future__ import division
-import os, json, xml.dom.minidom, string, glob, re, math
+import os, json, xml.dom.minidom, string, re, math
 import unittest
 from __main__ import vtk, qt, ctk, slicer
 import CompareVolumes
 from Editor import EditorWidget
-from EditorLib import EditColor
-import Editor
-from EditorLib import EditUtil
 from EditorLib import EditorLib
 import SimpleITK as sitk
 import sitkUtils
@@ -49,6 +46,9 @@ class PCampReview(ScriptedLoadableModule):
 #
 
 class PCampReviewWidget(ScriptedLoadableModuleWidget):
+
+  VIEWFORM_URL = 'https://docs.google.com/forms/d/1Xwhvjn_HjRJAtgV5VruLCDJ_eyj1C-txi8HWn8VyXa4/viewform'
+
   def __init__(self, parent = None):
     ScriptedLoadableModuleWidget.__init__(self, parent)
     self.resourcesPath = slicer.modules.pcampreview.path.replace(self.moduleName+".py","") + 'Resources/'
@@ -71,7 +71,10 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.currentStep = 1
 
   def isSeriesOfInterest(self,desc):
-    discardThose = ['SAG','COR','PURE','mapping','DWI','breath','3D DCE','loc','Expo','Map','MAP','POST','ThreeParameter','AutoAIF','BAT','-Slope','PkRsqr']
+    discardThose = ['SAG','COR','PURE','mapping','DWI',
+                    'breath','3D DCE','loc','Expo','Map',
+                    'MAP','POST','ThreeParameter','AutoAIF',
+                    'BAT','-Slope','PkRsqr']
     for d in discardThose:
       if string.find(desc,d)>=0:
         return False
@@ -126,8 +129,11 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       abbr = 'Subtract'
     return seriesNumber+'-'+abbr
 
+  def getLayoutManager(self):
+    return slicer.app.layoutManager()
+
   def setOffsetOnAllSliceWidgets(self,offset):
-    layoutManager = slicer.app.layoutManager()
+    layoutManager = self.getLayoutManager()
     widgetNames = layoutManager.sliceViewNames()
     for wn in widgetNames:
       widget = layoutManager.sliceWidget(wn)
@@ -135,7 +141,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       node.SetSliceOffset(offset)
 
   def linkAllSliceWidgets(self,link):
-    layoutManager = slicer.app.layoutManager()
+    layoutManager = self.getLayoutManager()
     widgetNames = layoutManager.sliceViewNames()
     for wn in widgetNames:
       widget = layoutManager.sliceWidget(wn)
@@ -144,7 +150,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       sc.SetInteractionFlagsModifier(4+8+16)
 
   def setOpacityOnAllSliceWidgets(self,opacity):
-    layoutManager = slicer.app.layoutManager()
+    layoutManager = self.getLayoutManager()
     widgetNames = layoutManager.sliceViewNames()
     for wn in widgetNames:
       widget = layoutManager.sliceWidget(wn)
@@ -545,7 +551,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       self.URLPrompt.setLayout(self.URLPromptLayout)
       self.URLLabel = qt.QLabel('Enter review form URL:', self.URLPrompt)
       # replace this if you are using a different form
-      self.URLText = qt.QLineEdit('https://docs.google.com/forms/d/1Xwhvjn_HjRJAtgV5VruLCDJ_eyj1C-txi8HWn8VyXa4/viewform')
+      self.URLText = qt.QLineEdit(self.VIEWFORM_URL)
       self.URLButton = qt.QPushButton('OK', self.URLPrompt)
       self.URLButton.connect('clicked()', self.onURLEntered)
       self.URLPromptLayout.addWidget(self.URLLabel)
@@ -603,7 +609,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     # Check for custom LUT
     if (self.settings.value('PCampReview/InputLocation') != None):
-      lookupTableLoc = self.settings.value('PCampReview/InputLocation') + os.sep + 'SETTINGS' + os.sep + self.settings.value('PCampReview/InputLocation').split(os.sep)[-1] + '-LUT.csv'
+      lookupTableLoc = self.settings.value('PCampReview/InputLocation') + os.sep + 'SETTINGS' + os.sep + \
+                       self.settings.value('PCampReview/InputLocation').split(os.sep)[-1] + '-LUT.csv'
       print('Checking for lookup table at : ' + lookupTableLoc)
       if os.path.isfile(lookupTableLoc):
         # use custom color table
@@ -881,7 +888,9 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
             self.CLINode = slicer.cli.run(modelMaker, self.CLINode,
                            parameters, wait_for_completion=True)
           except AttributeError:
-            qt.QMessageBox.critical(slicer.util.mainWindow(),'Editor', 'The ModelMaker module is not available<p>Perhaps it was disabled in the application settings or did not load correctly.')
+            qt.QMessageBox.critical(slicer.util.mainWindow(),'Editor',
+                                    'The ModelMaker module is not available<p>Perhaps it was disabled in the ' + \
+                                    'application settings or did not load correctly.')
         step += 1
       progress.close()
         # 
@@ -1177,7 +1186,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
               seriesName = metaInfo['ModelType']+'-'+metaInfo['AIF']+'-'+metaInfo['Parameter']
             volumePath = os.path.join(root,seriesNumber+'.nrrd')
             self.seriesMap[seriesNumber] = {'MetaInfo':metaInfo, 'NRRDLocation':volumePath,'LongName':seriesName}
-            self.seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+self.abbreviateName(self.seriesMap[seriesNumber]['MetaInfo'])
+            self.seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":" + \
+                                                        self.abbreviateName(self.seriesMap[seriesNumber]['MetaInfo'])
 
     print('All series found: '+str(self.seriesMap.keys()))
 
@@ -1400,7 +1410,12 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     self.editorWidget.helper.setVolumes(self.volumeNodes[0], self.seriesMap[str(ref)]['Label'])
 
-    self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[self.rows,self.cols],viewNames=self.sliceNames,orientation=self.currentOrientation)
+    self.cvLogic.viewerPerVolume(self.volumeNodes,
+                                 background=self.volumeNodes[0],
+                                 label=refLabel,
+                                 layout=[self.rows,self.cols],
+                                 viewNames=self.sliceNames,
+                                 orientation=self.currentOrientation)
 
     # Make sure redslice has the ref image (the others were set with viewerPerVolume)
     layoutManager = slicer.app.layoutManager()
@@ -1433,7 +1448,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     sl = w.sliceLogic()
     ll = sl.GetLabelLayer()
     lv = ll.GetVolumeNode()
-    self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=lv, layout=[self.rows,self.cols])
+    self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0],
+    label=lv, layout=[self.rows,self.cols])
 
     self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
     self.setOpacityOnAllSliceWidgets(1.0)
@@ -1515,8 +1531,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     newValue = int(newValue)
     try:
       self.seriesMap[self.refSeriesNumber]['Volume'] = self.extractFrame(self.seriesMap[self.refSeriesNumber]['Volume'], 
-                                                                       self.seriesMap[self.refSeriesNumber]['MultiVolume'], 
-                                                                       newValue)
+                                                        self.seriesMap[self.refSeriesNumber]['MultiVolume'],
+                                                        newValue)
       self.seriesMap[self.refSeriesNumber]['FrameNumber'] = newValue
       self.seriesMap[self.refSeriesNumber]['MultiVolume'].GetDisplayNode().SetFrameComponent(newValue)
     except:
@@ -1583,7 +1599,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     propagatePromptLayout = qt.QVBoxLayout()
     self.propagatePrompt.setLayout(propagatePromptLayout)
     
-    propagateLabel = qt.QLabel('Select which volumes you wish to propagate '+ selectedLabel +' to...', self.propagatePrompt)
+    propagateLabel = qt.QLabel('Select which volumes you wish to propagate '+ selectedLabel +' to...',
+                               self.propagatePrompt)
     propagatePromptLayout.addWidget(propagateLabel)
     
     propagateView = qt.QListView()
@@ -1625,10 +1642,11 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       return
       
     # Check to make sure we don't propagate on top of something
-    exstingStructures = [self.seriesMap[x]['ShortName'] for x in propagateInto if len(slicer.util.getNodes(self.seriesMap[x]['ShortName']+'-'+selectedStructure+'-label')) != 0]
-    if len(exstingStructures) != 0:
+    existingStructures = [self.seriesMap[x]['ShortName'] for x in propagateInto if
+                          len(slicer.util.getNodes(self.seriesMap[x]['ShortName']+'-'+selectedStructure+'-label')) != 0]
+    if len(existingStructures) != 0:
       msg = 'ERROR\n\n\'' + selectedStructure + '\' already exists in the following volumes:\n\n'
-      for vol in exstingStructures:
+      for vol in existingStructures:
         msg += vol + '\n'
       msg += '\nCannot propagate on top of existing structures.  Delete the existing structures and try again.\n'
       self.infoPopup(msg)
@@ -1643,7 +1661,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     nProcessed = 0
     for dstSeries in propagateInto:
       labelName = self.seriesMap[dstSeries]['ShortName']+'-'+selectedStructure+'-label'
-      dstLabel = self.volumesLogic.CreateAndAddLabelVolume(slicer.mrmlScene,self.seriesMap[dstSeries]['Volume'],labelName)
+      dstLabel = self.volumesLogic.CreateAndAddLabelVolume(slicer.mrmlScene,
+                                                           self.seriesMap[dstSeries]['Volume'],labelName)
       dstLabel.GetDisplayNode().SetAndObserveColorNodeID(self.PCampReviewColorNode.GetID())
       
       progress.labelText = labelName
@@ -1661,7 +1680,9 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       parameters["numberOfThreads"] = -1
 
       self.__cliNode = None
-      self.__cliNode = slicer.cli.run(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
+      self.__cliNode = slicer.cli.run(slicer.modules.brainsresample,
+                                      self.__cliNode, parameters,
+                                      wait_for_completion=True)
       
       progress.setValue(nProcessed)
       nProcessed += 1
