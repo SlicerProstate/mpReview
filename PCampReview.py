@@ -12,10 +12,6 @@ import sitkUtils
 from slicer.ScriptedLoadableModule import *
 
 
-#
-# PCampReview
-#
-
 class PCampReview(ScriptedLoadableModule):
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
@@ -43,19 +39,31 @@ class PCampReview(ScriptedLoadableModule):
     tester = PCampReviewTest()
     tester.runTest()
 
-#
-# qPCampReviewWidget
-#
 
 class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
   VIEWFORM_URL = 'https://docs.google.com/forms/d/1Xwhvjn_HjRJAtgV5VruLCDJ_eyj1C-txi8HWn8VyXa4/viewform'
 
+  @property
+  def settings(self):
+    return qt.QSettings()
+
+  @property
+  def volumesLogic(self):
+     return slicer.modules.volumes.logic()
+
+  @property
+  def tempDir(self):
+    return os.path.join(slicer.app.temporaryPath, 'PCampReview-tmp')
+
+  @property
+  def layoutManager(self):
+    return slicer.app.layoutManager()
+
   def __init__(self, parent = None):
     ScriptedLoadableModuleWidget.__init__(self, parent)
     self.resourcesPath = os.path.join(slicer.modules.pcampreview.path.replace(self.moduleName+".py",""), 'Resources')
 
-    #self.modulePath = slicer.modules.pcampreview.path.replace(self.moduleName+".py","")
     # module-specific initialization
     self.inputDataDir = ''
     self.webFormURL = ''
@@ -72,79 +80,16 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.CLINode = None
     self.currentStep = 1
 
-  def isSeriesOfInterest(self,desc):
-    discardThose = ['SAG','COR','PURE','mapping','DWI',
-                    'breath','3D DCE','loc','Expo','Map',
-                    'MAP','POST','ThreeParameter','AutoAIF',
-                    'BAT','-Slope','PkRsqr']
-    for d in discardThose:
-      if string.find(desc,d)>=0:
-        return False
-    return True
-
-  def abbreviateNames(self, longNames, fullMatch):
-    shortNames = []
-    firstADC = True
-    for name in longNames:
-      print(str(shortNames))
-      if name in fullMatch:
-        shortNames.append(name)
-      elif string.find(name,'T2')>0:
-        shortNames.append('T2')
-      elif string.find(name,'T1')>0:
-        shortNames.append('T1')
-      elif string.find(name,'Apparent Diffusion Coefficient')>0:
-        if firstADC:
-          shortNames.append('ADCb500')
-          firstADC = False
-        else:
-          shortNames.append('ADCb1400')
-      else:
-        shortNames.append('Subtract')
-    return shortNames
-
-  def abbreviateName(self, meta):
-    try:
-      descr = meta['SeriesDescription']
-      seriesNumber = meta['SeriesNumber']
-    except:
-      descr = meta['DerivedSeriesDescription']
-      seriesNumber = meta['DerivedSeriesNumber']
-    abbr = 'Unknown'
-    if descr.find('Apparent Diffusion Coeff')>=0:
-      abbr = 'ADC'
-    if descr.find('T2')>=0:
-      abbr = 'T2'
-    if descr.find('T1')>=0:
-      abbr = 'T1'
-    if descr.find('Ktrans')>=0:
-      abbr = 'Ktrans'
-    if descr.find('Ve')>=0:
-      abbr = 've'
-    if descr.find('MaxSlope')>=0:
-      abbr = 'MaxSlope'
-    if descr.find('TTP')>=0:
-      abbr = 'TTP'
-    if descr.find('Auc')>=0:
-      abbr = 'AUC'
-    if re.search('[a-zA-Z]',descr) is None:
-      abbr = 'Subtract'
-    return seriesNumber+'-'+abbr
-
-  def getLayoutManager(self):
-    return slicer.app.layoutManager()
-
   def getSetting(self, settingName):
-    return self.settings.value('PCampReview/' + settingName)
+    return self.settings.value(self.moduleName + '/' + settingName)
 
   def setSetting(self, settingName, value):
-    self.settings.setValue('PCampReview/' + settingName, value)
+    self.settings.setValue(self.moduleName + '/' + settingName, value)
 
   def getWidgets(self):
     widgets = []
-    layoutManager = self.getLayoutManager()
-    for wn in layoutManager.sliceViewNames():
-      widgets.append(layoutManager.sliceWidget(wn))
+    for wn in self.layoutManager.sliceViewNames():
+      widgets.append(self.layoutManager.sliceWidget(wn))
     return widgets
 
   def setOffsetOnAllSliceWidgets(self,offset):
@@ -226,44 +171,42 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       self.onStep5Selected()
 
   def setup(self):
-    # Instantiate and connect widgets ...
+    ScriptedLoadableModuleWidget.setup(self)
 
     self.setupIcons()
     self.setupTabBarNavigation()
 
-    #
-    # Reload and Test area
-    #
-    reloadCollapsibleButton = ctk.ctkCollapsibleButton()
-    reloadCollapsibleButton.text = "Reload && Test"
-    self.layout.addWidget(reloadCollapsibleButton)
-    reloadFormLayout = qt.QFormLayout(reloadCollapsibleButton)
-
-    # reload button
-    # (use this during development, but remove it when delivering
-    #  your module to users)
-    self.reloadButton = qt.QPushButton("Reload")
-    self.reloadButton.toolTip = "Reload this module."
-    self.reloadButton.name = "PCampReview Reload"
-    reloadFormLayout.addWidget(self.reloadButton)
-    self.reloadButton.connect('clicked()', self.onReload)
-
-    # reload and test button
-    # (use this during development, but remove it when delivering
-    #  your module to users)
-    self.reloadAndTestButton = qt.QPushButton("Reload and Test")
-    self.reloadAndTestButton.toolTip = "Reload this module and then run the self tests."
-    reloadFormLayout.addWidget(self.reloadAndTestButton)
-    self.reloadAndTestButton.connect('clicked()', self.onReloadAndTest)
-
-    # parameters
     self.parameters = {}
-    self.settings = qt.QSettings()
     self.inputDataDir = self.getSetting('InputLocation')
 
-    #
-    # Step 1: selection of the data directory
-    #
+    self.setupStep1ViewDataDirectorySelection()
+    self.setupStep2ViewStudySelection()
+    self.setupStep3ViewSeriesSelection()
+    self.setupStep4ViewSegmentationTools()
+    self.setupStep5ViewSaveResults()
+
+    # keep here names of the views created by CompareVolumes logic
+    self.viewNames = []
+
+    # Add vertical spacer
+    self.layout.addStretch(1)
+
+    self.logic = PCampReviewLogic()
+
+    self.setupTemporaryDirectory()
+
+    self.volumeNodes = {}
+    self.refSelectorIgnoreUpdates = False
+    self.selectedStudyName = None
+
+    if os.path.exists(self.inputDataDir):
+      self.tabWidget.setCurrentIndex(1)
+
+  def setupTemporaryDirectory(self):
+    print('Temporary directory location: ' + self.tempDir)
+    qt.QDir().mkpath(self.tempDir)
+
+  def setupStep1ViewDataDirectorySelection(self):
     self.dataDirButton = qt.QPushButton(str(self.inputDataDir))
     self.dataDirButton.connect('clicked()', self.onInputDirSelected)
     self.dataSourceSelectionGroupBoxLayout.addRow("Select data directory:", self.dataDirButton)
@@ -275,10 +218,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.dataSourceSelectionGroupBoxLayout.addRow(self.resultsDirLabel)
     self.checkAndSetLUT()
 
-
-    #
-    # Step 2: selection of the study to be analyzed
-    #
+  def setupStep2ViewStudySelection(self):
     # TODO: add here source directory selector
     self.studiesView = qt.QListView()
     self.studiesView.setObjectName('StudiesTable')
@@ -290,9 +230,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.studiesView.connect('clicked(QModelIndex)', self.studySelected)
     self.studySelectionGroupBoxLayout.addWidget(self.studiesView)
 
-    #
-    # Step 3: series selection
-    #
+  def setupStep3ViewSeriesSelection(self):
     self.seriesView = qt.QListView()
     self.seriesView.setObjectName('SeriesTable')
     self.seriesView.setSpacing(3)
@@ -304,39 +242,33 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.seriesView.setEditTriggers(qt.QAbstractItemView.NoEditTriggers)
     self.seriesSelectionGroupBoxLayout.addWidget(self.seriesView)
 
-    #
-    # Step 4: segmentation tools
-    #
-
+  def setupStep4ViewSegmentationTools(self):
     # reference node selector
     # TODO: use MRML selector here ?
     self.refSelector = qt.QComboBox()
     self.segmentationGroupBoxLayout.addRow(qt.QLabel("Reference image: "), self.refSelector)
     self.refSelector.connect('currentIndexChanged(int)', self.onReferenceChanged)
-
     self.advancedSettingsArea = ctk.ctkCollapsibleButton()
     self.advancedSettingsArea.text = "Advanced Settings"
     self.advancedSettingsArea.collapsed = True
-    advancedSettingsLayout = qt.QFormLayout(self.advancedSettingsArea)
-
+    self.advancedSettingsLayout = qt.QFormLayout(self.advancedSettingsArea)
     # Show all/reference
     self.viewGroup = qt.QButtonGroup()
     self.multiView = qt.QRadioButton('All')
     self.singleView = qt.QRadioButton('Reference only')
     self.multiView.setChecked(1)
-    self.viewGroup.addButton(self.multiView,1)
-    self.viewGroup.addButton(self.singleView,2)
+    self.viewGroup.addButton(self.multiView, 1)
+    self.viewGroup.addButton(self.singleView, 2)
     self.viewGroup.connect('buttonClicked(int)', self.onViewUpdateRequested)
     self.groupWidget = qt.QGroupBox()
     self.groupLayout = qt.QFormLayout(self.groupWidget)
     self.groupLayout.addRow(self.multiView, self.singleView)
-    advancedSettingsLayout.addRow("Show series: ", self.groupWidget)
-
+    self.advancedSettingsLayout.addRow("Show series: ", self.groupWidget)
     # Change viewer orientation
     self.orientationBox = qt.QGroupBox()
     self.orientationBox.setLayout(qt.QFormLayout())
     self.orientationButtons = {}
-    self.orientations = ("Axial", "Sagittal", "Coronal")
+    self.orientations = ["Axial", "Sagittal", "Coronal"]
     for orientation in self.orientations:
       self.orientationButtons[orientation] = qt.QRadioButton()
       self.orientationButtons[orientation].text = orientation
@@ -344,179 +276,109 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       self.orientationBox.layout().addWidget(self.orientationButtons[orientation])
     self.orientationButtons['Axial'].setChecked(1)
     self.currentOrientation = 'Axial'
-    advancedSettingsLayout.addRow('View orientation: ', self.orientationBox)
-
+    self.advancedSettingsLayout.addRow('View orientation: ', self.orientationBox)
     # Multi-volume frame controller
     self.mvSlider = ctk.ctkSliderWidget()
     self.mvSlider.connect('valueChanged(double)', self.onSliderChanged)
     self.mvSlider.enabled = False
-    advancedSettingsLayout.addRow('Frame Number: ', self.mvSlider)
-
+    self.advancedSettingsLayout.addRow('Frame Number: ', self.mvSlider)
     self.segmentationGroupBoxLayout.addRow(self.advancedSettingsArea)
-
     self.translateArea = ctk.ctkCollapsibleButton()
     self.translateArea.text = "Translate Selected Label Map"
-
     translateAreaLayout = qt.QFormLayout(self.translateArea)
-
     self.translateLR = slicer.qMRMLSliderWidget()
     self.translateLR.minimum = -200
     self.translateLR.maximum = 200
     self.translateLR.connect('valueChanged(double)', self.onTranslate)
-
     self.translatePA = slicer.qMRMLSliderWidget()
     self.translatePA.minimum = -200
     self.translatePA.maximum = 200
     self.translatePA.connect('valueChanged(double)', self.onTranslate)
-
     self.translateIS = slicer.qMRMLSliderWidget()
     self.translateIS.minimum = -200
     self.translateIS.maximum = 200
     self.translateIS.connect('valueChanged(double)', self.onTranslate)
-
     translateAreaLayout.addRow("Translate LR: ", self.translateLR)
     translateAreaLayout.addRow("Translate PA: ", self.translatePA)
     translateAreaLayout.addRow("Translate IS: ", self.translateIS)
-
     self.hardenTransformButton = qt.QPushButton("Harden Transform")
     self.hardenTransformButton.enabled = False
     self.hardenTransformButton.connect('clicked(bool)', self.onHardenTransform)
     translateAreaLayout.addRow(self.hardenTransformButton)
-
     self.translateArea.collapsed = 1
-
     self.ignoreTranslate = False
-
     # Create a transform node
     self.transformNode = slicer.vtkMRMLLinearTransformNode()
     self.transformNode.SetName('PCampReview-transform')
     slicer.mrmlScene.AddNode(self.transformNode)
-
     self.segmentationGroupBoxLayout.addRow(self.translateArea)
-
     editorWidgetParent = slicer.qMRMLWidget()
     editorWidgetParent.setLayout(qt.QVBoxLayout())
     editorWidgetParent.setMRMLScene(slicer.mrmlScene)
     self.editorWidget = EditorWidget(parent=editorWidgetParent)
     self.editorWidget.setup()
-
     volumesFrame = self.editorWidget.volumes
     # hide unwanted widgets
-    for widgetName in ['AllButtonsFrameButton','ReplaceModelsCheckBox',
-      'MasterVolumeFrame','MergeVolumeFrame','SplitStructureButton']:
-      widget = slicer.util.findChildren(volumesFrame,widgetName)[0]
+    for widgetName in ['AllButtonsFrameButton', 'ReplaceModelsCheckBox',
+                       'MasterVolumeFrame', 'MergeVolumeFrame', 'SplitStructureButton']:
+      widget = slicer.util.findChildren(volumesFrame, widgetName)[0]
       widget.hide()
-
     perStructureFrame = slicer.util.findChildren(volumesFrame,
-                        'PerStructureVolumesFrame')[0]
+                                                 'PerStructureVolumesFrame')[0]
     perStructureFrame.collapsed = False
-
-    self.structuresView = slicer.util.findChildren(volumesFrame,'StructuresView')[0]
+    self.structuresView = slicer.util.findChildren(volumesFrame, 'StructuresView')[0]
     self.structuresView.connect("activated(QModelIndex)", self.onStructureClicked)
-
-    buttonsFrame = slicer.util.findChildren(volumesFrame,'ButtonsFrame')[0]
+    buttonsFrame = slicer.util.findChildren(volumesFrame, 'ButtonsFrame')[0]
     '''
-    updateViewsButton = qt.QPushButton('Update Views')
-    buttonsFrame.layout().addWidget(updateViewsButton)
-    updateViewsButton.connect("clicked()", self.updateViews)
-    '''
-
-    lm = slicer.app.layoutManager()
-    redWidget = lm.sliceWidget('Red')
+        updateViewsButton = qt.QPushButton('Update Views')
+        buttonsFrame.layout().addWidget(updateViewsButton)
+        updateViewsButton.connect("clicked()", self.updateViews)
+        '''
+    redWidget = self.layoutManager.sliceWidget('Red')
     controller = redWidget.sliceController()
-    moreButton = slicer.util.findChildren(controller,'MoreButton')[0]
+    moreButton = slicer.util.findChildren(controller, 'MoreButton')[0]
     moreButton.toggle()
-
     deleteStructureButton = qt.QPushButton('Delete Structure')
     buttonsFrame.layout().addWidget(deleteStructureButton)
     deleteStructureButton.connect('clicked()', self.onDeleteStructure)
-
     propagateButton = qt.QPushButton('Propagate Structure')
     buttonsFrame.layout().addWidget(propagateButton)
     propagateButton.connect('clicked()', self.onPropagateROI)
-
-    #self.editorWidget.toolsColor.frame.setVisible(False)
-
+    # self.editorWidget.toolsColor.frame.setVisible(False)
     self.editorParameterNode = self.editUtil.getParameterNode()
     self.editorParameterNode.SetParameter('propagationMode',
-                             str(slicer.vtkMRMLApplicationLogic.LabelLayer))
-
+                                          str(slicer.vtkMRMLApplicationLogic.LabelLayer))
     self.segmentationGroupBoxLayout.addRow(editorWidgetParent)
-
     self.modelsVisibility = True
     modelsFrame = qt.QFrame()
     modelsHLayout = qt.QHBoxLayout(modelsFrame)
     perStructureFrame.layout().addWidget(modelsFrame)
-
     modelsLabel = qt.QLabel('Structure Models: ')
     modelsHLayout.addWidget(modelsLabel)
-
     buildModelsButton = qt.QPushButton('Make')
     modelsHLayout.addWidget(buildModelsButton)
     buildModelsButton.connect("clicked()", self.onBuildModels)
-
     self.modelsVisibilityButton = qt.QPushButton('Hide')
     self.modelsVisibilityButton.checkable = True
     modelsHLayout.addWidget(self.modelsVisibilityButton)
     self.modelsVisibilityButton.connect("toggled(bool)", self.onModelsVisibilityButton)
-
     self.labelMapOutlineButton = qt.QPushButton('Outline')
     self.labelMapOutlineButton.checkable = True
     modelsHLayout.layout().addWidget(self.labelMapOutlineButton)
     self.labelMapOutlineButton.connect('toggled(bool)', self.setLabelOutline)
-
     self.enableJumpToROI = qt.QCheckBox()
     self.enableJumpToROI.setText("Jump to ROI")
     modelsHLayout.addWidget(self.enableJumpToROI)
-
     modelsHLayout.addStretch(1)
 
-    # keep here names of the views created by CompareVolumes logic
-    self.viewNames = []
-
-    #
-    # Step 6: save results
-    #
-    #self.step5frame = ctk.ctkCollapsibleButton()
-    #self.step5frame.text = "Step 5: Save results"
-    #self.layout.addWidget(self.step5frame)
-
-    # Layout within the dummy collapsible button
-    #step5Layout = qt.QFormLayout(self.step5frame)
+  def setupStep5ViewSaveResults(self):
     # TODO: add here source directory selector
-
     self.qaButton = qt.QPushButton("PI-RADS v2 review form")
     self.completionGroupBoxLayout.addWidget(self.qaButton)
-    self.qaButton.connect('clicked()',self.onQAFormClicked)
-
+    self.qaButton.connect('clicked()', self.onQAFormClicked)
     self.saveButton = qt.QPushButton("Save")
     self.completionGroupBoxLayout.addWidget(self.saveButton)
     self.saveButton.connect('clicked()', self.onSaveClicked)
-
-    '''
-    self.piradsButton = qt.QPushButton("PI-RADS review")
-    self.layout.addWidget(self.piradsButton)
-    # self.piradsButton.connect('clicked()',self.onPiradsClicked)
-    '''
-
-    # Add vertical spacer
-    self.layout.addStretch(1)
-
-    self.volumesLogic = slicer.modules.volumes.logic()
-
-    # set up temporary directory
-    self.tempDir = os.path.join(slicer.app.temporaryPath, 'PCampReview-tmp')
-    print('Temporary directory location: '+self.tempDir)
-    qt.QDir().mkpath(self.tempDir)
-
-    # these are the PK maps that should be loaded
-    self.pkMaps = ['Ktrans','Ve','Auc','TTP','MaxSlope']
-    self.volumeNodes = {}
-    self.refSelectorIgnoreUpdates = False
-    self.selectedStudyName = None
-
-    if os.path.exists(self.inputDataDir):
-      self.tabWidget.setCurrentIndex(1)
 
   def enter(self):
     userName = self.getSetting('UserName')
@@ -883,7 +745,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
                                     'application settings or did not load correctly.')
         step += 1
       progress.close()
-        #
 
       if outHierarchy:
         collection = vtk.vtkCollection()
@@ -899,29 +760,33 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
           self.updateViewRenderers()
 
   def updateViewRenderers (self):
-    layoutManager = slicer.app.layoutManager()
-    widgetNames = layoutManager.sliceViewNames()
+    widgetNames = self.layoutManager.sliceViewNames()
     for wn in widgetNames:
-      view = layoutManager.sliceWidget(wn).sliceView()
+      view = self.layoutManager.sliceWidget(wn).sliceView()
       view.scheduleRender()
 
   def removeAllModels(self):
-    modelHierarchyNodes = []
-    numNodes = slicer.mrmlScene.GetNumberOfNodesByClass( "vtkMRMLModelHierarchyNode" )
-    for n in xrange(numNodes):
-      node = slicer.mrmlScene.GetNthNodeByClass( n, "vtkMRMLModelHierarchyNode")
-      if node.GetName()[:12] == 'PCampReview-':
-        modelHierarchyNodes.append(node)
-
-    for hierarchyNode in modelHierarchyNodes:
-      modelNodes = vtk.vtkCollection()
-      hierarchyNode.GetChildrenModelNodes(modelNodes)
-      for i in range(modelNodes.GetNumberOfItems()) :
-          slicer.mrmlScene.RemoveNode(modelNodes.GetItemAsObject(i))
-      slicer.mrmlScene.RemoveNode(hierarchyNode)
+    for hierarchyNode in self.getModelHierarchyNodes():
+      self.removeHierarchyNode(hierarchyNode)
 
     self.modelsVisibilityButton.checked = False
     self.modelsVisibilityButton.setText('Hide')
+
+  def getModelHierarchyNodes(self):
+    modelHierarchyNodes = []
+    numNodes = slicer.mrmlScene.GetNumberOfNodesByClass("vtkMRMLModelHierarchyNode")
+    for n in xrange(numNodes):
+      node = slicer.mrmlScene.GetNthNodeByClass(n, "vtkMRMLModelHierarchyNode")
+      if node.GetName()[:12] == 'PCampReview-':
+        modelHierarchyNodes.append(node)
+    return modelHierarchyNodes
+
+  def removeHierarchyNode(self, hierarchyNode):
+    modelNodes = vtk.vtkCollection()
+    hierarchyNode.GetChildrenModelNodes(modelNodes)
+    for i in range(modelNodes.GetNumberOfItems()):
+      slicer.mrmlScene.RemoveNode(modelNodes.GetItemAsObject(i))
+    slicer.mrmlScene.RemoveNode(hierarchyNode)
 
   def setLabelOutline(self, toggled):
 
@@ -1036,9 +901,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         self.removeAllModels()
     return False
 
-  '''
-  Step 1: Select the directory that has the data
-  '''
   def onStep1Selected(self):
     if self.checkStep4or5Leave() is True:
       return
@@ -1049,9 +911,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     if self.inputDataDir != "":
       self.setTabsEnabled([1], True)
 
-  '''
-  Step 2: Select the patient
-  '''
   def onStep2Selected(self):
     if self.checkStep4or5Leave() is True:
       return
@@ -1089,9 +948,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     progress.delete()
 
-  '''
-  Step 3: Select series of interest
-  '''
   def onStep3Selected(self):
     if self.checkStep4or5Leave() is True:
       return
@@ -1176,7 +1032,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
                                             'NRRDLocation':volumePath,
                                             'LongName':seriesName}
             self.seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":" + \
-                                                        self.abbreviateName(self.seriesMap[seriesNumber]['MetaInfo'])
+                                                        PCampReviewLogic.abbreviateName(
+                                                          self.seriesMap[seriesNumber]['MetaInfo'])
 
     print('All series found: '+str(self.seriesMap.keys()))
 
@@ -1197,15 +1054,11 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       self.seriesItems.append(sItem)
       self.seriesModel.appendRow(sItem)
       sItem.setCheckable(1)
-      if self.isSeriesOfInterest(seriesText):
+      if PCampReviewLogic.isSeriesOfInterest(seriesText):
         sItem.setCheckState(2)
 
     progress.delete()
     self.setTabsEnabled([3], True)
-
-  '''
-  T2w, sub, ADC, T2map
-  '''
 
   def onStep4Selected(self):
     # set up editor
@@ -1324,7 +1177,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
   def confirmDialog(self, message):
     result = qt.QMessageBox.question(slicer.util.mainWindow(),
-                    'PCampReview', message,
+                    self.moduleName, message,
                     qt.QMessageBox.Ok, qt.QMessageBox.Cancel)
     return result == qt.QMessageBox.Ok
 
@@ -1407,8 +1260,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
                                  orientation=self.currentOrientation)
 
     # Make sure redslice has the ref image (the others were set with viewerPerVolume)
-    layoutManager = slicer.app.layoutManager()
-    redSliceWidget = layoutManager.sliceWidget('Red')
+    redSliceWidget = self.layoutManager.sliceWidget('Red')
     redSliceNode = redSliceWidget.mrmlSliceNode()
     redSliceNode.SetOrientation(self.currentOrientation)
     compositeNode = redSliceWidget.mrmlSliceCompositeNode()
@@ -1432,8 +1284,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
   '''
   def updateViews(self):
-    lm = slicer.app.layoutManager()
-    w = lm.sliceWidget('Red')
+    w = self.layputManager.sliceWidget('Red')
     sl = w.sliceLogic()
     ll = sl.GetLabelLayer()
     lv = ll.GetVolumeNode()
@@ -1454,21 +1305,17 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     return progressIndicator
 
   def setOrientation(self, orientation):
-
     if orientation in self.orientations:
       self.currentOrientation = orientation
-
-      layoutManager = slicer.app.layoutManager()
-
       if self.refSelector.currentText != 'None':
-        # set slice node orientation
-        for view in layoutManager.sliceViewNames():
-          widget = layoutManager.sliceWidget(view)
-          node = widget.mrmlSliceNode()
-          node.SetOrientation(self.currentOrientation)
-
+        self.setSliceNodeOrientation()
         self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
 
+  def setSliceNodeOrientation(self):
+    for view in self.layoutManager.sliceViewNames():
+      widget = self.layoutManager.sliceWidget(view)
+      node = widget.mrmlSliceNode()
+      node.SetOrientation(self.currentOrientation)
 
   def onDeleteStructure(self):
     selectionModel = self.structuresView.selectionModel()
@@ -1515,58 +1362,16 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
   def onSliderChanged(self, newValue):
     newValue = int(newValue)
     try:
-      self.seriesMap[self.refSeriesNumber]['Volume'] = self.extractFrame(self.seriesMap[self.refSeriesNumber]['Volume'], 
-                                                        self.seriesMap[self.refSeriesNumber]['MultiVolume'],
-                                                        newValue)
-      self.seriesMap[self.refSeriesNumber]['FrameNumber'] = newValue
-      self.seriesMap[self.refSeriesNumber]['MultiVolume'].GetDisplayNode().SetFrameComponent(newValue)
+      refSeries = self.seriesMap[self.refSeriesNumber]
+      refSeries['Volume'] = PCampReviewLogic.extractFrame(self.seriesMap[self.refSeriesNumber]['Volume'],
+                                                          self.seriesMap[self.refSeriesNumber]['MultiVolume'],
+                                                          newValue)
+      refSeries['FrameNumber'] = newValue
+      refSeries['MultiVolume'].GetDisplayNode().SetFrameComponent(newValue)
     except:
       # can get an event on reference switchover from a multivolume
       pass
 
-  # Extract frame from multiVolumeNode and put it into scalarVolumeNode
-  def extractFrame(self, scalarVolumeNode, multiVolumeNode, frameId):
-    # if no scalar volume given, create one
-    if scalarVolumeNode is None:
-      scalarVolumeNode = slicer.vtkMRMLScalarVolumeNode()
-      scalarVolumeNode.SetScene(slicer.mrmlScene)
-      # name = mv node name minus _multivolume 
-      scalarVolumeName = multiVolumeNode.GetName().split('_multivolume')[0]
-      scalarVolumeNode.SetName(scalarVolumeName)
-      slicer.mrmlScene.AddNode(scalarVolumeNode)
-  
-    # Extract the image data
-    mvImage = multiVolumeNode.GetImageData()
-    extract = vtk.vtkImageExtractComponents()
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      extract.SetInput(mvImage)
-    else:
-      extract.SetInputData(mvImage)
-    extract.SetComponents(frameId)
-    extract.Update()
-
-    ras2ijk = vtk.vtkMatrix4x4()
-    ijk2ras = vtk.vtkMatrix4x4()
-    multiVolumeNode.GetRASToIJKMatrix(ras2ijk)
-    multiVolumeNode.GetIJKToRASMatrix(ijk2ras)
-    scalarVolumeNode.SetRASToIJKMatrix(ras2ijk)
-    scalarVolumeNode.SetIJKToRASMatrix(ijk2ras)
-
-    scalarVolumeNode.SetAndObserveImageData(extract.GetOutput())
-
-    # Create display node if missing
-    displayNode = scalarVolumeNode.GetDisplayNode()
-    if displayNode is None:
-      displayNode = slicer.mrmlScene.CreateNodeByClass('vtkMRMLScalarVolumeDisplayNode')
-      displayNode.SetReferenceCount(1)
-      displayNode.SetScene(slicer.mrmlScene)
-      slicer.mrmlScene.AddNode(displayNode)
-      displayNode.SetDefaultColorMap()
-      scalarVolumeNode.SetAndObserveDisplayNodeID(displayNode.GetID())
-    
-    return scalarVolumeNode
-  
-  
   def onPropagateROI(self):
     
     # Get the selected label map
@@ -1705,10 +1510,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.refSelector.enabled = False
     self.saveButton.enabled = False
     
-    # enable Harden
     self.hardenTransformButton.enabled = True
   
-    # Reset transformnode
     self.transformNode.Reset()
       
     # Get the IJKtoRAS matrix
@@ -1740,7 +1543,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     
     # Tell the transform node to observe vTransform's matrix
     self.transformNode.SetMatrixTransformToParent(vTransform.GetMatrix())
-  
   
   def onHardenTransform(self):
 
@@ -1784,7 +1586,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     # Re-select the structure in the list
     self.editorWidget.helper.selectStructure(rowIdx)
     
-    
   def resetTranslate(self):
     # Reset sliders and buttons
     self.ignoreTranslate = True
@@ -1799,8 +1600,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.editorWidget.editLabelMapsFrame.enabled = True
     self.refSelector.enabled = True
     self.saveButton.enabled = True
-    
-        
+
   # Returns info about the currently selected structure in structuresView
   def getSelectedStructure(self):
     selectedIdx = self.structuresView.currentIndex()
@@ -1815,9 +1615,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
   def restoreForeground(self):
     # This relies on slice view names and also (apparently) trashes zoom levels
     # Is there a better way to do this?
-    layoutManager = slicer.app.layoutManager()
-    for view in layoutManager.sliceViewNames():
-      widget = layoutManager.sliceWidget(view)
+    for view in self.layoutManager.sliceViewNames():
+      widget = self.layoutManager.sliceWidget(view)
       compositeNode = widget.mrmlSliceCompositeNode()
       try:
         compositeNode.SetForegroundVolumeID(self.seriesMap[view]['Volume'].GetID())
@@ -1832,12 +1631,9 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       print('calling onJumpToROI '+str(selectedLabelID) + ' ' + selectedLabelVol)
       self.onJumpToROI(selectedLabelID,selectedLabelVol)
       
-      
   def onJumpToROI(self, selectedLabelID, selectedLabelVol):
-    
     layoutNode = slicer.util.getNode('*LayoutNode*')
-    layoutManager = slicer.app.layoutManager()
-    redSliceWidget = layoutManager.sliceWidget('Red')
+    redSliceWidget = self.layoutManager.sliceWidget('Red')
     redSliceNode = redSliceWidget.mrmlSliceNode()
     redSliceOffset = redSliceNode.GetSliceOffset()
     
@@ -1852,7 +1648,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     bb = ls.GetBoundingBox(selectedLabelID)
     
     if len(bb) > 0:
-      # Averge to get the center of the BB
+      # Average to get the center of the BB
       i_center = ((bb[0] + bb[1]) / 2)
       j_center = ((bb[2] + bb[3]) / 2)
       k_center = ((bb[4] + bb[5]) / 2)
@@ -1860,7 +1656,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       print('i_center = '+str(i_center))
       print('j_center = '+str(j_center))
       print('k_center = '+str(k_center))
-
 
       # Now figure out which slice to go to in RAS space based on the i,j,k coords
       # This *works* but I think its either not right or too complicated or both...
@@ -1903,7 +1698,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         self.setOffsetOnAllSliceWidgets(sagittal_offset)
 
       # snap to IJK to try and avoid rounding errors
-      sliceLogics = slicer.app.layoutManager().mrmlSliceLogics()
+      sliceLogics = self.layoutManager.mrmlSliceLogics()
       numLogics = sliceLogics.GetNumberOfItems()
       for n in range(numLogics):
         l = sliceLogics.GetItemAsObject(n)
@@ -1917,14 +1712,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       path = d+'/'+f
       if not os.path.isdir(path):
         os.unlink(d+'/'+f)
-
-  def onSelect(self):
-    self.applyButton.enabled = self.inputSelector.currentNode() and self.outputSelector.currentNode()
-
-  def onApplyButton(self):
-    logic = PCampReviewLogic()
-    print("Run the algorithm")
-    logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode())
 
   def onReload(self,moduleName="PCampReview"):
     """Generic reload method for any scripted module.
@@ -1977,10 +1764,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
           "Reload and Test", 'Exception!\n\n' + str(e) + "\n\nSee Python Console for Stack Trace")
 
 
-#
-# PCampReviewLogic
-#
-
 class PCampReviewLogic:
   """This class should implement all the actual
   computation done by your module.  The interface
@@ -2010,11 +1793,91 @@ class PCampReviewLogic:
     """
     return True
 
+  # Extract frame from multiVolumeNode and put it into scalarVolumeNode
+  @staticmethod
+  def extractFrame(scalarVolumeNode, multiVolumeNode, frameId):
+    # if no scalar volume given, create one
+    if scalarVolumeNode is None:
+      scalarVolumeNode = slicer.vtkMRMLScalarVolumeNode()
+      scalarVolumeNode.SetScene(slicer.mrmlScene)
+      # name = mv node name minus _multivolume
+      scalarVolumeName = multiVolumeNode.GetName().split('_multivolume')[0]
+      scalarVolumeNode.SetName(scalarVolumeName)
+      slicer.mrmlScene.AddNode(scalarVolumeNode)
+
+    # Extract the image data
+    mvImage = multiVolumeNode.GetImageData()
+    extract = vtk.vtkImageExtractComponents()
+    if vtk.VTK_MAJOR_VERSION <= 5:
+      extract.SetInput(mvImage)
+    else:
+      extract.SetInputData(mvImage)
+    extract.SetComponents(frameId)
+    extract.Update()
+
+    ras2ijk = vtk.vtkMatrix4x4()
+    ijk2ras = vtk.vtkMatrix4x4()
+    multiVolumeNode.GetRASToIJKMatrix(ras2ijk)
+    multiVolumeNode.GetIJKToRASMatrix(ijk2ras)
+    scalarVolumeNode.SetRASToIJKMatrix(ras2ijk)
+    scalarVolumeNode.SetIJKToRASMatrix(ijk2ras)
+
+    scalarVolumeNode.SetAndObserveImageData(extract.GetOutput())
+
+    # Create display node if missing
+    displayNode = scalarVolumeNode.GetDisplayNode()
+    if displayNode is None:
+      displayNode = slicer.mrmlScene.CreateNodeByClass('vtkMRMLScalarVolumeDisplayNode')
+      displayNode.SetReferenceCount(1)
+      displayNode.SetScene(slicer.mrmlScene)
+      slicer.mrmlScene.AddNode(displayNode)
+      displayNode.SetDefaultColorMap()
+      scalarVolumeNode.SetAndObserveDisplayNodeID(displayNode.GetID())
+
+    return scalarVolumeNode
+
+  @staticmethod
+  def isSeriesOfInterest(desc):
+    discardThose = ['SAG','COR','PURE','mapping','DWI',
+                    'breath','3D DCE','loc','Expo','Map',
+                    'MAP','POST','ThreeParameter','AutoAIF',
+                    'BAT','-Slope','PkRsqr']
+    for d in discardThose:
+      if string.find(desc,d)>=0:
+        return False
+    return True
+
+  @staticmethod
+  def abbreviateName(meta):
+    try:
+      descr = meta['SeriesDescription']
+      seriesNumber = meta['SeriesNumber']
+    except:
+      descr = meta['DerivedSeriesDescription']
+      seriesNumber = meta['DerivedSeriesNumber']
+    abbr = 'Unknown'
+    if descr.find('Apparent Diffusion Coeff')>=0:
+      abbr = 'ADC'
+    if descr.find('T2')>=0:
+      abbr = 'T2'
+    if descr.find('T1')>=0:
+      abbr = 'T1'
+    if descr.find('Ktrans')>=0:
+      abbr = 'Ktrans'
+    if descr.find('Ve')>=0:
+      abbr = 've'
+    if descr.find('MaxSlope')>=0:
+      abbr = 'MaxSlope'
+    if descr.find('TTP')>=0:
+      abbr = 'TTP'
+    if descr.find('Auc')>=0:
+      abbr = 'AUC'
+    if re.search('[a-zA-Z]',descr) is None:
+      abbr = 'Subtract'
+    return seriesNumber+'-'+abbr
+
 
 class PCampReviewTest(unittest.TestCase):
-  """
-  This is the test case for your scripted module.
-  """
 
   def delayDisplay(self,message,msec=1000):
     """This utility method displays a small dialog and waits.
@@ -2078,6 +1941,5 @@ class PCampReviewTest(unittest.TestCase):
 
     mainWidget.onStep4Selected()
     self.delayDisplay('4')
-
 
     self.delayDisplay('Test passed!')
