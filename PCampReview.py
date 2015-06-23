@@ -1,5 +1,7 @@
 from __future__ import division
 import os, json, xml.dom.minidom, string, re, math
+import imp, sys
+import glob
 import unittest
 from __main__ import vtk, qt, ctk, slicer
 import CompareVolumes
@@ -51,7 +53,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
   def __init__(self, parent = None):
     ScriptedLoadableModuleWidget.__init__(self, parent)
-    self.resourcesPath = slicer.modules.pcampreview.path.replace(self.moduleName+".py","") + 'Resources/'
+    self.resourcesPath = os.path.join(slicer.modules.pcampreview.path.replace(self.moduleName+".py",""), 'Resources')
 
     #self.modulePath = slicer.modules.pcampreview.path.replace(self.moduleName+".py","")
     # module-specific initialization
@@ -125,35 +127,39 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       abbr = 'TTP'
     if descr.find('Auc')>=0:
       abbr = 'AUC'
-    if re.search('[a-zA-Z]',descr) == None:
+    if re.search('[a-zA-Z]',descr) is None:
       abbr = 'Subtract'
     return seriesNumber+'-'+abbr
 
   def getLayoutManager(self):
     return slicer.app.layoutManager()
 
-  def setOffsetOnAllSliceWidgets(self,offset):
+  def getSetting(self, settingName):
+    return self.settings.value('PCampReview/' + settingName)
+
+  def setSetting(self, settingName, value):
+    self.settings.setValue('PCampReview/' + settingName, value)
+
+  def getWidgets(self):
+    widgets = []
     layoutManager = self.getLayoutManager()
-    widgetNames = layoutManager.sliceViewNames()
-    for wn in widgetNames:
-      widget = layoutManager.sliceWidget(wn)
+    for wn in layoutManager.sliceViewNames():
+      widgets.append(layoutManager.sliceWidget(wn))
+    return widgets
+
+  def setOffsetOnAllSliceWidgets(self,offset):
+    for widget in self.getWidgets():
       node = widget.mrmlSliceNode()
       node.SetSliceOffset(offset)
 
   def linkAllSliceWidgets(self,link):
-    layoutManager = self.getLayoutManager()
-    widgetNames = layoutManager.sliceViewNames()
-    for wn in widgetNames:
-      widget = layoutManager.sliceWidget(wn)
+    for widget in self.getWidgets():
       sc = widget.mrmlSliceCompositeNode()
       sc.SetLinkedControl(link)
       sc.SetInteractionFlagsModifier(4+8+16)
 
   def setOpacityOnAllSliceWidgets(self,opacity):
-    layoutManager = self.getLayoutManager()
-    widgetNames = layoutManager.sliceViewNames()
-    for wn in widgetNames:
-      widget = layoutManager.sliceWidget(wn)
+    for widget in self.getWidgets():
       sc = widget.mrmlSliceCompositeNode()
       sc.SetForegroundOpacity(opacity)
 
@@ -166,13 +172,12 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     def createQIconFromPath(path):
       return qt.QIcon(qt.QPixmap(path))
 
-    iconPath = self.resourcesPath + 'Icons/'
-    self.dataSourceSelectionIcon = createQIconFromPath(iconPath +'icon-dataselection_fit.png')
-    self.studySelectionIcon = createQIconFromPath(iconPath +'icon-studyselection_fit.png')
-    self.seriesSelectionIcon = createQIconFromPath(iconPath + 'icon-seriesselection_fit.png')
-    self.segmentationIcon = createQIconFromPath(iconPath + 'icon-segmentation_fit.png')
-    self.completionIcon = createQIconFromPath(iconPath + 'icon-completion_fit.png')
-
+    iconPath = os.path.join(self.resourcesPath, 'Icons')
+    self.dataSourceSelectionIcon = createQIconFromPath(os.path.join(iconPath, 'icon-dataselection_fit.png'))
+    self.studySelectionIcon = createQIconFromPath(os.path.join(iconPath, 'icon-studyselection_fit.png'))
+    self.seriesSelectionIcon = createQIconFromPath(os.path.join(iconPath, 'icon-seriesselection_fit.png'))
+    self.segmentationIcon = createQIconFromPath(os.path.join(iconPath, 'icon-segmentation_fit.png'))
+    self.completionIcon = createQIconFromPath(os.path.join(iconPath, 'icon-completion_fit.png'))
 
   def setupTabBarNavigation(self):
     self.tabWidget = qt.QTabWidget()
@@ -197,10 +202,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.segmentationGroupBox.setLayout(self.segmentationGroupBoxLayout)
     self.completionGroupBox.setLayout(self.completionGroupBoxLayout)
 
-    size = qt.QSize()
-    size.setHeight(50)
-    size.setWidth(110)
-    self.tabWidget.setIconSize(size)
+    self.tabWidget.setIconSize(qt.QSize(110, 50))
 
     self.tabWidget.addTab(self.dataSourceSelectionGroupBox,self.dataSourceSelectionIcon, '')
     self.tabWidget.addTab(self.studySelectionGroupBox, self.studySelectionIcon, '')
@@ -233,11 +235,12 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     # parameters
     self.parameters = {}
     self.settings = qt.QSettings()
+    self.inputDataDir = self.getSetting('InputLocation')
 
     #
     # Step 1: selection of the data directory
     #
-    self.dataDirButton = qt.QPushButton(str(self.settings.value('PCampReview/InputLocation')))
+    self.dataDirButton = qt.QPushButton(str(self.inputDataDir))
     self.dataDirButton.connect('clicked()', self.onInputDirSelected)
     self.dataSourceSelectionGroupBoxLayout.addRow("Select data directory:", self.dataDirButton)
     self.customLUTLabel = qt.QLabel()
@@ -289,12 +292,12 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.refSelector = qt.QComboBox()
     self.segmentationGroupBoxLayout.addRow(qt.QLabel("Reference image: "), self.refSelector)
     self.refSelector.connect('currentIndexChanged(int)', self.onReferenceChanged)
-    
+
     self.advancedSettingsArea = ctk.ctkCollapsibleButton()
     self.advancedSettingsArea.text = "Advanced Settings"
     self.advancedSettingsArea.collapsed = True
     advancedSettingsLayout = qt.QFormLayout(self.advancedSettingsArea)
-    
+
     # Show all/reference
     self.viewGroup = qt.QButtonGroup()
     self.multiView = qt.QRadioButton('All')
@@ -307,7 +310,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.groupLayout = qt.QFormLayout(self.groupWidget)
     self.groupLayout.addRow(self.multiView, self.singleView)
     advancedSettingsLayout.addRow("Show series: ", self.groupWidget)
-    
+
     # Change viewer orientation
     self.orientationBox = qt.QGroupBox()
     self.orientationBox.setLayout(qt.QFormLayout())
@@ -321,53 +324,53 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.orientationButtons['Axial'].setChecked(1)
     self.currentOrientation = 'Axial'
     advancedSettingsLayout.addRow('View orientation: ', self.orientationBox)
-    
+
     # Multi-volume frame controller
     self.mvSlider = ctk.ctkSliderWidget()
     self.mvSlider.connect('valueChanged(double)', self.onSliderChanged)
     self.mvSlider.enabled = False
     advancedSettingsLayout.addRow('Frame Number: ', self.mvSlider)
-    
+
     self.segmentationGroupBoxLayout.addRow(self.advancedSettingsArea)
-    
+
     self.translateArea = ctk.ctkCollapsibleButton()
     self.translateArea.text = "Translate Selected Label Map"
-    
+
     translateAreaLayout = qt.QFormLayout(self.translateArea)
-    
+
     self.translateLR = slicer.qMRMLSliderWidget()
     self.translateLR.minimum = -200
     self.translateLR.maximum = 200
     self.translateLR.connect('valueChanged(double)', self.onTranslate)
-    
+
     self.translatePA = slicer.qMRMLSliderWidget()
     self.translatePA.minimum = -200
     self.translatePA.maximum = 200
     self.translatePA.connect('valueChanged(double)', self.onTranslate)
-    
+
     self.translateIS = slicer.qMRMLSliderWidget()
     self.translateIS.minimum = -200
     self.translateIS.maximum = 200
     self.translateIS.connect('valueChanged(double)', self.onTranslate)
-    
+
     translateAreaLayout.addRow("Translate LR: ", self.translateLR)
     translateAreaLayout.addRow("Translate PA: ", self.translatePA)
     translateAreaLayout.addRow("Translate IS: ", self.translateIS)
-    
+
     self.hardenTransformButton = qt.QPushButton("Harden Transform")
     self.hardenTransformButton.enabled = False
     self.hardenTransformButton.connect('clicked(bool)', self.onHardenTransform)
     translateAreaLayout.addRow(self.hardenTransformButton)
-    
+
     self.translateArea.collapsed = 1
-    
+
     self.ignoreTranslate = False
-    
+
     # Create a transform node
     self.transformNode = slicer.vtkMRMLLinearTransformNode()
     self.transformNode.SetName('PCampReview-transform')
     slicer.mrmlScene.AddNode(self.transformNode)
-    
+
     self.segmentationGroupBoxLayout.addRow(self.translateArea)
 
     editorWidgetParent = slicer.qMRMLWidget()
@@ -386,7 +389,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     perStructureFrame = slicer.util.findChildren(volumesFrame,
                         'PerStructureVolumesFrame')[0]
     perStructureFrame.collapsed = False
-    
+
     self.structuresView = slicer.util.findChildren(volumesFrame,'StructuresView')[0]
     self.structuresView.connect("activated(QModelIndex)", self.onStructureClicked)
 
@@ -437,16 +440,16 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.modelsVisibilityButton.checkable = True
     modelsHLayout.addWidget(self.modelsVisibilityButton)
     self.modelsVisibilityButton.connect("toggled(bool)", self.onModelsVisibilityButton)
-    
+
     self.labelMapOutlineButton = qt.QPushButton('Outline')
     self.labelMapOutlineButton.checkable = True
     modelsHLayout.layout().addWidget(self.labelMapOutlineButton)
     self.labelMapOutlineButton.connect('toggled(bool)', self.setLabelOutline)
-    
-    self.enableJumpToROI = qt.QCheckBox();
+
+    self.enableJumpToROI = qt.QCheckBox()
     self.enableJumpToROI.setText("Jump to ROI")
     modelsHLayout.addWidget(self.enableJumpToROI)
-    
+
     modelsHLayout.addStretch(1)
 
     # keep here names of the views created by CompareVolumes logic
@@ -483,7 +486,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.volumesLogic = slicer.modules.volumes.logic()
 
     # set up temporary directory
-    self.tempDir = slicer.app.temporaryPath+'/PCampReview-tmp'
+    self.tempDir = os.path.join(slicer.app.temporaryPath, 'PCampReview-tmp')
     print('Temporary directory location: '+self.tempDir)
     qt.QDir().mkpath(self.tempDir)
 
@@ -493,18 +496,16 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.refSelectorIgnoreUpdates = False
     self.selectedStudyName = None
 
-    self.inputDataDir = self.settings.value('PCampReview/InputLocation')
     if os.path.exists(self.inputDataDir):
       self.tabWidget.setCurrentIndex(1)
 
   def enter(self):
-    settings = qt.QSettings()
-    userName = settings.value('PCampReview/UserName')
-    resultsLocation = settings.value('PCampReview/ResultsLocation')
-    inputLocation = settings.value('PCampReview/InputLocation')
-    self.webFormURL = settings.value('PCampReview/webFormURL')
+    userName = self.getSetting('UserName')
+    #resultsLocation = self.getSetting('ResultsLocation')
+    #inputLocation = self.getSetting('InputLocation')
+    self.webFormURL = self.getSetting('webFormURL')
 
-    if userName == None or userName == '':
+    if userName is None or userName == '':
       # prompt the user for ID (last name)
       self.namePrompt = qt.QDialog()
       self.namePromptLayout = qt.QVBoxLayout()
@@ -521,7 +522,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     else:
       self.parameters['UserName'] = userName
 
-    if self.webFormURL == None or self.webFormURL == '':
+    if self.webFormURL is None or self.webFormURL == '':
       # prompt the user for the rewview form
       # Note: it is expected that the module uses the form of the structure as
       # in http://goo.gl/nT1z4L. The known structure of the form is used to
@@ -576,27 +577,19 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     self.currentStep = 1
 
-    #self.inputDirLabel.text = self.settings.value('PCampReview/InputLocation')
-    #self.resultsDirLabel.text = self.settings.value('PCampReview/ResultsLocation')
-
-
   def checkAndSetLUT(self):
-    
-    # Default to module color table 
-    moduleName="PCampReview"
-    modulePath = eval('slicer.modules.%s.path' % moduleName.lower()).replace(moduleName+".py","")
-    self.colorFile = modulePath + "Resources/Colors/PCampReviewColors.csv"
+
+    # Default to module color table
+    self.colorFile = os.path.join(self.resourcesPath, "Colors/PCampReviewColors.csv")
     self.customLUTLabel.text = 'Using Default LUT'
 
     # Check for custom LUT
-    if (self.settings.value('PCampReview/InputLocation') != None):
-      lookupTableLoc = self.settings.value('PCampReview/InputLocation') + os.sep + 'SETTINGS' + os.sep + \
-                       self.settings.value('PCampReview/InputLocation').split(os.sep)[-1] + '-LUT.csv'
-      print('Checking for lookup table at : ' + lookupTableLoc)
-      if os.path.isfile(lookupTableLoc):
-        # use custom color table
-        self.colorFile = lookupTableLoc
-        self.customLUTLabel.text = 'Project-Specific LUT Found'
+    lookupTableLoc = os.path.join(self.inputDataDir, 'SETTINGS', self.inputDataDir.split(os.sep)[-1] + '-LUT.csv')
+    print('Checking for lookup table at : ' + lookupTableLoc)
+    if os.path.isfile(lookupTableLoc):
+      # use custom color table
+      self.colorFile = lookupTableLoc
+      self.customLUTLabel.text = 'Project-Specific LUT Found'
 
     # setup the color table
     self.PCampReviewColorNode = slicer.vtkMRMLColorTableNode()
@@ -615,38 +608,37 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         colorNode.SetColor(index,row['Label'],float(row['R'])/255,
                 float(row['G'])/255,float(row['B'])/255,float(row['A']))
         self.structureNames.append(row['Label'])
-      
-      
+
   def onNameEntered(self):
     name = self.nameText.text
     if len(name)>0:
-      self.settings.setValue('PCampReview/UserName',name)
+      self.setSetting('UserName',name)
       self.namePrompt.close()
       self.parameters['UserName'] = name
 
   def onURLEntered(self):
     url = self.URLText.text
     if len(url)>0:
-      self.settings.setValue('PCampReview/webFormURL',url)
+      self.setSetting('webFormURL',url)
       self.URLPrompt.close()
       self.webFormURL = url
 
   def onResultsDirEntered(self):
     path = self.dirButton.directory
     if len(path)>0:
-      self.settings.setValue('PCampReview/ResultsLocation',path)
+      self.setSetting('ResultsLocation',path)
       self.dirPrompt.close()
       self.parameters['ResultsLocation'] = path
 
   def onViewUpdateRequested(self, id):
-    
+
     # Skip if not in a ref image yet
     if self.refSeriesNumber == '-1':
       return
-    
+
     # Be sure the viewers are linked, they should be but who knows
     self.linkAllSliceWidgets(1)
-    
+
     layoutNode = slicer.util.getNode('*LayoutNode*')
     if id == 1:
        # If view all
@@ -693,7 +685,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.webView.connect('loadFinished(bool)', self.webViewFormLoadedCallback)
     self.webView.show()
     preFilledURL = self.webFormURL
-    preFilledURL += '?entry.1455103354='+self.settings.value('PCampReview/UserName')
+    preFilledURL += '?entry.1455103354='+self.getSetting('UserName')
     preFilledURL += '&entry.347120626='+self.selectedStudyName
     preFilledURL += '&entry.1734306468='+str(self.editorWidget.toolsColor.colorSpin.value)
     u = qt.QUrl(preFilledURL)
@@ -716,8 +708,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         Convention: create a directory for each type of resource saved,
         then subdirectory for each scan that was analyzed
     """
-    segmentationsDir = self.settings.value('PCampReview/InputLocation')+'/'+self.selectedStudyName+'/Segmentations'
-    wlSettingsDir = self.settings.value('PCampReview/InputLocation')+'/'+self.selectedStudyName+'/WindowLevelSettings'
+    segmentationsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'Segmentations')
+    wlSettingsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'WindowLevelSettings')
     try:
       os.makedirs(segmentationsDir)
       os.makedirs(wlSettingsDir)
@@ -725,10 +717,9 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       print('Failed to create one of the following directories: '+segmentationsDir+' or '+wlSettingsDir)
       pass
 
-
     import datetime
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-    
+
     # save all label nodes (there should be only one per volume!)
     labelNodes = slicer.util.getNodes('*-label*')
     print('All label nodes found: '+str(labelNodes))
@@ -740,8 +731,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
       # structure is root -> study -> resources -> series # ->
       # Segmentations/Reconstructions/OncoQuant -> files
-      segmentationsDir = self.settings.value('PCampReview/InputLocation')+\
-      '/'+self.selectedStudyName+'/RESOURCES/'+labelSeries+'/Segmentations'
+      segmentationsDir = os.path.join(self.inputDataDir, self.selectedStudyName,
+                                      'RESOURCES', labelSeries, 'Segmentations')
       try:
         os.makedirs(segmentationsDir)
       except:
@@ -751,9 +742,9 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       # Only save labels with known structure names
       if any(structureName == s for s in self.structureNames):
         print "structure name is:" ,structureName
-        uniqueID = self.settings.value('PCampReview/UserName')+'-'+structureName+'-'+timestamp
+        uniqueID = self.getSetting('UserName')+'-'+structureName+'-'+timestamp
 
-        labelFileName = os.path.join(segmentationsDir,uniqueID+'.nrrd')
+        labelFileName = os.path.join(segmentationsDir,uniqueID + '.nrrd')
 
         sNode = slicer.vtkMRMLVolumeArchetypeStorageNode()
         sNode.SetFileName(labelFileName)
@@ -784,16 +775,15 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
   def onInputDirSelected(self):
     self.inputDataDir = qt.QFileDialog.getExistingDirectory(self.parent,
                                                             'Input data directory',
-                                                            self.settings.value('PCampReview/InputLocation'))
+                                                            self.inputDataDir)
     if self.inputDataDir != "":
       self.dataDirButton.text = self.inputDataDir
-      self.settings.setValue('PCampReview/InputLocation', self.inputDataDir)
+      self.setSetting('InputLocation', self.inputDataDir)
       self.checkAndSetLUT()
       print('Directory selected:')
       print(self.inputDataDir)
-      print(self.settings.value('PCampReview/InputLocation'))
+      print(self.inputDataDir)
       self.tabWidget.setCurrentIndex(1)
-
 
   def onBuildModels(self):
     """make models of the structure label nodesvolume"""
@@ -874,7 +864,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
                                     'application settings or did not load correctly.')
         step += 1
       progress.close()
-        # 
+        #
 
       if outHierarchy:
         collection = vtk.vtkCollection()
@@ -913,18 +903,18 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     self.modelsVisibilityButton.checked = False
     self.modelsVisibilityButton.setText('Hide')
-  
+
   def setLabelOutline(self, toggled):
-    
+
     # Update button text
     if toggled:
       self.labelMapOutlineButton.setText('Filled')
     else:
       self.labelMapOutlineButton.setText('Outline')
 
-    # Set outline on widgets    
+    # Set outline on widgets
     self.editUtil.setLabelOutline(toggled)
-    
+
   def onModelsVisibilityButton(self,toggled):
     if self.refSeriesNumber != '-1':
       ref = self.refSeriesNumber
@@ -968,15 +958,14 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     name = name.replace('-','')
     name = name.replace('(','')
     name = name.replace(')','')
-    return (number,name)
+    return number, name
 
   def checkAndLoadLabel(self, resourcesDir, seriesNumber, volumeName):
     globPath = os.path.join(self.resourcesDir,str(seriesNumber),"Segmentations",
-        self.settings.value('PCampReview/UserName')+'*')
-    import glob
+        self.getSetting('UserName')+'*')
     previousSegmentations = glob.glob(globPath)
     if not len(previousSegmentations):
-      return (False,None)
+      return False, None
 
     #fileName = previousSegmentations[-1]
 
@@ -998,7 +987,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     for structure,fileName in latestSegmentations.iteritems():
       (success,label) = slicer.util.loadLabelVolume(fileName, returnNode=True)
       if not success:
-        return (False,None)
+        return False, None
       print('Setting loaded label name to '+volumeName)
       actualFileName = os.path.split(fileName)[1]
       structureID = actualFileName.split("-")[1] # expectation: username-structure-timestamp.nrrd
@@ -1056,18 +1045,16 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     studyDirs = []
     # get list of studies
-    inputDir = self.settings.value('PCampReview/InputLocation')
-    self.dataDirLabel.text = "Current Data Dir: " + str(self.settings.value('PCampReview/InputLocation') +"\n")
-    if not os.path.exists(inputDir):
+    if not os.path.exists(self.inputDataDir):
       return
 
-    dirs = os.listdir(inputDir)
-    
+    dirs = os.listdir(self.inputDataDir)
+
     progress = self.makeProgressIndicator(len(dirs))
     nLoaded = 0
-    
+
     for studyName in dirs:
-      if os.path.isdir(inputDir+'/'+studyName) and studyName != 'SETTINGS':
+      if os.path.isdir(self.inputDataDir+'/'+studyName) and studyName != 'SETTINGS':
         studyDirs.append(studyName)
         print('Appending '+studyName)
         progress.setValue(nLoaded)
@@ -1081,7 +1068,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       self.studiesModel.appendRow(sItem)
       print('Appended to model study '+s)
     # TODO: unload all volume nodes that are already loaded
-    
+
     progress.delete()
 
   '''
@@ -1119,8 +1106,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     self.parameters['StudyName'] = self.selectedStudyName
 
-    inputDir = self.settings.value('PCampReview/InputLocation')
-    self.resourcesDir = os.path.join(inputDir,self.selectedStudyName,'RESOURCES')
+    self.resourcesDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'RESOURCES')
 
     # Loading progress indicator
     progress = self.makeProgressIndicator(len(os.listdir(self.resourcesDir)))
@@ -1146,11 +1132,11 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
             except:
               print('Failed to get from XML')
               continue
-              
+
             progress.labelText = seriesName
             progress.setValue(nLoaded)
             nLoaded += 1
-            
+
             volumePath = os.path.join(root,seriesNumber+'.nrrd')
             self.seriesMap[seriesNumber] = {'MetaInfo':None, 'NRRDLocation':volumePath,'LongName':seriesName}
             self.seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+seriesName
@@ -1170,7 +1156,9 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
               seriesNumber = metaInfo['DerivedSeriesNumber']
               seriesName = metaInfo['ModelType']+'-'+metaInfo['AIF']+'-'+metaInfo['Parameter']
             volumePath = os.path.join(root,seriesNumber+'.nrrd')
-            self.seriesMap[seriesNumber] = {'MetaInfo':metaInfo, 'NRRDLocation':volumePath,'LongName':seriesName}
+            self.seriesMap[seriesNumber] = {'MetaInfo':metaInfo,
+                                            'NRRDLocation':volumePath,
+                                            'LongName':seriesName}
             self.seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":" + \
                                                         self.abbreviateName(self.seriesMap[seriesNumber]['MetaInfo'])
 
@@ -1214,7 +1202,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.setTabsEnabled([3,4],True)
 
     self.editorWidget.enter()
-    
+
     self.resetTranslate()
 
     checkedItems = [x for x in self.seriesItems if x.checkState()]
@@ -1245,7 +1233,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     # ignore refSelector events until the selector is populated!
     self.refSelectorIgnoreUpdates = True
-    
+
     # Loading progress indicator
     progress = self.makeProgressIndicator(len(checkedItems))
     nLoaded = 0
@@ -1254,7 +1242,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     selectedSeries = {}
     for i in checkedItems:
       text = i.text()
-      
+
       progress.labelText = text
       progress.setValue(nLoaded)
       nLoaded += 1
@@ -1266,7 +1254,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       fileName = self.seriesMap[seriesNumber]['NRRDLocation']
       (success,volume) = slicer.util.loadVolume(fileName,returnNode=True)
       if success:
-        
+
         if volume.GetClassName() == 'vtkMRMLScalarVolumeNode':
           self.seriesMap[seriesNumber]['Volume'] = volume
           self.seriesMap[seriesNumber]['Volume'].SetName(shortName)
@@ -1275,9 +1263,9 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
           self.seriesMap[seriesNumber]['MultiVolume'].SetName(shortName+'_multivolume')
           self.seriesMap[seriesNumber]['FrameNumber'] = volume.GetNumberOfFrames()-1
           self.seriesMap[seriesNumber]['Volume'] = self.extractFrame(None,
-                                                                     self.seriesMap[seriesNumber]['MultiVolume'], 
+                                                                     self.seriesMap[seriesNumber]['MultiVolume'],
                                                                      self.seriesMap[seriesNumber]['FrameNumber'])
-          
+
       else:
         print('Failed to load image volume!')
         return
@@ -1306,7 +1294,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       selectedSeriesNumbers.append(int(seriesNumber))
 
     self.seriesMap = selectedSeries
-    
+
     progress.delete()
 
     print('Selected series: '+str(selectedSeries)+', reference: '+str(ref))
@@ -1346,10 +1334,10 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     seriesNumbers.sort()
     self.volumeNodes = [self.seriesMap[str(x)]['Volume'] for x in seriesNumbers if x != ref]
     self.viewNames = [self.seriesMap[str(x)]['ShortName'] for x in seriesNumbers if x != ref]
-    
+
     self.volumeNodes = [self.seriesMap[str(ref)]['Volume']]+self.volumeNodes
     self.viewNames = [self.seriesMap[str(ref)]['ShortName']]+self.viewNames
-    
+
     self.sliceNames = [str(x) for x in seriesNumbers if x != ref]
     self.sliceNames = [str(ref)]+self.sliceNames
 
@@ -1361,7 +1349,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       labelName = self.seriesMap[str(ref)]['ShortName']+'-label'
       refLabel = self.volumesLogic.CreateAndAddLabelVolume(slicer.mrmlScene,self.volumeNodes[0],labelName)
       self.seriesMap[str(ref)]['Label'] = refLabel
-      
+
     # Check for MultiVolume
     try:
       mvNode = self.seriesMap[str(ref)]['MultiVolume']
@@ -1374,7 +1362,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       self.mvSlider.minimum = 0
       self.mvSlider.maximum = 0
       self.mvSlider.enabled = False
-      
+
     dNode = refLabel.GetDisplayNode()
     dNode.SetAndObserveColorNodeID(self.PCampReviewColorNode.GetID())
     print('Volume nodes: '+str(self.viewNames))
@@ -1409,11 +1397,11 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     redSliceNode.SetOrientation(self.currentOrientation)
     compositeNode = redSliceWidget.mrmlSliceCompositeNode()
     compositeNode.SetBackgroundVolumeID(self.volumeNodes[0].GetID())
-    
+
     self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
     self.setOpacityOnAllSliceWidgets(1.0)
     self.editUtil.setLabelOutline(self.labelMapOutlineButton.checked)
-    
+
     self.onViewUpdateRequested(self.viewGroup.checkedId())
 
     print('Setting master node for the Editor to '+self.volumeNodes[0].GetID())
@@ -1450,43 +1438,39 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     return progressIndicator
 
   def setOrientation(self, orientation):
-    
+
     if orientation in self.orientations:
       self.currentOrientation = orientation
 
       layoutManager = slicer.app.layoutManager()
 
       if self.refSelector.currentText != 'None':
-        # set slice node orientation 
+        # set slice node orientation
         for view in layoutManager.sliceViewNames():
           widget = layoutManager.sliceWidget(view)
           node = widget.mrmlSliceNode()
           node.SetOrientation(self.currentOrientation)
-          
+
         self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
-         
-        
+
+
   def onDeleteStructure(self):
     selectionModel = self.structuresView.selectionModel()
     selected = selectionModel.currentIndex().row()
     if selected >= 0:
       selectedLabelVol = self.editorWidget.helper.structureListWidget.structures.item(selected,3).text()
       selectedModelVol = self.editorWidget.helper.structureListWidget.structures.item(selected,2).text()
-      
+
       # Confirm with user
       if not self.confirmDialog( "Delete \'%s\' volume?" % selectedModelVol ):
         return
-      
+
       # Cleanup files
-      import glob
       import shutil
 
       # create backup directory if necessary
-      backupSegmentationsDir = self.settings.value('PCampReview/InputLocation')+ \
-                                                    os.sep+self.selectedStudyName+ \
-                                                    os.sep+'RESOURCES'+ \
-                                                    os.sep+self.refSeriesNumber+ \
-                                                    os.sep+'Backup'
+      backupSegmentationsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'RESOURCES',
+                                            self.refSeriesNumber, 'Backup')
       try:
         os.makedirs(backupSegmentationsDir)
       except:
@@ -1494,8 +1478,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         pass
 
       # move relevant nrrd files
-      globPath = os.path.join(self.resourcesDir,self.refSeriesNumber,"Segmentations",
-                              self.settings.value('PCampReview/UserName')+'-'+selectedModelVol+'-[0-9]*.nrrd')
+      globPath = os.path.join(self.resourcesDir, self.refSeriesNumber, "Segmentations",
+                              self.getSetting('UserName') + '-'+selectedModelVol + '-[0-9]*.nrrd')
       previousSegmentations = glob.glob(globPath)
               
       filesMoved = True
@@ -1527,7 +1511,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
   # Extract frame from multiVolumeNode and put it into scalarVolumeNode
   def extractFrame(self, scalarVolumeNode, multiVolumeNode, frameId):
     # if no scalar volume given, create one
-    if scalarVolumeNode == None:
+    if scalarVolumeNode is None:
       scalarVolumeNode = slicer.vtkMRMLScalarVolumeNode()
       scalarVolumeNode.SetScene(slicer.mrmlScene)
       # name = mv node name minus _multivolume 
@@ -1556,7 +1540,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     # Create display node if missing
     displayNode = scalarVolumeNode.GetDisplayNode()
-    if displayNode == None:
+    if displayNode is None:
       displayNode = slicer.mrmlScene.CreateNodeByClass('vtkMRMLScalarVolumeDisplayNode')
       displayNode.SetReferenceCount(1)
       displayNode.SetScene(slicer.mrmlScene)
@@ -1571,7 +1555,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     
     # Get the selected label map
     (rowIdx, selectedStructure, selectedLabel) = self.getSelectedStructure()
-    if (selectedLabel == None):
+    if selectedLabel is None:
       return
     
     # Get a list of all series numbers currently loaded
@@ -1623,7 +1607,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     
     # get the source structure
     (rowIdx, selectedStructure, selectedLabel) = self.getSelectedStructure()
-    if (selectedLabel == None):
+    if selectedLabel is None:
       return
       
     # Check to make sure we don't propagate on top of something
@@ -1693,7 +1677,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     
     # Get the label node to translate
     (rowIdx, selectedStructure, selectedLabel) = self.getSelectedStructure()
-    if (selectedLabel == None):
+    if selectedLabel is None:
       self.resetTranslate()
       return
       
@@ -1746,7 +1730,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     # Get the selected label
     (rowIdx, selectedStructure, selectedLabel) = self.getSelectedStructure()
-    if (selectedLabel == None):
+    if selectedLabel is None:
       return
       
     labelNode = slicer.util.getNode(selectedLabel)
@@ -1805,7 +1789,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
   def getSelectedStructure(self):
     selectedIdx = self.structuresView.currentIndex()
     selectedRow = selectedIdx.row()
-    if (selectedRow < 0):
+    if selectedRow < 0:
       return (selectedRow, None, None)
 
     selectedStructure = self.editorWidget.helper.structureListWidget.structures.item(selectedRow,2).text()
@@ -1909,7 +1893,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         l = sliceLogics.GetItemAsObject(n)
         l.SnapSliceOffsetToIJK()
       
-
   def cleanupDir(self, d):
     if not os.path.exists(d):
       return
@@ -1940,7 +1923,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
           "Reload and Test", 'Exception!\n\n' + str(e) + "\n\nSee Python Console for Stack Trace")
 
 
-
 #
 # PCampReviewLogic
 #
@@ -1963,7 +1945,7 @@ class PCampReviewLogic:
     if not volumeNode:
       print('no volume node')
       return False
-    if volumeNode.GetImageData() == None:
+    if volumeNode.GetImageData() is None:
       print('no image data')
       return False
     return True
