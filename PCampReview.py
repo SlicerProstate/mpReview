@@ -965,8 +965,9 @@ class PCampReviewWidget:
     timeStamps = []
     latestSegmentations = {}
     for segmentation in previousSegmentations:
-        structureName = segmentation[segmentation.find("-")+1:segmentation.rfind("-")]
-        timeStamp = int(segmentation[segmentation.rfind("-")+1:-5])
+        actualFileName = os.path.split(segmentation)[1]
+        structureName = actualFileName.split("-")[1] # expectation: username-structure-timestamp.nrrd
+        timeStamp = int(actualFileName.split("-")[2][:-5])
         if structureName not in latestSegmentations.keys():
           latestSegmentations[structureName] = segmentation
         else:
@@ -980,8 +981,8 @@ class PCampReviewWidget:
       if not success:
         return (False,None)
       print('Setting loaded label name to '+volumeName)
-      shortFileName = fileName[fileName.rfind("/")+1:]
-      structureID = shortFileName[shortFileName[:-5].find("-")+1:shortFileName[:-5].rfind("-")]
+      actualFileName = os.path.split(fileName)[1]
+      structureID = actualFileName.split("-")[1] # expectation: username-structure-timestamp.nrrd
       label.SetName(volumeName+'-'+structureID+'-label')
       label.RemoveAllDisplayNodeIDs()
 
