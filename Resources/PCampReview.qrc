@@ -1,0 +1,9 @@
+<RCC>
+    <qresource prefix="/">
+        <file>Icons/icon-completion-fit.png</file>
+        <file>Icons/icon-dataselection-fit.png</file>
+        <file>Icons/icon-segmentation-fit.png</file>
+        <file>Icons/icon-seriesselection-fit.png</file>
+        <file>Icons/icon-studyselection-fit.png</file>
+    </qresource>
+</RCC>
