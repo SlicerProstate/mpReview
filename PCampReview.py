@@ -46,6 +46,7 @@ class PCampReview:
 #
 
 class PCampReviewWidget:
+
   def __init__(self, parent = None):
     if not parent:
       self.parent = slicer.qMRMLWidget()
@@ -965,8 +966,9 @@ class PCampReviewWidget:
     timeStamps = []
     latestSegmentations = {}
     for segmentation in previousSegmentations:
-        structureName = segmentation[segmentation.find("-")+1:segmentation.rfind("-")]
-        timeStamp = int(segmentation[segmentation.rfind("-")+1:-5])
+        actualFileName = os.path.split(segmentation)[1]
+        structureName = actualFileName.split("-")[1] # expectation: username-structure-timestamp.nrrd
+        timeStamp = int(actualFileName.split("-")[2][:-5])
         if structureName not in latestSegmentations.keys():
           latestSegmentations[structureName] = segmentation
         else:
@@ -980,8 +982,8 @@ class PCampReviewWidget:
       if not success:
         return (False,None)
       print('Setting loaded label name to '+volumeName)
-      shortFileName = fileName[fileName.rfind("/")+1:]
-      structureID = shortFileName[shortFileName[:-5].find("-")+1:shortFileName[:-5].rfind("-")]
+      actualFileName = os.path.split(fileName)[1]
+      structureID = actualFileName.split("-")[1] # expectation: username-structure-timestamp.nrrd
       label.SetName(volumeName+'-'+structureID+'-label')
       label.RemoveAllDisplayNodeIDs()
 
@@ -1401,9 +1403,9 @@ class PCampReviewWidget:
 
     self.editorParameterNode.Modified()
     
-    # default to selecting the first available structure for this volume 
-    if (self.editorWidget.helper.structures.rowCount() > 0):
-      self.editorWidget.helper.selectStructure(0)
+    # default to selecting the first available structure for this volume
+    if (self.editorWidget.helper.structureListWidget.structures.rowCount() > 0):
+      self.editorWidget.helper.structureListWidget.selectStructure(0)
 
     print('Exiting onReferenceChanged')
 
@@ -1450,8 +1452,8 @@ class PCampReviewWidget:
     selectionModel = self.structuresView.selectionModel()
     selected = selectionModel.currentIndex().row()
     if selected >= 0:
-      selectedLabelVol = self.editorWidget.helper.structures.item(selected,3).text()
-      selectedModelVol = self.editorWidget.helper.structures.item(selected,2).text()
+      selectedLabelVol = self.editorWidget.helper.structureListWidget.structures.item(selected,3).text()
+      selectedModelVol = self.editorWidget.helper.structureListWidget.structures.item(selected,2).text()
       
       # Confirm with user
       if not self.confirmDialog( "Delete \'%s\' volume?" % selectedModelVol ):
@@ -1489,7 +1491,7 @@ class PCampReviewWidget:
       
       # Cleanup mrml scene if we were able to move all of the files
       if filesMoved:
-        self.editorWidget.helper.deleteSelectedStructure(confirm=False)
+        self.editorWidget.helper.structureListWidget.deleteSelectedStructure(confirm=False)
         slicer.mrmlScene.RemoveNode(slicer.util.getNode('Model*'+selectedModelVol))
   
   def onSliderChanged(self, newValue):
@@ -1658,7 +1660,7 @@ class PCampReviewWidget:
     self.restoreForeground()
     
     # Re-select the structure in the list
-    self.editorWidget.helper.selectStructure(rowIdx)
+    self.editorWidget.helper.structureListWidget.selectStructure(rowIdx)
 
     
   def onTranslate(self):
@@ -1757,7 +1759,7 @@ class PCampReviewWidget:
     self.restoreForeground()
     
     # Re-select the structure in the list
-    self.editorWidget.helper.selectStructure(rowIdx)
+    self.editorWidget.helper.structureListWidget.selectStructure(rowIdx)
     
     
   def resetTranslate(self):
@@ -1782,9 +1784,9 @@ class PCampReviewWidget:
     selectedRow = selectedIdx.row()
     if (selectedRow < 0):
       return (selectedRow, None, None)
-    
-    selectedStructure = self.editorWidget.helper.structures.item(selectedRow,2).text()  
-    selectedLabel = self.editorWidget.helper.structures.item(selectedRow,3).text()
+
+    selectedStructure = self.editorWidget.helper.structureListWidget.structures.item(selectedRow,2).text()
+    selectedLabel = self.editorWidget.helper.structureListWidget.structures.item(selectedRow,3).text()
     return (selectedRow, selectedStructure, selectedLabel)
   
   def restoreForeground(self):
@@ -1801,8 +1803,8 @@ class PCampReviewWidget:
 
   # Gets triggered on a click in the structures table
   def onStructureClicked(self,index):
-    selectedLabelID = int(self.editorWidget.helper.structures.item(index.row(),0).text())
-    selectedLabelVol = self.editorWidget.helper.structures.item(index.row(),3).text()
+    selectedLabelID = int(self.editorWidget.helper.structureListWidget.structures.item(index.row(),0).text())
+    selectedLabelVol = self.editorWidget.helper.structureListWidget.structures.item(index.row(),3).text()
     if self.enableJumpToROI.checked:
       print('calling onJumpToROI '+str(selectedLabelID) + ' ' + selectedLabelVol)
       self.onJumpToROI(selectedLabelID,selectedLabelVol)
