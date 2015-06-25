@@ -1,5 +1,5 @@
 import os
-import re
+import DICOMLib
 import unittest
 from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
@@ -77,8 +77,8 @@ class PCampReviewPreprocessorWidget(ScriptedLoadableModuleWidget):
 #
 
 class PCampReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
-  """This class should implement all the actual 
-  computation done by your module.  The interface 
+  """This class should implement all the actual
+  computation done by your module.  The interface
   should be such that other python code can import
   this class and make use of the functionality without
   requiring an instance of the Widget
@@ -86,14 +86,13 @@ class PCampReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
   def __init__(self):
     ScriptedLoadableModuleLogic.__init__(self)
 
-    self.dataDir = slicer.app.temporaryPath + '/PCampReviewPreprocessor'
+    self.dataDir = os.path.join(slicer.app.temporaryPath, "PCampReviewPreprocessor")
     if os.access(self.dataDir, os.F_OK):
-      import shutil
       shutil.rmtree(self.dataDir)
-    
+
     os.mkdir(self.dataDir)
 
-    self.dicomDatabaseDir = self.dataDir + '/CtkDicomDatabase'
+    self.dicomDatabaseDir = os.path.join(self.dataDir, "CtkDicomDatabase")
 
   def Convert(self, inputDir, outputDir, copyDICOM):
     # inputDir = '/Users/fedorov/ImageData/QIICR/QIN PROSTATE/QIN-PROSTATE-01-0001/1.3.6.1.4.1.14519.5.2.1.3671.7001.133687106572018334063091507027'
@@ -112,7 +111,6 @@ class PCampReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
         for series in [l for l in slicer.dicomDatabase.seriesForStudy(study)]:
           #print 'Series:',series
           #print seriesUIDs
-  
           files = slicer.dicomDatabase.filesForSeries(series)
 
           pluginNames = ['MultiVolumeImporterPlugin','DICOMScalarVolumePlugin']
@@ -140,15 +138,14 @@ class PCampReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
           if node:
             storageNode = node.CreateDefaultStorageNode()
             studyID = patientID+'_'+studyDate+'_'+studyTime
-            dirName = outputDir + '/'+studyID+'/RESOURCES/'+seriesNumber+'/Reconstructions/'
-            xmlName = dirName+seriesNumber+'.xml'
+            dirName = os.path.join(outputDir, studyID, "RESOURCES", seriesNumber, "Reconstructions")
+            xmlName = os.path.join(dirName, seriesNumber+'.xml')
             try:
               os.makedirs(dirName)
             except:
               pass
-            returnValue = os.system(slicer.app.slicerHome+'/bin/dcm2xml '+re.escape(dcmFile)+' > '+re.escape(xmlName))
-            assert returnValue == 0, "Error during execution of dcm2xml. Probably the dcm2xml is not in your path."
-            nrrdName = dirName+seriesNumber+'.nrrd'
+            DICOMLib.DICOMCommand("dcm2xml", [dcmFile, xmlName]).start()
+            nrrdName = os.path.join(dirName, seriesNumber + ".nrrd")
             #print(nrrdName)
             storageNode.SetFileName(nrrdName)
             storageNode.WriteData(node)
@@ -156,7 +153,7 @@ class PCampReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
             # copy original DICOMs
             if copyDICOM:
               fileCount = 0
-              dirName = outputDir + '/'+studyID+'/RESOURCES/'+seriesNumber+'/DICOM/'
+              dirName = os.path.join(outputDir, studyID, "RESOURCES", seriesNumber, "DICOM")
               try:
                 os.makedirs(dirName)
               except:
