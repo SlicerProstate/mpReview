@@ -218,6 +218,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       self.onStep5Selected()
 
   def setup(self):
+    ScriptedLoadableModuleWidget.setup(self)
     # Instantiate and connect widgets ...
 
     self.setupIcons()
