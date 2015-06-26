@@ -255,6 +255,9 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.studiesView.setModel(self.studiesModel)
     self.studiesView.setEditTriggers(qt.QAbstractItemView.NoEditTriggers)
     self.studiesView.connect('clicked(QModelIndex)', self.studySelected)
+    self.dataDirLabel = qt.QLabel()
+    self.dataDirLabel.text = "Current Data Dir: "
+    self.studySelectionGroupBoxLayout.addRow(self.dataDirLabel)
     self.studySelectionGroupBoxLayout.addWidget(self.studiesView)
 
     #
@@ -1045,6 +1048,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     studyDirs = []
     # get list of studies
     inputDir = self.settings.value('PCampReview/InputLocation')
+    self.dataDirLabel.text = "Current Data Dir: " + str(self.settings.value('PCampReview/InputLocation') +"\n")
     if not os.path.exists(inputDir):
       return
 
