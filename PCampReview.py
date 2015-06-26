@@ -403,6 +403,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     propagateButton.connect('clicked()', self.onPropagateROI)
 
     #self.editorWidget.toolsColor.frame.setVisible(False)
+    self.editorWidget.toolsColor.colorSpin.setEnabled(False)
+    self.editorWidget.toolsColor.colorPatch.setEnabled(False)
 
     self.editorParameterNode = self.editUtil.getParameterNode()
     self.editorParameterNode.SetParameter('propagationMode',
