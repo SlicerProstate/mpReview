@@ -1097,6 +1097,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     # on delete of a previously selected one leading to "Create merge ..."
     # popup
     self.editorWidget.helper.masterSelector.blockSignals(True)
+    self.editorWidget.helper.mergeSelector.blockSignals(True)
 
     # if any volumes have been loaded (we returned back from a previous step)
     # then remove all of them from the scene
@@ -1105,6 +1106,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         slicer.mrmlScene.RemoveNode(node)
 
     self.editorWidget.helper.masterSelector.blockSignals(False)
+    self.editorWidget.helper.mergeSelector.blockSignals(False)
 
     self.parameters['StudyName'] = self.selectedStudyName
 
