@@ -192,8 +192,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.completionGroupBox.setLayout(self.completionGroupBoxLayout)
 
     size = qt.QSize()
-    size.setHeight(50)
-    size.setWidth(110)
+    size.setHeight(30)
+    size.setWidth(85)
     self.tabWidget.setIconSize(size)
 
     self.tabWidget.addTab(self.dataSourceSelectionGroupBox,self.dataSourceSelectionIcon, '')
