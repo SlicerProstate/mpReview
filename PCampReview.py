@@ -1610,7 +1610,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       return
       
     # Check to make sure we don't propagate on top of something
-    exstingStructures = [self.seriesMap[x]['ShortName'] for x in propagateInto if len(slicer.util.getNodes(self.seriesMap[x]['ShortName']+'-'+selectedStructure+'-label')) != 0]
+    exstingStructures = [self.seriesMap[x]['ShortName'] for x in propagateInto if len(slicer.util.getNodes(self.seriesMap[x]['ShortName']+'-'+selectedStructure+'-label*')) != 0]
     if len(exstingStructures) != 0:
       msg = 'ERROR\n\n\'' + selectedStructure + '\' already exists in the following volumes:\n\n'
       for vol in exstingStructures:
@@ -1629,6 +1629,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     for dstSeries in propagateInto:
       labelName = self.seriesMap[dstSeries]['ShortName']+'-'+selectedStructure+'-label'
       dstLabel = self.volumesLogic.CreateAndAddLabelVolume(slicer.mrmlScene,self.seriesMap[dstSeries]['Volume'],labelName)
+      # Need to make sure the new label volume has the correct name
+      dstLabel.SetName(labelName)
       dstLabel.GetDisplayNode().SetAndObserveColorNodeID(self.PCampReviewColorNode.GetID())
       
       progress.labelText = labelName
