@@ -13,11 +13,8 @@ import sitkUtils
 from slicer.ScriptedLoadableModule import *
 
 
-#
-# PCampReview
-#
-
 class PCampReview(ScriptedLoadableModule):
+
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
     parent.title = "PCampReview"
@@ -44,11 +41,9 @@ class PCampReview(ScriptedLoadableModule):
     tester = PCampReviewTest()
     tester.runTest()
 
-#
-# qPCampReviewWidget
-#
 
 class PCampReviewWidget(ScriptedLoadableModuleWidget):
+
   def __init__(self, parent = None):
     ScriptedLoadableModuleWidget.__init__(self, parent)
     self.resourcesPath = slicer.modules.pcampreview.path.replace(self.moduleName+".py","") + 'Resources/'
@@ -156,7 +151,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     messageBox.information(None, 'Slicer mpMRI review', message)
 
   def setupIcons(self):
-
     def createQIconFromPath(path):
       return qt.QIcon(qt.QPixmap(path))
 
@@ -166,7 +160,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.seriesSelectionIcon = createQIconFromPath(iconPath + 'icon-seriesselection_fit.png')
     self.segmentationIcon = createQIconFromPath(iconPath + 'icon-segmentation_fit.png')
     self.completionIcon = createQIconFromPath(iconPath + 'icon-completion_fit.png')
-
 
   def setupTabBarNavigation(self):
     self.tabWidget = qt.QTabWidget()
@@ -224,7 +217,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.setupIcons()
     self.setupTabBarNavigation()
 
-    # parameters
     self.parameters = {}
     self.settings = qt.QSettings()
 
@@ -241,7 +233,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.resultsDirLabel = qt.QLabel()
     self.dataSourceSelectionGroupBoxLayout.addRow(self.resultsDirLabel)
     self.checkAndSetLUT()
-
 
     #
     # Step 2: selection of the study to be analyzed
@@ -573,10 +564,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     #self.inputDirLabel.text = self.settings.value('PCampReview/InputLocation')
     #self.resultsDirLabel.text = self.settings.value('PCampReview/ResultsLocation')
 
-
   def checkAndSetLUT(self):
-    
-    # Default to module color table 
+    # Default to module color table
     moduleName="PCampReview"
     modulePath = eval('slicer.modules.%s.path' % moduleName.lower()).replace(moduleName+".py","")
     self.colorFile = modulePath + "Resources/Colors/PCampReviewColors.csv"
@@ -609,7 +598,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
                 float(row['G'])/255,float(row['B'])/255,float(row['A']))
         self.structureNames.append(row['Label'])
       
-      
   def onNameEntered(self):
     name = self.nameText.text
     if len(name)>0:
@@ -632,7 +620,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       self.parameters['ResultsLocation'] = path
 
   def onViewUpdateRequested(self, id):
-    
     # Skip if not in a ref image yet
     if self.refSeriesNumber == '-1':
       return
@@ -716,8 +703,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       os.makedirs(wlSettingsDir)
     except:
       print('Failed to create one of the following directories: '+segmentationsDir+' or '+wlSettingsDir)
-      pass
-
 
     import datetime
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
@@ -786,7 +771,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       print(self.inputDataDir)
       print(self.settings.value('PCampReview/InputLocation'))
       self.tabWidget.setCurrentIndex(1)
-
 
   def onBuildModels(self):
     """make models of the structure label nodesvolume"""
@@ -906,7 +890,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.modelsVisibilityButton.setText('Hide')
   
   def setLabelOutline(self, toggled):
-    
     # Update button text
     if toggled:
       self.labelMapOutlineButton.setText('Filled')
@@ -1020,9 +1003,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         self.removeAllModels()
     return False
 
-  '''
-  Step 1: Select the directory that has the data
-  '''
   def onStep1Selected(self):
     if self.checkStep4or5Leave() is True:
       return
@@ -1033,9 +1013,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     if self.inputDataDir != "":
       self.setTabsEnabled([1], True)
 
-  '''
-  Step 2: Select the patient
-  '''
   def onStep2Selected(self):
     if self.checkStep4or5Leave() is True:
       return
@@ -1075,9 +1052,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     
     progress.delete()
 
-  '''
-  Step 3: Select series of interest
-  '''
   def onStep3Selected(self):
     if self.checkStep4or5Leave() is True:
       return
@@ -1189,10 +1163,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     progress.delete()
     self.setTabsEnabled([3], True)
 
-  '''
-  T2w, sub, ADC, T2map
-  '''
-
   def onStep4Selected(self):
     # set up editor
     if self.currentStep == 4:
@@ -1285,7 +1255,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
           self.refSelector.addItem(text)
       except:
         self.refSelector.addItem(text)
-        pass
 
       if longName.find('T2')>=0 and longName.find('AX')>=0:
         ref = int(seriesNumber)
@@ -1434,7 +1403,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     return progressIndicator
 
   def setOrientation(self, orientation):
-    
     if orientation in self.orientations:
       self.currentOrientation = orientation
 
@@ -1448,8 +1416,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
           node.SetOrientation(self.currentOrientation)
           
         self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
-         
-        
+
   def onDeleteStructure(self):
     selectionModel = self.structuresView.selectionModel()
     selected = selectionModel.currentIndex().row()
@@ -1475,7 +1442,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         os.makedirs(backupSegmentationsDir)
       except:
         print('Failed to create the following directory: '+backupSegmentationsDir)
-        pass
 
       # move relevant nrrd files
       globPath = os.path.join(self.resourcesDir,self.refSeriesNumber,"Segmentations",
@@ -1489,8 +1455,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         except:
           print('Unable to move file: '+file)
           filesMoved = False
-          pass
-      
+
       # Cleanup mrml scene if we were able to move all of the files
       if filesMoved:
         self.editorWidget.helper.structureListWidget.deleteSelectedStructure(confirm=False)
@@ -1550,9 +1515,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     
     return scalarVolumeNode
   
-  
   def onPropagateROI(self):
-    
     # Get the selected label map
     (rowIdx, selectedStructure, selectedLabel) = self.getSelectedStructure()
     if (selectedLabel == None):
@@ -1666,9 +1629,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     # Re-select the structure in the list
     self.editorWidget.helper.structureListWidget.selectStructure(rowIdx)
 
-    
   def onTranslate(self):
-    
     if self.ignoreTranslate:
       return
     
@@ -1721,10 +1682,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     
     # Tell the transform node to observe vTransform's matrix
     self.transformNode.SetMatrixTransformToParent(vTransform.GetMatrix())
-  
-  
-  def onHardenTransform(self):
 
+  def onHardenTransform(self):
     # Get the selected label
     (rowIdx, selectedStructure, selectedLabel) = self.getSelectedStructure()
     if (selectedLabel == None):
@@ -1764,8 +1723,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     
     # Re-select the structure in the list
     self.editorWidget.helper.structureListWidget.selectStructure(rowIdx)
-    
-    
+
   def resetTranslate(self):
     # Reset sliders and buttons
     self.ignoreTranslate = True
@@ -1780,8 +1738,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.editorWidget.editLabelMapsFrame.enabled = True
     self.refSelector.enabled = True
     self.saveButton.enabled = True
-    
-        
+
   # Returns info about the currently selected structure in structuresView
   def getSelectedStructure(self):
     selectedIdx = self.structuresView.currentIndex()
@@ -1812,10 +1769,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     if self.enableJumpToROI.checked:
       print('calling onJumpToROI '+str(selectedLabelID) + ' ' + selectedLabelVol)
       self.onJumpToROI(selectedLabelID,selectedLabelVol)
-      
-      
+
   def onJumpToROI(self, selectedLabelID, selectedLabelVol):
-    
     layoutNode = slicer.util.getNode('*LayoutNode*')
     layoutManager = slicer.app.layoutManager()
     redSliceWidget = layoutManager.sliceWidget('Red')
@@ -1889,7 +1844,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       for n in range(numLogics):
         l = sliceLogics.GetItemAsObject(n)
         l.SnapSliceOffsetToIJK()
-      
 
   def cleanupDir(self, d):
     if not os.path.exists(d):
@@ -1921,20 +1875,15 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
           "Reload and Test", 'Exception!\n\n' + str(e) + "\n\nSee Python Console for Stack Trace")
 
 
-
-#
-# PCampReviewLogic
-#
-
-class PCampReviewLogic:
+class PCampReviewLogic(ScriptedLoadableModuleLogic):
   """This class should implement all the actual
   computation done by your module.  The interface
   should be such that other python code can import
   this class and make use of the functionality without
   requiring an instance of the Widget
   """
-  def __init__(self):
-    pass
+  def __init__(self, parent=None):
+    ScriptedLoadableModuleLogic.__init__(self, parent)
 
   def hasImageData(self,volumeNode):
     """This is a dummy logic method that
@@ -1957,9 +1906,6 @@ class PCampReviewLogic:
 
 
 class PCampReviewTest(unittest.TestCase):
-  """
-  This is the test case for your scripted module.
-  """
 
   def delayDisplay(self,message,msec=1000):
     """This utility method displays a small dialog and waits.
@@ -1984,8 +1930,6 @@ class PCampReviewTest(unittest.TestCase):
     slicer.mrmlScene.Clear(0)
 
   def runTest(self):
-    """Run as few or as many tests as needed here.
-    """
     self.setUp()
     self.test_PCampReview1()
 
@@ -2023,6 +1967,5 @@ class PCampReviewTest(unittest.TestCase):
 
     mainWidget.onStep4Selected()
     self.delayDisplay('4')
-
 
     self.delayDisplay('Test passed!')
