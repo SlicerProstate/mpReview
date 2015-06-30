@@ -74,9 +74,9 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     ScriptedLoadableModuleWidget.__init__(self, parent)
     self.resourcesPath = os.path.join(slicer.modules.pcampreview.path.replace(self.moduleName+".py",""), 'Resources')
 
-    #self.modulePath = slicer.modules.pcampreview.path.replace(self.moduleName+".py","")
-    # module-specific initialization
-    self.inputDataDir = ''
+    inputDataDir = self.getSetting('InputLocation')
+    self.inputDataDir = inputDataDir if inputDataDir is not None else ''
+
     self.webFormURL = ''
     
     # TODO: figure out why module/class hierarchy is different
@@ -91,6 +91,14 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.CLINode = None
     self.currentStep = 1
     self.logic = PCampReviewLogic()
+
+  def getSetting(self, settingName):
+    settings = qt.QSettings()
+    return settings.value(self.moduleName + '/' + settingName)
+
+  def setSetting(self, settingName, value):
+    settings = qt.QSettings()
+    settings.setValue(self.moduleName + '/'+ settingName, value)
 
   def getAllWidgets(self):
     widgetNames = self.layoutManager.sliceViewNames()
@@ -185,12 +193,11 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.setupTabBarNavigation()
 
     self.parameters = {}
-    self.settings = qt.QSettings()
 
     #
     # Step 1: selection of the data directory
     #
-    self.dataDirButton = qt.QPushButton(str(self.settings.value('PCampReview/InputLocation')))
+    self.dataDirButton = qt.QPushButton(self.inputDataDir)
     self.dataDirButton.connect('clicked()', self.onInputDirSelected)
     self.dataSourceSelectionGroupBoxLayout.addRow("Select data directory:", self.dataDirButton)
     self.customLUTLabel = qt.QLabel()
@@ -444,16 +451,12 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.refSelectorIgnoreUpdates = False
     self.selectedStudyName = None
 
-    self.inputDataDir = self.settings.value('PCampReview/InputLocation')
     if os.path.exists(self.inputDataDir):
       self.tabWidget.setCurrentIndex(1)
 
   def enter(self):
-    settings = qt.QSettings()
-    userName = settings.value('PCampReview/UserName')
-    resultsLocation = settings.value('PCampReview/ResultsLocation')
-    inputLocation = settings.value('PCampReview/InputLocation')
-    self.webFormURL = settings.value('PCampReview/webFormURL')
+    userName = self.getSetting('UserName')
+    self.webFormURL = self.getSetting('webFormURL')
 
     if userName is None or userName == '':
       # prompt the user for ID (last name)
@@ -527,18 +530,14 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     self.currentStep = 1
 
-    #self.inputDirLabel.text = self.settings.value('PCampReview/InputLocation')
-    #self.resultsDirLabel.text = self.settings.value('PCampReview/ResultsLocation')
-
   def checkAndSetLUT(self):
     # Default to module color table
-    modulePath = eval('slicer.modules.%s.path' % self.moduleName.lower()).replace(self.moduleName+".py","")
-    self.colorFile = os.path.join(modulePath, "Resources/Colors/PCampReviewColors.csv")
+    self.colorFile = os.path.join(self.resourcesPath, "Colors/PCampReviewColors.csv")
     self.customLUTLabel.text = 'Using Default LUT'
 
     # Check for custom LUT
-    if self.settings.value('PCampReview/InputLocation') is not None:
-      lookupTableLoc = os.path.join(self.settings.value('PCampReview/InputLocation'), 'SETTINGS', self.settings.value('PCampReview/InputLocation').split(os.sep)[-1] + '-LUT.csv')
+    if os.path.exists(self.inputDataDir):
+      lookupTableLoc = os.path.join(self.inputDataDir, 'SETTINGS', self.inputDataDir.split(os.sep)[-1] + '-LUT.csv')
       print('Checking for lookup table at : ' + lookupTableLoc)
       if os.path.isfile(lookupTableLoc):
         # use custom color table
@@ -566,21 +565,21 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
   def onNameEntered(self):
     name = self.nameText.text
     if len(name)>0:
-      self.settings.setValue('PCampReview/UserName',name)
+      self.setSetting('UserName', name)
       self.namePrompt.close()
       self.parameters['UserName'] = name
 
   def onURLEntered(self):
     url = self.URLText.text
     if len(url)>0:
-      self.settings.setValue('PCampReview/webFormURL',url)
+      self.setSetting('webFormURL',url)
       self.URLPrompt.close()
       self.webFormURL = url
 
   def onResultsDirEntered(self):
     path = self.dirButton.directory
     if len(path)>0:
-      self.settings.setValue('PCampReview/ResultsLocation',path)
+      self.setSetting('ResultsLocation',path)
       self.dirPrompt.close()
       self.parameters['ResultsLocation'] = path
 
@@ -638,7 +637,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.webView.connect('loadFinished(bool)', self.webViewFormLoadedCallback)
     self.webView.show()
     preFilledURL = self.webFormURL
-    preFilledURL += '?entry.1455103354='+self.settings.value('PCampReview/UserName')
+    preFilledURL += '?entry.1455103354='+self.getSetting('UserName')
     preFilledURL += '&entry.347120626='+self.selectedStudyName
     preFilledURL += '&entry.1734306468='+str(self.editorWidget.toolsColor.colorSpin.value)
     u = qt.QUrl(preFilledURL)
@@ -661,8 +660,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         Convention: create a directory for each type of resource saved,
         then subdirectory for each scan that was analyzed
     """
-    segmentationsDir = os.path.join(self.settings.value('PCampReview/InputLocation'), self.selectedStudyName, 'Segmentations')
-    wlSettingsDir = os.path.join(self.settings.value('PCampReview/InputLocation'), self.selectedStudyName, 'WindowLevelSettings')
+    segmentationsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'Segmentations')
+    wlSettingsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'WindowLevelSettings')
     try:
       os.makedirs(segmentationsDir)
       os.makedirs(wlSettingsDir)
@@ -683,7 +682,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
       # structure is root -> study -> resources -> series # ->
       # Segmentations/Reconstructions/OncoQuant -> files
-      segmentationsDir = os.path.join(self.settings.value('PCampReview/InputLocation'), self.selectedStudyName,
+      segmentationsDir = os.path.join(self.inputDataDir, self.selectedStudyName,
                                       'RESOURCES', labelSeries, 'Segmentations')
       try:
         os.makedirs(segmentationsDir)
@@ -694,7 +693,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       # Only save labels with known structure names
       if any(structureName == s for s in self.structureNames):
         print "structure name is:" ,structureName
-        uniqueID = self.settings.value('PCampReview/UserName')+'-'+structureName+'-'+timestamp
+        uniqueID = self.getSetting('UserName')+'-'+structureName+'-'+timestamp
 
         labelFileName = os.path.join(segmentationsDir,uniqueID+'.nrrd')
 
@@ -727,14 +726,14 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
   def onInputDirSelected(self):
     self.inputDataDir = qt.QFileDialog.getExistingDirectory(self.parent,
                                                             'Input data directory',
-                                                            self.settings.value('PCampReview/InputLocation'))
+                                                            self.inputDataDir)
     if self.inputDataDir != "":
       self.dataDirButton.text = self.inputDataDir
-      self.settings.setValue('PCampReview/InputLocation', self.inputDataDir)
+      self.setSetting('InputLocation', self.inputDataDir)
       self.checkAndSetLUT()
       print('Directory selected:')
       print(self.inputDataDir)
-      print(self.settings.value('PCampReview/InputLocation'))
+      print(self.getSetting('InputLocation'))
       self.tabWidget.setCurrentIndex(1)
 
   def onBuildModels(self):
@@ -886,7 +885,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
   def checkAndLoadLabel(self, resourcesDir, seriesNumber, volumeName):
     globPath = os.path.join(self.resourcesDir,str(seriesNumber),"Segmentations",
-                            self.settings.value('PCampReview/UserName')+'*')
+                            self.getSetting('UserName')+'*')
     previousSegmentations = glob.glob(globPath)
     if not len(previousSegmentations):
       return False,None
@@ -963,18 +962,17 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     studyDirs = []
     # get list of studies
-    inputDir = self.settings.value('PCampReview/InputLocation')
-    self.dataDirLabel.text = "Current Data Dir: " + str(self.settings.value('PCampReview/InputLocation') +"\n")
-    if not os.path.exists(inputDir):
+    self.dataDirLabel.text = "Current Data Dir: " + str(self.inputDataDir +"\n")
+    if not os.path.exists(self.inputDataDir):
       return
 
-    dirs = os.listdir(inputDir)
+    dirs = os.listdir(self.inputDataDir)
     
     progress = self.makeProgressIndicator(len(dirs))
     nLoaded = 0
     
     for studyName in dirs:
-      if os.path.isdir(inputDir+'/'+studyName) and studyName != 'SETTINGS':
+      if os.path.isdir(os.path.join(self.inputDataDir, studyName)) and studyName != 'SETTINGS':
         studyDirs.append(studyName)
         print('Appending '+studyName)
         progress.setValue(nLoaded)
@@ -1023,8 +1021,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     self.parameters['StudyName'] = self.selectedStudyName
 
-    inputDir = self.settings.value('PCampReview/InputLocation')
-    self.resourcesDir = os.path.join(inputDir,self.selectedStudyName,'RESOURCES')
+    self.resourcesDir = os.path.join(self.inputDataDir,self.selectedStudyName,'RESOURCES')
 
     # Loading progress indicator
     progress = self.makeProgressIndicator(len(os.listdir(self.resourcesDir)))
@@ -1279,9 +1276,9 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       self.rows = 1
     elif nVolumeNodes<=8:
       self.rows = 2 # up to 8
-    elif nVolumeNodes>8 and nVolumeNodes<=12:
+    elif 8 < nVolumeNodes <= 12:
       self.rows = 3 # up to 12
-    elif nVolumeNodes>12 and nVolumeNodes<=16:
+    elif 12 < nVolumeNodes <= 16:
       self.rows = 4
     self.cols = math.ceil(nVolumeNodes/self.rows)
 
@@ -1353,7 +1350,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       import shutil
 
       # create backup directory if necessary
-      backupSegmentationsDir = os.path.join(self.settings.value('PCampReview/InputLocation'), self.selectedStudyName,
+      backupSegmentationsDir = os.path.join(self.inputDataDir, self.selectedStudyName,
                                             'RESOURCES', self.refSeriesNumber, 'Backup')
       try:
         os.makedirs(backupSegmentationsDir)
@@ -1362,7 +1359,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
       # move relevant nrrd files
       globPath = os.path.join(self.resourcesDir,self.refSeriesNumber,"Segmentations",
-                              self.settings.value('PCampReview/UserName')+'-'+selectedModelVol+'-[0-9]*.nrrd')
+                              self.getSetting('UserName')+'-'+selectedModelVol+'-[0-9]*.nrrd')
       previousSegmentations = glob.glob(globPath)
               
       filesMoved = True
