@@ -41,6 +41,8 @@ class PCampReview(ScriptedLoadableModule):
 
 class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
+  VIEWFORM_URL = 'https://docs.google.com/forms/d/1Xwhvjn_HjRJAtgV5VruLCDJ_eyj1C-txi8HWn8VyXa4/viewform'
+
   @staticmethod
   def makeProgressIndicator(maxVal):
     progressIndicator = qt.QProgressDialog()
@@ -70,7 +72,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
   def __init__(self, parent = None):
     ScriptedLoadableModuleWidget.__init__(self, parent)
-    self.resourcesPath = slicer.modules.pcampreview.path.replace(self.moduleName+".py","") + 'Resources/'
+    self.resourcesPath = os.path.join(slicer.modules.pcampreview.path.replace(self.moduleName+".py",""), 'Resources')
 
     #self.modulePath = slicer.modules.pcampreview.path.replace(self.moduleName+".py","")
     # module-specific initialization
@@ -119,12 +121,12 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     def createQIconFromPath(path):
       return qt.QIcon(qt.QPixmap(path))
 
-    iconPath = self.resourcesPath + 'Icons/'
-    self.dataSourceSelectionIcon = createQIconFromPath(iconPath +'icon-dataselection_fit.png')
-    self.studySelectionIcon = createQIconFromPath(iconPath +'icon-studyselection_fit.png')
-    self.seriesSelectionIcon = createQIconFromPath(iconPath + 'icon-seriesselection_fit.png')
-    self.segmentationIcon = createQIconFromPath(iconPath + 'icon-segmentation_fit.png')
-    self.completionIcon = createQIconFromPath(iconPath + 'icon-completion_fit.png')
+    iconPath = os.path.join(self.resourcesPath, 'Icons')
+    self.dataSourceSelectionIcon = createQIconFromPath(os.path.join(iconPath,'icon-dataselection_fit.png'))
+    self.studySelectionIcon = createQIconFromPath(os.path.join(iconPath, 'icon-studyselection_fit.png'))
+    self.seriesSelectionIcon = createQIconFromPath(os.path.join(iconPath, 'icon-seriesselection_fit.png'))
+    self.segmentationIcon = createQIconFromPath(os.path.join(iconPath, 'icon-segmentation_fit.png'))
+    self.completionIcon = createQIconFromPath(os.path.join(iconPath, 'icon-completion_fit.png'))
 
   def setupTabBarNavigation(self):
     self.tabWidget = qt.QTabWidget()
@@ -432,7 +434,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.volumesLogic = slicer.modules.volumes.logic()
 
     # set up temporary directory
-    self.tempDir = slicer.app.temporaryPath+'/PCampReview-tmp'
+    self.tempDir = os.path.join(slicer.app.temporaryPath, 'PCampReview-tmp')
     print('Temporary directory location: '+self.tempDir)
     qt.QDir().mkpath(self.tempDir)
 
@@ -481,7 +483,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       self.URLPrompt.setLayout(self.URLPromptLayout)
       self.URLLabel = qt.QLabel('Enter review form URL:', self.URLPrompt)
       # replace this if you are using a different form
-      self.URLText = qt.QLineEdit('https://docs.google.com/forms/d/1Xwhvjn_HjRJAtgV5VruLCDJ_eyj1C-txi8HWn8VyXa4/viewform')
+      self.URLText = qt.QLineEdit(self.VIEWFORM_URL)
       self.URLButton = qt.QPushButton('OK', self.URLPrompt)
       self.URLButton.connect('clicked()', self.onURLEntered)
       self.URLPromptLayout.addWidget(self.URLLabel)
@@ -530,14 +532,13 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
   def checkAndSetLUT(self):
     # Default to module color table
-    moduleName="PCampReview"
-    modulePath = eval('slicer.modules.%s.path' % moduleName.lower()).replace(moduleName+".py","")
-    self.colorFile = modulePath + "Resources/Colors/PCampReviewColors.csv"
+    modulePath = eval('slicer.modules.%s.path' % self.moduleName.lower()).replace(self.moduleName+".py","")
+    self.colorFile = os.path.join(modulePath, "Resources/Colors/PCampReviewColors.csv")
     self.customLUTLabel.text = 'Using Default LUT'
 
     # Check for custom LUT
     if self.settings.value('PCampReview/InputLocation') is not None:
-      lookupTableLoc = self.settings.value('PCampReview/InputLocation') + os.sep + 'SETTINGS' + os.sep + self.settings.value('PCampReview/InputLocation').split(os.sep)[-1] + '-LUT.csv'
+      lookupTableLoc = os.path.join(self.settings.value('PCampReview/InputLocation'), 'SETTINGS', self.settings.value('PCampReview/InputLocation').split(os.sep)[-1] + '-LUT.csv')
       print('Checking for lookup table at : ' + lookupTableLoc)
       if os.path.isfile(lookupTableLoc):
         # use custom color table
@@ -660,8 +661,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         Convention: create a directory for each type of resource saved,
         then subdirectory for each scan that was analyzed
     """
-    segmentationsDir = self.settings.value('PCampReview/InputLocation')+'/'+self.selectedStudyName+'/Segmentations'
-    wlSettingsDir = self.settings.value('PCampReview/InputLocation')+'/'+self.selectedStudyName+'/WindowLevelSettings'
+    segmentationsDir = os.path.join(self.settings.value('PCampReview/InputLocation'), self.selectedStudyName, 'Segmentations')
+    wlSettingsDir = os.path.join(self.settings.value('PCampReview/InputLocation'), self.selectedStudyName, 'WindowLevelSettings')
     try:
       os.makedirs(segmentationsDir)
       os.makedirs(wlSettingsDir)
@@ -682,8 +683,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
       # structure is root -> study -> resources -> series # ->
       # Segmentations/Reconstructions/OncoQuant -> files
-      segmentationsDir = self.settings.value('PCampReview/InputLocation')+\
-      '/'+self.selectedStudyName+'/RESOURCES/'+labelSeries+'/Segmentations'
+      segmentationsDir = os.path.join(self.settings.value('PCampReview/InputLocation'), self.selectedStudyName,
+                                      'RESOURCES', labelSeries, 'Segmentations')
       try:
         os.makedirs(segmentationsDir)
       except:
@@ -769,12 +770,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         outHierarchy.SetName( 'PCampReview-'+refLongName )
         slicer.mrmlScene.AddNode( outHierarchy )
 
-      progress = qt.QProgressDialog()
-      progress.minimumDuration = 0
-      progress.modal = True
-      progress.show()
-      progress.setValue(0)
-      progress.setMaximum(len(labelNodes))
+      progress = self.makeProgressIndicator(len(labelNodes))
       step = 0
       for label in labelNodes.values():
         labelName =  label.GetName().split(':')[1]
@@ -890,7 +886,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
   def checkAndLoadLabel(self, resourcesDir, seriesNumber, volumeName):
     globPath = os.path.join(self.resourcesDir,str(seriesNumber),"Segmentations",
-        self.settings.value('PCampReview/UserName')+'*')
+                            self.settings.value('PCampReview/UserName')+'*')
     previousSegmentations = glob.glob(globPath)
     if not len(previousSegmentations):
       return False,None
@@ -1177,7 +1173,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
           self.seriesMap[seriesNumber]['MultiVolume'] = volume
           self.seriesMap[seriesNumber]['MultiVolume'].SetName(shortName+'_multivolume')
           self.seriesMap[seriesNumber]['FrameNumber'] = volume.GetNumberOfFrames()-1
-          self.seriesMap[seriesNumber]['Volume'] = self.extractFrame(None,
+          self.seriesMap[seriesNumber]['Volume'] = self.logic.extractFrame(None,
                                                                      self.seriesMap[seriesNumber]['MultiVolume'], 
                                                                      self.seriesMap[seriesNumber]['FrameNumber'])
           
@@ -1357,11 +1353,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       import shutil
 
       # create backup directory if necessary
-      backupSegmentationsDir = self.settings.value('PCampReview/InputLocation')+ \
-                                                    os.sep+self.selectedStudyName+ \
-                                                    os.sep+'RESOURCES'+ \
-                                                    os.sep+self.refSeriesNumber+ \
-                                                    os.sep+'Backup'
+      backupSegmentationsDir = os.path.join(self.settings.value('PCampReview/InputLocation'), self.selectedStudyName,
+                                            'RESOURCES', self.refSeriesNumber, 'Backup')
       try:
         os.makedirs(backupSegmentationsDir)
       except:
