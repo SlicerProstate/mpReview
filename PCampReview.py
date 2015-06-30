@@ -159,10 +159,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.segmentationGroupBox.setLayout(self.segmentationGroupBoxLayout)
     self.completionGroupBox.setLayout(self.completionGroupBoxLayout)
 
-    size = qt.QSize()
-    size.setHeight(30)
-    size.setWidth(85)
-    self.tabWidget.setIconSize(size)
+    self.tabWidget.setIconSize(qt.QSize(85, 30))
 
     self.tabWidget.addTab(self.dataSourceSelectionGroupBox,self.dataSourceSelectionIcon, '')
     self.tabWidget.addTab(self.studySelectionGroupBox, self.studySelectionIcon, '')
@@ -843,7 +840,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       ref = self.refSeriesNumber
       refLongName = self.seriesMap[ref]['LongName']
 
-      labelNodes = slicer.util.getNodes('*'+refLongName+'*-label*')
       outHierarchy = None
       numNodes = slicer.mrmlScene.GetNumberOfNodesByClass( "vtkMRMLModelHierarchyNode" )
       for n in xrange(numNodes):
@@ -883,7 +879,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     name = name.replace(')','')
     return number,name
 
-  def checkAndLoadLabel(self, resourcesDir, seriesNumber, volumeName):
+  def checkAndLoadLabel(self, seriesNumber, volumeName):
     globPath = os.path.join(self.resourcesDir,str(seriesNumber),"Segmentations",
                             self.getSetting('UserName')+'*')
     previousSegmentations = glob.glob(globPath)
@@ -893,7 +889,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     #fileName = previousSegmentations[-1]
 
     # Iterate over segmentation files and choose the latest for each structure
-    timeStamps = []
     latestSegmentations = {}
     for segmentation in previousSegmentations:
         actualFileName = os.path.split(segmentation)[1]
@@ -1177,11 +1172,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       else:
         print('Failed to load image volume!')
         return
-      success = self.checkAndLoadLabel(self.resourcesDir, seriesNumber, shortName)
-      '''
-      if success:
-        self.seriesMap[seriesNumber]['Label'] = label
-      '''
+      self.checkAndLoadLabel(seriesNumber, shortName)
       try:
         if self.seriesMap[seriesNumber]['MetaInfo']['ResourceType'] == 'OncoQuant':
           dNode = volume.GetDisplayNode()
@@ -1339,7 +1330,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     selectionModel = self.structuresView.selectionModel()
     selected = selectionModel.currentIndex().row()
     if selected >= 0:
-      selectedLabelVol = self.editorWidget.helper.structureListWidget.structures.item(selected,3).text()
       selectedModelVol = self.editorWidget.helper.structureListWidget.structures.item(selected,2).text()
       
       # Confirm with user
@@ -1633,7 +1623,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       self.onJumpToROI(selectedLabelID,selectedLabelVol)
 
   def onJumpToROI(self, selectedLabelID, selectedLabelVol):
-    layoutNode = slicer.util.getNode('*LayoutNode*')
     redSliceWidget = self.layoutManager.sliceWidget('Red')
     redSliceNode = redSliceWidget.mrmlSliceNode()
     redSliceOffset = redSliceNode.GetSliceOffset()
