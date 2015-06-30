@@ -44,6 +44,29 @@ class PCampReview(ScriptedLoadableModule):
 
 class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
+  @staticmethod
+  def makeProgressIndicator(maxVal):
+    progressIndicator = qt.QProgressDialog()
+    progressIndicator.minimumDuration = 0
+    progressIndicator.modal = True
+    progressIndicator.setMaximum(maxVal)
+    progressIndicator.setValue(0)
+    progressIndicator.setWindowTitle("Processing...")
+    progressIndicator.show()
+    return progressIndicator
+
+  @staticmethod
+  def confirmDialog(message):
+    result = qt.QMessageBox.question(slicer.util.mainWindow(),
+                    'PCampReview', message,
+                    qt.QMessageBox.Ok, qt.QMessageBox.Cancel)
+    return result == qt.QMessageBox.Ok
+
+  @staticmethod
+  def infoPopup(message):
+    messageBox = qt.QMessageBox()
+    messageBox.information(None, 'Slicer mpMRI review', message)
+
   def __init__(self, parent = None):
     ScriptedLoadableModuleWidget.__init__(self, parent)
     self.resourcesPath = slicer.modules.pcampreview.path.replace(self.moduleName+".py","") + 'Resources/'
@@ -64,62 +87,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     # mrml node for invoking command line modules
     self.CLINode = None
     self.currentStep = 1
-
-  def isSeriesOfInterest(self,desc):
-    discardThose = ['SAG','COR','PURE','mapping','DWI','breath','3D DCE','loc','Expo','Map','MAP','POST','ThreeParameter','AutoAIF','BAT','-Slope','PkRsqr']
-    for d in discardThose:
-      if string.find(desc,d)>=0:
-        return False
-    return True
-
-  def abbreviateNames(self, longNames, fullMatch):
-    shortNames = []
-    firstADC = True
-    for name in longNames:
-      print(str(shortNames))
-      if name in fullMatch:
-        shortNames.append(name)
-      elif string.find(name,'T2')>0:
-        shortNames.append('T2')
-      elif string.find(name,'T1')>0:
-        shortNames.append('T1')
-      elif string.find(name,'Apparent Diffusion Coefficient')>0:
-        if firstADC:
-          shortNames.append('ADCb500')
-          firstADC = False
-        else:
-          shortNames.append('ADCb1400')
-      else:
-        shortNames.append('Subtract')
-    return shortNames
-
-  def abbreviateName(self, meta):
-    try:
-      descr = meta['SeriesDescription']
-      seriesNumber = meta['SeriesNumber']
-    except:
-      descr = meta['DerivedSeriesDescription']
-      seriesNumber = meta['DerivedSeriesNumber']
-    abbr = 'Unknown'
-    if descr.find('Apparent Diffusion Coeff')>=0:
-      abbr = 'ADC'
-    if descr.find('T2')>=0:
-      abbr = 'T2'
-    if descr.find('T1')>=0:
-      abbr = 'T1'
-    if descr.find('Ktrans')>=0:
-      abbr = 'Ktrans'
-    if descr.find('Ve')>=0:
-      abbr = 've'
-    if descr.find('MaxSlope')>=0:
-      abbr = 'MaxSlope'
-    if descr.find('TTP')>=0:
-      abbr = 'TTP'
-    if descr.find('Auc')>=0:
-      abbr = 'AUC'
-    if re.search('[a-zA-Z]',descr) == None:
-      abbr = 'Subtract'
-    return seriesNumber+'-'+abbr
+    self.logic = PCampReviewLogic()
 
   def setOffsetOnAllSliceWidgets(self,offset):
     layoutManager = slicer.app.layoutManager()
@@ -145,10 +113,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       widget = layoutManager.sliceWidget(wn)
       sc = widget.mrmlSliceCompositeNode()
       sc.SetForegroundOpacity(opacity)
-
-  def infoPopup(self,message):
-    messageBox = qt.QMessageBox()
-    messageBox.information(None, 'Slicer mpMRI review', message)
 
   def setupIcons(self):
     def createQIconFromPath(path):
@@ -428,7 +392,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     modelsHLayout.layout().addWidget(self.labelMapOutlineButton)
     self.labelMapOutlineButton.connect('toggled(bool)', self.setLabelOutline)
     
-    self.enableJumpToROI = qt.QCheckBox();
+    self.enableJumpToROI = qt.QCheckBox()
     self.enableJumpToROI.setText("Jump to ROI")
     modelsHLayout.addWidget(self.enableJumpToROI)
     
@@ -489,7 +453,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     inputLocation = settings.value('PCampReview/InputLocation')
     self.webFormURL = settings.value('PCampReview/webFormURL')
 
-    if userName == None or userName == '':
+    if userName is None or userName == '':
       # prompt the user for ID (last name)
       self.namePrompt = qt.QDialog()
       self.namePromptLayout = qt.QVBoxLayout()
@@ -506,8 +470,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     else:
       self.parameters['UserName'] = userName
 
-    if self.webFormURL == None or self.webFormURL == '':
-      # prompt the user for the rewview form
+    if self.webFormURL is None or self.webFormURL == '':
+      # prompt the user for the review form
       # Note: it is expected that the module uses the form of the structure as
       # in http://goo.gl/nT1z4L. The known structure of the form is used to
       # pre-populate the fields corresponding to readerName, studyName and
@@ -572,7 +536,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.customLUTLabel.text = 'Using Default LUT'
 
     # Check for custom LUT
-    if (self.settings.value('PCampReview/InputLocation') != None):
+    if self.settings.value('PCampReview/InputLocation') is not None:
       lookupTableLoc = self.settings.value('PCampReview/InputLocation') + os.sep + 'SETTINGS' + os.sep + self.settings.value('PCampReview/InputLocation').split(os.sep)[-1] + '-LUT.csv'
       print('Checking for lookup table at : ' + lookupTableLoc)
       if os.path.isfile(lookupTableLoc):
@@ -817,24 +781,11 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         structureName = labelName[labelName[:-6].rfind("-")+1:-6]
         # Only save labels with known structure names
         if any(structureName in s for s in self.structureNames):
-          parameters = {}
-          parameters["InputVolume"] = label.GetID()
-          parameters['FilterType'] = "Sinc"
-          parameters['GenerateAll'] = True
-
-          parameters["JointSmoothing"] = False
-          parameters["SplitNormals"] = True
-          parameters["PointNormals"] = True
-          parameters["SkipUnNamed"] = True
+          parameters = {"InputVolume": label.GetID(), 'FilterType': "Sinc", 'GenerateAll': True,
+                        "JointSmoothing": False, "SplitNormals": True, "PointNormals": True, "SkipUnNamed": True,
+                        "StartLabel": -1, "EndLabel": -1, "Decimate": 0, "Smooth": 0, "ModelSceneFile": outHierarchy}
 
           # create models for all labels
-          parameters["StartLabel"] = -1
-          parameters["EndLabel"] = -1
-
-          parameters["Decimate"] = 0
-          parameters["Smooth"] = 0
-
-          parameters["ModelSceneFile"] = outHierarchy
 
           progress.labelText = '\nMaking Model for %s' % structureName
           progress.setValue(step)
@@ -942,7 +893,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     name = name.replace('-','')
     name = name.replace('(','')
     name = name.replace(')','')
-    return (number,name)
+    return number,name
 
   def checkAndLoadLabel(self, resourcesDir, seriesNumber, volumeName):
     globPath = os.path.join(self.resourcesDir,str(seriesNumber),"Segmentations",
@@ -950,11 +901,11 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     import glob
     previousSegmentations = glob.glob(globPath)
     if not len(previousSegmentations):
-      return (False,None)
+      return False,None
 
     #fileName = previousSegmentations[-1]
 
-    # Iterate over segmentaion files and choose the latest for each structure
+    # Iterate over segmentation files and choose the latest for each structure
     timeStamps = []
     latestSegmentations = {}
     for segmentation in previousSegmentations:
@@ -972,7 +923,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     for structure,fileName in latestSegmentations.iteritems():
       (success,label) = slicer.util.loadLabelVolume(fileName, returnNode=True)
       if not success:
-        return (False,None)
+        return False,None
       print('Setting loaded label name to '+volumeName)
       actualFileName = os.path.split(fileName)[1]
       structureID = actualFileName.split("-")[1] # expectation: username-structure-timestamp.nrrd
@@ -989,8 +940,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     #return (True,label)
     return True
 
-  def setTabsEnabled(self, indizes, enabled):
-    for index in indizes:
+  def setTabsEnabled(self, indexes, enabled):
+    for index in indexes:
       self.tabBar.setTabEnabled(index, enabled)
 
   def checkStep4or5Leave(self):
@@ -1064,7 +1015,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.setTabsEnabled([4], False)
     print('Entering step 3')
 
-    self.cleanupDir(self.tempDir)
+    self.logic.cleanupDir(self.tempDir)
 
     # Block the signals to master selector while removing the old nodes.
     # If signals are not blocked, a new volume node is selected automatically
@@ -1136,7 +1087,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
               seriesName = metaInfo['ModelType']+'-'+metaInfo['AIF']+'-'+metaInfo['Parameter']
             volumePath = os.path.join(root,seriesNumber+'.nrrd')
             self.seriesMap[seriesNumber] = {'MetaInfo':metaInfo, 'NRRDLocation':volumePath,'LongName':seriesName}
-            self.seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+self.abbreviateName(self.seriesMap[seriesNumber]['MetaInfo'])
+            self.seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+self.logic.abbreviateName(self.seriesMap[seriesNumber]['MetaInfo'])
 
     print('All series found: '+str(self.seriesMap.keys()))
 
@@ -1157,7 +1108,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       self.seriesItems.append(sItem)
       self.seriesModel.appendRow(sItem)
       sItem.setCheckable(1)
-      if self.isSeriesOfInterest(seriesText):
+      if self.logic.isSeriesOfInterest(seriesText):
         sItem.setCheckState(2)
 
     progress.delete()
@@ -1277,12 +1228,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
   def onStep5Selected(self):
     self.currentStep = 5
 
-  def confirmDialog(self, message):
-    result = qt.QMessageBox.question(slicer.util.mainWindow(),
-                    'PCampReview', message,
-                    qt.QMessageBox.Ok, qt.QMessageBox.Cancel)
-    return result == qt.QMessageBox.Ok
-
   def showExitStep4Or5Warning(self):
     return not self.confirmDialog('Unsaved contours will be lost!\n\nDo you still want to exit?')
 
@@ -1375,7 +1320,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.editorParameterNode.Modified()
     
     # default to selecting the first available structure for this volume
-    if (self.editorWidget.helper.structureListWidget.structures.rowCount() > 0):
+    if self.editorWidget.helper.structureListWidget.structures.rowCount() > 0:
       self.editorWidget.helper.structureListWidget.selectStructure(0)
 
     print('Exiting onReferenceChanged')
@@ -1392,15 +1337,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
     self.setOpacityOnAllSliceWidgets(1.0)
   '''
-  def makeProgressIndicator(self, maxVal):
-    progressIndicator = qt.QProgressDialog()
-    progressIndicator.minimumDuration = 0
-    progressIndicator.modal = True
-    progressIndicator.setMaximum(maxVal)
-    progressIndicator.setValue(0)
-    progressIndicator.setWindowTitle("Processing...")
-    progressIndicator.show()
-    return progressIndicator
+
 
   def setOrientation(self, orientation):
     if orientation in self.orientations:
@@ -1464,7 +1401,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
   def onSliderChanged(self, newValue):
     newValue = int(newValue)
     try:
-      self.seriesMap[self.refSeriesNumber]['Volume'] = self.extractFrame(self.seriesMap[self.refSeriesNumber]['Volume'], 
+      self.seriesMap[self.refSeriesNumber]['Volume'] = self.logic.extractFrame(self.seriesMap[self.refSeriesNumber]['Volume'],
                                                                        self.seriesMap[self.refSeriesNumber]['MultiVolume'], 
                                                                        newValue)
       self.seriesMap[self.refSeriesNumber]['FrameNumber'] = newValue
@@ -1473,52 +1410,10 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       # can get an event on reference switchover from a multivolume
       pass
 
-  # Extract frame from multiVolumeNode and put it into scalarVolumeNode
-  def extractFrame(self, scalarVolumeNode, multiVolumeNode, frameId):
-    # if no scalar volume given, create one
-    if scalarVolumeNode == None:
-      scalarVolumeNode = slicer.vtkMRMLScalarVolumeNode()
-      scalarVolumeNode.SetScene(slicer.mrmlScene)
-      # name = mv node name minus _multivolume 
-      scalarVolumeName = multiVolumeNode.GetName().split('_multivolume')[0]
-      scalarVolumeNode.SetName(scalarVolumeName)
-      slicer.mrmlScene.AddNode(scalarVolumeNode)
-  
-    # Extract the image data
-    mvImage = multiVolumeNode.GetImageData()
-    extract = vtk.vtkImageExtractComponents()
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      extract.SetInput(mvImage)
-    else:
-      extract.SetInputData(mvImage)
-    extract.SetComponents(frameId)
-    extract.Update()
-
-    ras2ijk = vtk.vtkMatrix4x4()
-    ijk2ras = vtk.vtkMatrix4x4()
-    multiVolumeNode.GetRASToIJKMatrix(ras2ijk)
-    multiVolumeNode.GetIJKToRASMatrix(ijk2ras)
-    scalarVolumeNode.SetRASToIJKMatrix(ras2ijk)
-    scalarVolumeNode.SetIJKToRASMatrix(ijk2ras)
-
-    scalarVolumeNode.SetAndObserveImageData(extract.GetOutput())
-
-    # Create display node if missing
-    displayNode = scalarVolumeNode.GetDisplayNode()
-    if displayNode == None:
-      displayNode = slicer.mrmlScene.CreateNodeByClass('vtkMRMLScalarVolumeDisplayNode')
-      displayNode.SetReferenceCount(1)
-      displayNode.SetScene(slicer.mrmlScene)
-      slicer.mrmlScene.AddNode(displayNode)
-      displayNode.SetDefaultColorMap()
-      scalarVolumeNode.SetAndObserveDisplayNodeID(displayNode.GetID())
-    
-    return scalarVolumeNode
-  
   def onPropagateROI(self):
     # Get the selected label map
     (rowIdx, selectedStructure, selectedLabel) = self.getSelectedStructure()
-    if (selectedLabel == None):
+    if selectedLabel is None:
       return
     
     # Get a list of all series numbers currently loaded
@@ -1569,14 +1464,14 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     
     # get the source structure
     (rowIdx, selectedStructure, selectedLabel) = self.getSelectedStructure()
-    if (selectedLabel == None):
+    if selectedLabel is None:
       return
       
     # Check to make sure we don't propagate on top of something
-    exstingStructures = [self.seriesMap[x]['ShortName'] for x in propagateInto if len(slicer.util.getNodes(self.seriesMap[x]['ShortName']+'-'+selectedStructure+'-label*')) != 0]
-    if len(exstingStructures) != 0:
+    existingStructures = [self.seriesMap[x]['ShortName'] for x in propagateInto if len(slicer.util.getNodes(self.seriesMap[x]['ShortName']+'-'+selectedStructure+'-label*')) != 0]
+    if len(existingStructures) != 0:
       msg = 'ERROR\n\n\'' + selectedStructure + '\' already exists in the following volumes:\n\n'
-      for vol in exstingStructures:
+      for vol in existingStructures:
         msg += vol + '\n'
       msg += '\nCannot propagate on top of existing structures.  Delete the existing structures and try again.\n'
       self.infoPopup(msg)
@@ -1599,16 +1494,11 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       progress.labelText = labelName
       
       # Resample srcSeries labels into the space of dstSeries, store result in tmpLabel
-      parameters = {}
-      parameters["inputVolume"] = slicer.util.getNode(selectedLabel).GetID()
-      parameters["referenceVolume"] = self.seriesMap[dstSeries]['Volume'].GetID()
-      parameters["outputVolume"] = dstLabel.GetID()
+      parameters = {"inputVolume": slicer.util.getNode(selectedLabel).GetID(),
+                    "referenceVolume": self.seriesMap[dstSeries]['Volume'].GetID(), "outputVolume": dstLabel.GetID(),
+                    "warpTransform": transform.GetID(), "pixelType": "short", "interpolationMode": "NearestNeighbor",
+                    "defaultValue": 0, "numberOfThreads": -1}
       # This transformation node will have just been created so it *should* be set to identity at this point
-      parameters["warpTransform"] = transform.GetID()
-      parameters["pixelType"] = "short"
-      parameters["interpolationMode"] = "NearestNeighbor"
-      parameters["defaultValue"] = 0
-      parameters["numberOfThreads"] = -1
 
       self.__cliNode = None
       self.__cliNode = slicer.cli.run(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
@@ -1635,7 +1525,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     
     # Get the label node to translate
     (rowIdx, selectedStructure, selectedLabel) = self.getSelectedStructure()
-    if (selectedLabel == None):
+    if selectedLabel is None:
       self.resetTranslate()
       return
       
@@ -1686,7 +1576,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
   def onHardenTransform(self):
     # Get the selected label
     (rowIdx, selectedStructure, selectedLabel) = self.getSelectedStructure()
-    if (selectedLabel == None):
+    if selectedLabel is None:
       return
       
     labelNode = slicer.util.getNode(selectedLabel)
@@ -1698,15 +1588,11 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     resampledLabelNode = slicer.modules.volumes.logic().CloneVolume(slicer.mrmlScene,labelNode,"translated")
     
     # Resample labels to fix the origin
-    parameters = {}
-    parameters["inputVolume"] = labelNode.GetID()
-    parameters["referenceVolume"] = self.seriesMap[self.refSeriesNumber]['Volume'].GetID()
-    parameters["outputVolume"] = resampledLabelNode.GetID()
-    parameters["warpTransform"] = self.transformNode.GetID()
-    parameters["pixelType"] = "short"
-    parameters["interpolationMode"] = "NearestNeighbor"
-    parameters["defaultValue"] = 0
-    parameters["numberOfThreads"] = -1
+    parameters = {"inputVolume": labelNode.GetID(),
+                  "referenceVolume": self.seriesMap[self.refSeriesNumber]['Volume'].GetID(),
+                  "outputVolume": resampledLabelNode.GetID(), "warpTransform": self.transformNode.GetID(),
+                  "pixelType": "short", "interpolationMode": "NearestNeighbor", "defaultValue": 0,
+                  "numberOfThreads": -1}
 
     self.__cliNode = None
     self.__cliNode = slicer.cli.run(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
@@ -1743,12 +1629,12 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
   def getSelectedStructure(self):
     selectedIdx = self.structuresView.currentIndex()
     selectedRow = selectedIdx.row()
-    if (selectedRow < 0):
-      return (selectedRow, None, None)
+    if selectedRow < 0:
+      return selectedRow, None, None
 
     selectedStructure = self.editorWidget.helper.structureListWidget.structures.item(selectedRow,2).text()
     selectedLabel = self.editorWidget.helper.structureListWidget.structures.item(selectedRow,3).text()
-    return (selectedRow, selectedStructure, selectedLabel)
+    return selectedRow, selectedStructure, selectedLabel
   
   def restoreForeground(self):
     # This relies on slice view names and also (apparently) trashes zoom levels
@@ -1788,7 +1674,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     bb = ls.GetBoundingBox(selectedLabelID)
     
     if len(bb) > 0:
-      # Averge to get the center of the BB
+      # Average to get the center of the BB
       i_center = ((bb[0] + bb[1]) / 2)
       j_center = ((bb[2] + bb[3]) / 2)
       k_center = ((bb[4] + bb[5]) / 2)
@@ -1845,15 +1731,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         l = sliceLogics.GetItemAsObject(n)
         l.SnapSliceOffsetToIJK()
 
-  def cleanupDir(self, d):
-    if not os.path.exists(d):
-      return
-    oldFiles = os.listdir(d)
-    for f in oldFiles:
-      path = d+'/'+f
-      if not os.path.isdir(path):
-        os.unlink(d+'/'+f)
-
   def onSelect(self):
     self.applyButton.enabled = self.inputSelector.currentNode() and self.outputSelector.currentNode()
 
@@ -1882,6 +1759,100 @@ class PCampReviewLogic(ScriptedLoadableModuleLogic):
   this class and make use of the functionality without
   requiring an instance of the Widget
   """
+
+  @staticmethod
+  def cleanupDir(d):
+    if not os.path.exists(d):
+      return
+    oldFiles = os.listdir(d)
+    for f in oldFiles:
+      path = os.path.join(d, f)
+      if not os.path.isdir(path):
+        os.unlink(d+'/'+f)
+
+  @staticmethod
+  def isSeriesOfInterest(desc):
+    discardThose = ['SAG','COR','PURE','mapping','DWI',
+                    'breath','3D DCE','loc','Expo','Map',
+                    'MAP','POST','ThreeParameter','AutoAIF',
+                    'BAT','-Slope','PkRsqr']
+    for d in discardThose:
+      if string.find(desc,d)>=0:
+        return False
+    return True
+
+  @staticmethod
+  def abbreviateName(meta):
+    try:
+      descr = meta['SeriesDescription']
+      seriesNumber = meta['SeriesNumber']
+    except:
+      descr = meta['DerivedSeriesDescription']
+      seriesNumber = meta['DerivedSeriesNumber']
+    abbr = 'Unknown'
+    if descr.find('Apparent Diffusion Coeff')>=0:
+      abbr = 'ADC'
+    if descr.find('T2')>=0:
+      abbr = 'T2'
+    if descr.find('T1')>=0:
+      abbr = 'T1'
+    if descr.find('Ktrans')>=0:
+      abbr = 'Ktrans'
+    if descr.find('Ve')>=0:
+      abbr = 've'
+    if descr.find('MaxSlope')>=0:
+      abbr = 'MaxSlope'
+    if descr.find('TTP')>=0:
+      abbr = 'TTP'
+    if descr.find('Auc')>=0:
+      abbr = 'AUC'
+    if re.search('[a-zA-Z]',descr) is None:
+      abbr = 'Subtract'
+    return seriesNumber+'-'+abbr
+
+  # Extract frame from multiVolumeNode and put it into scalarVolumeNode
+  @staticmethod
+  def extractFrame(scalarVolumeNode, multiVolumeNode, frameId):
+    # if no scalar volume given, create one
+    if scalarVolumeNode is None:
+      scalarVolumeNode = slicer.vtkMRMLScalarVolumeNode()
+      scalarVolumeNode.SetScene(slicer.mrmlScene)
+      # name = mv node name minus _multivolume
+      scalarVolumeName = multiVolumeNode.GetName().split('_multivolume')[0]
+      scalarVolumeNode.SetName(scalarVolumeName)
+      slicer.mrmlScene.AddNode(scalarVolumeNode)
+
+    # Extract the image data
+    mvImage = multiVolumeNode.GetImageData()
+    extract = vtk.vtkImageExtractComponents()
+    if vtk.VTK_MAJOR_VERSION <= 5:
+      extract.SetInput(mvImage)
+    else:
+      extract.SetInputData(mvImage)
+    extract.SetComponents(frameId)
+    extract.Update()
+
+    ras2ijk = vtk.vtkMatrix4x4()
+    ijk2ras = vtk.vtkMatrix4x4()
+    multiVolumeNode.GetRASToIJKMatrix(ras2ijk)
+    multiVolumeNode.GetIJKToRASMatrix(ijk2ras)
+    scalarVolumeNode.SetRASToIJKMatrix(ras2ijk)
+    scalarVolumeNode.SetIJKToRASMatrix(ijk2ras)
+
+    scalarVolumeNode.SetAndObserveImageData(extract.GetOutput())
+
+    # Create display node if missing
+    displayNode = scalarVolumeNode.GetDisplayNode()
+    if displayNode is None:
+      displayNode = slicer.mrmlScene.CreateNodeByClass('vtkMRMLScalarVolumeDisplayNode')
+      displayNode.SetReferenceCount(1)
+      displayNode.SetScene(slicer.mrmlScene)
+      slicer.mrmlScene.AddNode(displayNode)
+      displayNode.SetDefaultColorMap()
+      scalarVolumeNode.SetAndObserveDisplayNodeID(displayNode.GetID())
+
+    return scalarVolumeNode
+
   def __init__(self, parent=None):
     ScriptedLoadableModuleLogic.__init__(self, parent)
 
@@ -1893,7 +1864,7 @@ class PCampReviewLogic(ScriptedLoadableModuleLogic):
     if not volumeNode:
       print('no volume node')
       return False
-    if volumeNode.GetImageData() == None:
+    if volumeNode.GetImageData() is None:
       print('no image data')
       return False
     return True
@@ -1935,7 +1906,7 @@ class PCampReviewTest(unittest.TestCase):
 
   def test_PCampReview1(self):
     """ Ideally you should have several levels of tests.  At the lowest level
-    tests sould exercise the functionality of the logic with different inputs
+    tests should exercise the functionality of the logic with different inputs
     (both valid and invalid).  At higher levels your tests should emulate the
     way the user would interact with your code and confirm that it still works
     the way you intended.
