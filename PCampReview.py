@@ -4,9 +4,6 @@ import unittest
 from __main__ import vtk, qt, ctk, slicer
 import CompareVolumes
 from Editor import EditorWidget
-from EditorLib import EditColor
-import Editor
-from EditorLib import EditUtil
 from EditorLib import EditorLib
 import SimpleITK as sitk
 import sitkUtils
@@ -67,6 +64,10 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     messageBox = qt.QMessageBox()
     messageBox.information(None, 'Slicer mpMRI review', message)
 
+  @property
+  def layoutManager(self):
+    return slicer.app.layoutManager()
+
   def __init__(self, parent = None):
     ScriptedLoadableModuleWidget.__init__(self, parent)
     self.resourcesPath = slicer.modules.pcampreview.path.replace(self.moduleName+".py","") + 'Resources/'
@@ -89,30 +90,30 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.currentStep = 1
     self.logic = PCampReviewLogic()
 
+  def getAllWidgets(self):
+    widgetNames = self.layoutManager.sliceViewNames()
+    return [self.layoutManager.sliceWidget(wn) for wn in widgetNames]
+
   def setOffsetOnAllSliceWidgets(self,offset):
-    layoutManager = slicer.app.layoutManager()
-    widgetNames = layoutManager.sliceViewNames()
-    for wn in widgetNames:
-      widget = layoutManager.sliceWidget(wn)
+    for widget in self.getAllWidgets():
       node = widget.mrmlSliceNode()
       node.SetSliceOffset(offset)
 
   def linkAllSliceWidgets(self,link):
-    layoutManager = slicer.app.layoutManager()
-    widgetNames = layoutManager.sliceViewNames()
-    for wn in widgetNames:
-      widget = layoutManager.sliceWidget(wn)
+    for widget in self.getAllWidgets():
       sc = widget.mrmlSliceCompositeNode()
       sc.SetLinkedControl(link)
       sc.SetInteractionFlagsModifier(4+8+16)
 
   def setOpacityOnAllSliceWidgets(self,opacity):
-    layoutManager = slicer.app.layoutManager()
-    widgetNames = layoutManager.sliceViewNames()
-    for wn in widgetNames:
-      widget = layoutManager.sliceWidget(wn)
+    for widget in self.getAllWidgets():
       sc = widget.mrmlSliceCompositeNode()
       sc.SetForegroundOpacity(opacity)
+
+  def updateViewRenderers (self):
+    for widget in self.getAllWidgets():
+      view = widget.sliceView()
+      view.scheduleRender()
 
   def setupIcons(self):
     def createQIconFromPath(path):
@@ -346,8 +347,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     updateViewsButton.connect("clicked()", self.updateViews)
     '''
 
-    lm = slicer.app.layoutManager()
-    redWidget = lm.sliceWidget('Red')
+    redWidget = self.layoutManager.sliceWidget('Red')
     controller = redWidget.sliceController()
     moreButton = slicer.util.findChildren(controller,'MoreButton')[0]
     moreButton.toggle()
@@ -815,13 +815,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
           self.modelsVisibilityButton.checked = False
           self.updateViewRenderers()
 
-  def updateViewRenderers (self):
-    layoutManager = slicer.app.layoutManager()
-    widgetNames = layoutManager.sliceViewNames()
-    for wn in widgetNames:
-      view = layoutManager.sliceWidget(wn).sliceView()
-      view.scheduleRender()
-
   def removeAllModels(self):
     modelHierarchyNodes = []
     numNodes = slicer.mrmlScene.GetNumberOfNodesByClass( "vtkMRMLModelHierarchyNode" )
@@ -898,7 +891,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
   def checkAndLoadLabel(self, resourcesDir, seriesNumber, volumeName):
     globPath = os.path.join(self.resourcesDir,str(seriesNumber),"Segmentations",
         self.settings.value('PCampReview/UserName')+'*')
-    import glob
     previousSegmentations = glob.glob(globPath)
     if not len(previousSegmentations):
       return False,None
@@ -1302,8 +1294,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[self.rows,self.cols],viewNames=self.sliceNames,orientation=self.currentOrientation)
 
     # Make sure redslice has the ref image (the others were set with viewerPerVolume)
-    layoutManager = slicer.app.layoutManager()
-    redSliceWidget = layoutManager.sliceWidget('Red')
+    redSliceWidget = self.layoutManager.sliceWidget('Red')
     redSliceNode = redSliceWidget.mrmlSliceNode()
     redSliceNode.SetOrientation(self.currentOrientation)
     compositeNode = redSliceWidget.mrmlSliceCompositeNode()
@@ -1343,12 +1334,9 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     if orientation in self.orientations:
       self.currentOrientation = orientation
 
-      layoutManager = slicer.app.layoutManager()
-
       if self.refSelector.currentText != 'None':
         # set slice node orientation 
-        for view in layoutManager.sliceViewNames():
-          widget = layoutManager.sliceWidget(view)
+        for widget in self.getAllWidgets():
           node = widget.mrmlSliceNode()
           node.SetOrientation(self.currentOrientation)
           
@@ -1366,7 +1354,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         return
       
       # Cleanup files
-      import glob
       import shutil
 
       # create backup directory if necessary
@@ -1639,9 +1626,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
   def restoreForeground(self):
     # This relies on slice view names and also (apparently) trashes zoom levels
     # Is there a better way to do this?
-    layoutManager = slicer.app.layoutManager()
-    for view in layoutManager.sliceViewNames():
-      widget = layoutManager.sliceWidget(view)
+    for view in self.layoutManager.sliceViewNames():
+      widget = self.layoutManager.sliceWidget(view)
       compositeNode = widget.mrmlSliceCompositeNode()
       try:
         compositeNode.SetForegroundVolumeID(self.seriesMap[view]['Volume'].GetID())
@@ -1658,8 +1644,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
   def onJumpToROI(self, selectedLabelID, selectedLabelVol):
     layoutNode = slicer.util.getNode('*LayoutNode*')
-    layoutManager = slicer.app.layoutManager()
-    redSliceWidget = layoutManager.sliceWidget('Red')
+    redSliceWidget = self.layoutManager.sliceWidget('Red')
     redSliceNode = redSliceWidget.mrmlSliceNode()
     redSliceOffset = redSliceNode.GetSliceOffset()
     
@@ -1725,7 +1710,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         self.setOffsetOnAllSliceWidgets(sagittal_offset)
 
       # snap to IJK to try and avoid rounding errors
-      sliceLogics = slicer.app.layoutManager().mrmlSliceLogics()
+      sliceLogics = self.layoutManager.mrmlSliceLogics()
       numLogics = sliceLogics.GetNumberOfItems()
       for n in range(numLogics):
         l = sliceLogics.GetItemAsObject(n)
