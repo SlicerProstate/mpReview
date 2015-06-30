@@ -66,6 +66,15 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     messageBox = qt.QMessageBox()
     messageBox.information(None, 'Slicer mpMRI review', message)
 
+  @staticmethod
+  def createDirectory(directory, message=None):
+    if message:
+      print message
+    try:
+      os.makedirs(directory)
+    except OSError:
+      print('Failed to create the following directory: ' + directory)
+
   @property
   def layoutManager(self):
     return slicer.app.layoutManager()
@@ -439,8 +448,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     # set up temporary directory
     self.tempDir = os.path.join(slicer.app.temporaryPath, 'PCampReview-tmp')
-    print('Temporary directory location: '+self.tempDir)
-    qt.QDir().mkpath(self.tempDir)
+    self.createDirectory(self.tempDir, message='Temporary directory location: ' + self.tempDir)
 
     # these are the PK maps that should be loaded
     self.pkMaps = ['Ktrans','Ve','Auc','TTP','MaxSlope']
@@ -659,11 +667,9 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     """
     segmentationsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'Segmentations')
     wlSettingsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'WindowLevelSettings')
-    try:
-      os.makedirs(segmentationsDir)
-      os.makedirs(wlSettingsDir)
-    except:
-      print('Failed to create one of the following directories: '+segmentationsDir+' or '+wlSettingsDir)
+
+    self.createDirectory(segmentationsDir)
+    self.createDirectory(wlSettingsDir)
 
     import datetime
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
@@ -681,10 +687,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       # Segmentations/Reconstructions/OncoQuant -> files
       segmentationsDir = os.path.join(self.inputDataDir, self.selectedStudyName,
                                       'RESOURCES', labelSeries, 'Segmentations')
-      try:
-        os.makedirs(segmentationsDir)
-      except:
-        pass
+      self.createDirectory(segmentationsDir)
 
       structureName = labelName[labelName[:-6].rfind("-")+1:-6]
       # Only save labels with known structure names
@@ -1342,11 +1345,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       # create backup directory if necessary
       backupSegmentationsDir = os.path.join(self.inputDataDir, self.selectedStudyName,
                                             'RESOURCES', self.refSeriesNumber, 'Backup')
-      try:
-        os.makedirs(backupSegmentationsDir)
-      except:
-        print('Failed to create the following directory: '+backupSegmentationsDir)
-
+      self.createDirectory(backupSegmentationsDir)
       # move relevant nrrd files
       globPath = os.path.join(self.resourcesDir,self.refSeriesNumber,"Segmentations",
                               self.getSetting('UserName')+'-'+selectedModelVol+'-[0-9]*.nrrd')
@@ -1364,7 +1363,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       if filesMoved:
         self.editorWidget.helper.structureListWidget.deleteSelectedStructure(confirm=False)
         slicer.mrmlScene.RemoveNode(slicer.util.getNode('Model*'+selectedModelVol))
-  
+
   def onSliderChanged(self, newValue):
     newValue = int(newValue)
     try:
