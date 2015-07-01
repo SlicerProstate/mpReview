@@ -34,10 +34,6 @@ class PCampReview(ScriptedLoadableModule):
       slicer.selfTests = {}
     slicer.selfTests['PCampReview'] = self.runTest
 
-  def runTest(self):
-    tester = PCampReviewTest()
-    tester.runTest()
-
 
 class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
@@ -618,23 +614,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     print('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
     print('Row number: '+str(modelIndex.row()))
     self.setTabsEnabled([3], True)
-
-  def delayDisplay(self,message,msec=1000):
-    """This utility method displays a small dialog and waits.
-    This does two things: 1) it lets the event loop catch up
-    to the state of the test so that rendering and widget updates
-    have all taken place before the test continues and 2) it
-    shows the user/developer/tester the state of the test
-    so that we'll know when it breaks.
-    """
-    print(message)
-    self.info = qt.QDialog()
-    self.infoLayout = qt.QVBoxLayout()
-    self.info.setLayout(self.infoLayout)
-    self.label = qt.QLabel(message,self.info)
-    self.infoLayout.addWidget(self.label)
-    qt.QTimer.singleShot(msec, self.info.close)
-    self.info.exec_()
 
   def onQAFormClicked(self):
     self.webView = qt.QWebView()
@@ -1316,7 +1295,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.setOpacityOnAllSliceWidgets(1.0)
   '''
 
-
   def setOrientation(self, orientation):
     if orientation in self.orientations:
       self.currentOrientation = orientation
@@ -1702,18 +1680,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     print("Run the algorithm")
     logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode())
 
-  def onReloadAndTest(self,moduleName="PCampReview"):
-    try:
-      self.onReload()
-      evalString = 'globals()["%s"].%sTest()' % (moduleName, moduleName)
-      tester = eval(evalString)
-      tester.runTest()
-    except Exception, e:
-      import traceback
-      traceback.print_exc()
-      qt.QMessageBox.warning(slicer.util.mainWindow(),
-          "Reload and Test", 'Exception!\n\n' + str(e) + "\n\nSee Python Console for Stack Trace")
-
 
 class PCampReviewLogic(ScriptedLoadableModuleLogic):
   """This class should implement all the actual
@@ -1839,28 +1805,9 @@ class PCampReviewLogic(ScriptedLoadableModuleLogic):
     return True
 
 
-class PCampReviewTest(unittest.TestCase):
-
-  def delayDisplay(self,message,msec=1000):
-    """This utility method displays a small dialog and waits.
-    This does two things: 1) it lets the event loop catch up
-    to the state of the test so that rendering and widget updates
-    have all taken place before the test continues and 2) it
-    shows the user/developer/tester the state of the test
-    so that we'll know when it breaks.
-    """
-    print(message)
-    self.info = qt.QDialog()
-    self.infoLayout = qt.QVBoxLayout()
-    self.info.setLayout(self.infoLayout)
-    self.label = qt.QLabel(message,self.info)
-    self.infoLayout.addWidget(self.label)
-    qt.QTimer.singleShot(msec, self.info.close)
-    self.info.exec_()
+class PCampReviewTest(ScriptedLoadableModuleTest):
 
   def setUp(self):
-    """ Do whatever is needed to reset the state - typically a scene clear will be enough.
-    """
     slicer.mrmlScene.Clear(0)
 
   def runTest(self):
@@ -1880,26 +1827,31 @@ class PCampReviewTest(unittest.TestCase):
     """
 
     mainWidget = slicer.modules.pcampreview.widgetRepresentation().self()
+    tabWidget = mainWidget.tabWidget.childAt(0,0)
 
     self.delayDisplay("Starting the test here!")
     #
     # first, get some data
     #
-    mainWidget.onStep1Selected()
+    tabWidget.setCurrentIndex(0)
     self.delayDisplay('1')
 
-    mainWidget.onStep2Selected()
-    self.delayDisplay('2')
+    tabWidget.setCurrentIndex(1)
+    self.delayDisplay('Study Selection')
 
-    studyItem = mainWidget.studyTable.widget.item(0,0)
-    studyItem.setSelected(1)
+    model = mainWidget.studiesModel
+    index = model.index(0,0)
 
-    mainWidget.onStep3Selected()
-    self.delayDisplay('3')
-    #seriesItem = mainWidget.seriesTable.widget.item(0,0)
-    #seriesItem.setCheckState(1)
+    self.assertTrue(index.isValid(), msg="No valid study index available in studytable")
+    mainWidget.studySelected(index)
+    tabWidget.setCurrentIndex(2)
+    self.delayDisplay('Series Selection')
 
-    mainWidget.onStep4Selected()
-    self.delayDisplay('4')
+    tabWidget.setCurrentIndex(3)
+    self.delayDisplay('Segmentation Processing')
+
+    tabWidget.setCurrentIndex(4)
+    mainWidget.saveButton.animateClick()
+    self.delayDisplay('Saving')
 
     self.delayDisplay('Test passed!')
