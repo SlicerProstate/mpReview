@@ -71,8 +71,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     except OSError:
       print('Failed to create the following directory: ' + directory)
 
-  @property
-  def layoutManager(self):
+  @staticmethod
+  def getLayoutManager():
     return slicer.app.layoutManager()
 
   def __init__(self, parent = None):
@@ -105,28 +105,29 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     settings = qt.QSettings()
     settings.setValue(self.moduleName + '/'+ settingName, value)
 
-  def getAllWidgets(self):
-    widgetNames = self.layoutManager.sliceViewNames()
-    return [self.layoutManager.sliceWidget(wn) for wn in widgetNames]
+  def getAllSliceWidgets(self):
+    layoutManager = self.getLayoutManager()
+    widgetNames = layoutManager.sliceViewNames()
+    return [layoutManager.sliceWidget(wn) for wn in widgetNames]
 
   def setOffsetOnAllSliceWidgets(self,offset):
-    for widget in self.getAllWidgets():
+    for widget in self.getAllSliceWidgets():
       node = widget.mrmlSliceNode()
       node.SetSliceOffset(offset)
 
   def linkAllSliceWidgets(self,link):
-    for widget in self.getAllWidgets():
+    for widget in self.getAllSliceWidgets():
       sc = widget.mrmlSliceCompositeNode()
       sc.SetLinkedControl(link)
       sc.SetInteractionFlagsModifier(4+8+16)
 
   def setOpacityOnAllSliceWidgets(self,opacity):
-    for widget in self.getAllWidgets():
+    for widget in self.getAllSliceWidgets():
       sc = widget.mrmlSliceCompositeNode()
       sc.SetForegroundOpacity(opacity)
 
   def updateViewRenderers (self):
-    for widget in self.getAllWidgets():
+    for widget in self.getAllSliceWidgets():
       view = widget.sliceView()
       view.scheduleRender()
 
@@ -358,7 +359,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     updateViewsButton.connect("clicked()", self.updateViews)
     '''
 
-    redWidget = self.layoutManager.sliceWidget('Red')
+    redWidget = self.getLayoutManager().sliceWidget('Red')
     controller = redWidget.sliceController()
     moreButton = slicer.util.findChildren(controller,'MoreButton')[0]
     moreButton.toggle()
@@ -755,11 +756,24 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         structureName = labelName[labelName[:-6].rfind("-")+1:-6]
         # Only save labels with known structure names
         if any(structureName in s for s in self.structureNames):
-          parameters = {"InputVolume": label.GetID(), 'FilterType': "Sinc", 'GenerateAll': True,
-                        "JointSmoothing": False, "SplitNormals": True, "PointNormals": True, "SkipUnNamed": True,
-                        "StartLabel": -1, "EndLabel": -1, "Decimate": 0, "Smooth": 0, "ModelSceneFile": outHierarchy}
+          parameters = {}
+          parameters["InputVolume"] = label.GetID()
+          parameters['FilterType'] = "Sinc"
+          parameters['GenerateAll'] = True
+
+          parameters["JointSmoothing"] = False
+          parameters["SplitNormals"] = True
+          parameters["PointNormals"] = True
+          parameters["SkipUnNamed"] = True
 
           # create models for all labels
+          parameters["StartLabel"] = -1
+          parameters["EndLabel"] = -1
+
+          parameters["Decimate"] = 0
+          parameters["Smooth"] = 0
+
+          parameters["ModelSceneFile"] = outHierarchy
 
           progress.labelText = '\nMaking Model for %s' % structureName
           progress.setValue(step)
@@ -1260,7 +1274,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[self.rows,self.cols],viewNames=self.sliceNames,orientation=self.currentOrientation)
 
     # Make sure redslice has the ref image (the others were set with viewerPerVolume)
-    redSliceWidget = self.layoutManager.sliceWidget('Red')
+    redSliceWidget = self.getLayoutManager().sliceWidget('Red')
     redSliceNode = redSliceWidget.mrmlSliceNode()
     redSliceNode.SetOrientation(self.currentOrientation)
     compositeNode = redSliceWidget.mrmlSliceCompositeNode()
@@ -1301,7 +1315,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
       if self.refSelector.currentText != 'None':
         # set slice node orientation 
-        for widget in self.getAllWidgets():
+        for widget in self.getAllSliceWidgets():
           node = widget.mrmlSliceNode()
           node.SetOrientation(self.currentOrientation)
           
@@ -1438,11 +1452,16 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       progress.labelText = labelName
       
       # Resample srcSeries labels into the space of dstSeries, store result in tmpLabel
-      parameters = {"inputVolume": slicer.util.getNode(selectedLabel).GetID(),
-                    "referenceVolume": self.seriesMap[dstSeries]['Volume'].GetID(), "outputVolume": dstLabel.GetID(),
-                    "warpTransform": transform.GetID(), "pixelType": "short", "interpolationMode": "NearestNeighbor",
-                    "defaultValue": 0, "numberOfThreads": -1}
+      parameters = {}
+      parameters["inputVolume"] = slicer.util.getNode(selectedLabel).GetID()
+      parameters["referenceVolume"] = self.seriesMap[dstSeries]['Volume'].GetID()
+      parameters["outputVolume"] = dstLabel.GetID()
       # This transformation node will have just been created so it *should* be set to identity at this point
+      parameters["warpTransform"] = transform.GetID()
+      parameters["pixelType"] = "short"
+      parameters["interpolationMode"] = "NearestNeighbor"
+      parameters["defaultValue"] = 0
+      parameters["numberOfThreads"] = -1
 
       self.__cliNode = None
       self.__cliNode = slicer.cli.run(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
@@ -1532,11 +1551,15 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     resampledLabelNode = slicer.modules.volumes.logic().CloneVolume(slicer.mrmlScene,labelNode,"translated")
     
     # Resample labels to fix the origin
-    parameters = {"inputVolume": labelNode.GetID(),
-                  "referenceVolume": self.seriesMap[self.refSeriesNumber]['Volume'].GetID(),
-                  "outputVolume": resampledLabelNode.GetID(), "warpTransform": self.transformNode.GetID(),
-                  "pixelType": "short", "interpolationMode": "NearestNeighbor", "defaultValue": 0,
-                  "numberOfThreads": -1}
+    parameters = {}
+    parameters["inputVolume"] = labelNode.GetID()
+    parameters["referenceVolume"] = self.seriesMap[self.refSeriesNumber]['Volume'].GetID()
+    parameters["outputVolume"] = resampledLabelNode.GetID()
+    parameters["warpTransform"] = self.transformNode.GetID()
+    parameters["pixelType"] = "short"
+    parameters["interpolationMode"] = "NearestNeighbor"
+    parameters["defaultValue"] = 0
+    parameters["numberOfThreads"] = -1
 
     self.__cliNode = None
     self.__cliNode = slicer.cli.run(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
@@ -1583,8 +1606,9 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
   def restoreForeground(self):
     # This relies on slice view names and also (apparently) trashes zoom levels
     # Is there a better way to do this?
-    for view in self.layoutManager.sliceViewNames():
-      widget = self.layoutManager.sliceWidget(view)
+    layoutManager = self.getLayoutManager()
+    for view in layoutManager.sliceViewNames():
+      widget = layoutManager.sliceWidget(view)
       compositeNode = widget.mrmlSliceCompositeNode()
       try:
         compositeNode.SetForegroundVolumeID(self.seriesMap[view]['Volume'].GetID())
@@ -1600,7 +1624,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       self.onJumpToROI(selectedLabelID,selectedLabelVol)
 
   def onJumpToROI(self, selectedLabelID, selectedLabelVol):
-    redSliceWidget = self.layoutManager.sliceWidget('Red')
+    redSliceWidget = self.getLayoutManager().sliceWidget('Red')
     redSliceNode = redSliceWidget.mrmlSliceNode()
     redSliceOffset = redSliceNode.GetSliceOffset()
     
@@ -1666,7 +1690,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         self.setOffsetOnAllSliceWidgets(sagittal_offset)
 
       # snap to IJK to try and avoid rounding errors
-      sliceLogics = self.layoutManager.mrmlSliceLogics()
+      sliceLogics = self.getLayoutManager().mrmlSliceLogics()
       numLogics = sliceLogics.GetNumberOfItems()
       for n in range(numLogics):
         l = sliceLogics.GetItemAsObject(n)
