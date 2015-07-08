@@ -52,10 +52,14 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
   @staticmethod
   def confirmDialog(message):
-    result = qt.QMessageBox.question(slicer.util.mainWindow(),
-                    'PCampReview', message,
-                    qt.QMessageBox.Ok, qt.QMessageBox.Cancel)
+    result = qt.QMessageBox.question(slicer.util.mainWindow(), 'PCampReview', message,
+                                     qt.QMessageBox.Ok | qt.QMessageBox.Cancel)
     return result == qt.QMessageBox.Ok
+
+  @staticmethod
+  def confirmOrSaveDialog(message):
+    return qt.QMessageBox.question(slicer.util.mainWindow(), 'PCampReview', message,
+                                   qt.QMessageBox.Ok | qt.QMessageBox.Save | qt.QMessageBox.Cancel)
 
   @staticmethod
   def infoPopup(message):
@@ -1201,7 +1205,10 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.currentStep = 5
 
   def showExitStep4Or5Warning(self):
-    return not self.confirmDialog('Unsaved contours will be lost!\n\nDo you still want to exit?')
+    result = self.confirmOrSaveDialog('Unsaved contours will be lost!\n\nDo you still want to exit?')
+    if result == qt.QMessageBox.Save:
+      self.onSaveClicked()
+    return result == qt.QMessageBox.Cancel
 
   def onReferenceChanged(self, id):
     self.removeAllModels()
