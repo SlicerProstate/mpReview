@@ -161,8 +161,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.completionGroupBox = qt.QGroupBox()
 
     self.dataSourceSelectionGroupBoxLayout = qt.QFormLayout()
-    self.studySelectionGroupBoxLayout = qt.QFormLayout()
-    self.seriesSelectionGroupBoxLayout = qt.QFormLayout()
+    self.studySelectionGroupBoxLayout = qt.QGridLayout()
+    self.seriesSelectionGroupBoxLayout = qt.QGridLayout()
     self.segmentationGroupBoxLayout = qt.QFormLayout()
     self.completionGroupBoxLayout = qt.QFormLayout()
 
@@ -232,7 +232,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.studiesView.connect('clicked(QModelIndex)', self.studySelected)
     self.dataDirLabel = qt.QLabel()
     self.dataDirLabel.text = "Current Data Dir: "
-    self.studySelectionGroupBoxLayout.addRow(self.dataDirLabel)
+    self.studySelectionGroupBoxLayout.addWidget(self.dataDirLabel)
     self.studySelectionGroupBoxLayout.addWidget(self.studiesView)
 
     #
