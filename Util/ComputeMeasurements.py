@@ -125,7 +125,10 @@ for c in studies:
 
     canonicalPath = os.path.join(studyDir,s,'Canonical')
     canonicalFile = os.path.join(canonicalPath,s+'.json')
-    seriesAttributes = json.loads(open(canonicalFile,'r').read())
+    try:
+      seriesAttributes = json.loads(open(canonicalFile,'r').read())
+    except:
+      continue
 
     # check if the series type is of interest
     if not seriesAttributes['CanonicalType'] in settings['SeriesTypes']:

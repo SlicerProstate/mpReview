@@ -58,6 +58,15 @@ def getCanonicalType(dom):
   else:
     return "Unknown"
 
+def initHeader(settings):
+  header = ['StudyID']
+  for stype in settings['SeriesTypes']:
+    for structure in settings['Structures']:
+      for mtype in settings['MeasurementTypes']:
+        header.append(structure+'.'+stype+'.'+mtype)
+  return header
+      
+
 seriesDescription2Count = {}
 seriesDescription2Type = {}
 
@@ -73,8 +82,7 @@ header = []
 # keep adding table rows, each row is one pass over the outer loop
 table = []
 
-header = ["StudyID"]
-headerInitialized = False
+header = initHeader(settings)
 
 for c in studies:
 
@@ -92,7 +100,10 @@ for c in studies:
   except:
     continue
 
-  tableRow = [c]
+  tableRow = {}
+  for h in header:
+    tableRow[h] = 'NA'
+  tableRow['StudyID'] = c
 
   totalStudies = totalStudies+1
   seriesPerStudy = 0
@@ -100,7 +111,7 @@ for c in studies:
   for stype in settings['SeriesTypes']:
     print 'looking for SeriesType = ',stype
     stypeFound = False
-    
+
     for s in series:
       if stypeFound:
         break
@@ -111,7 +122,10 @@ for c in studies:
 
       canonicalPath = os.path.join(studyDir,s,'Canonical')
       canonicalFile = os.path.join(canonicalPath,s+'.json')
-      seriesAttributes = json.loads(open(canonicalFile,'r').read())
+      try:
+        seriesAttributes = json.loads(open(canonicalFile,'r').read())
+      except:
+        continue
 
       # check if the series type is of interest
       if stype != seriesAttributes['CanonicalType']:
@@ -159,32 +173,30 @@ for c in studies:
             print 'Failed to open ',measurementsFile
             mjson = 'NA'
 
-          if not headerInitialized:
-            header.append(structure+'.'+stype+'.'+mtype)
           if mjson == 'NA':
-            tableRow.append('NA')          
+            pass
           else:
-            if mtype == "Mean":
-              tableRow.append(mjson["Mean"])
-            if mtype == "Median":
-              tableRow.append(mjson["Median"])
-            if mtype == "StandardDeviation":
-              tableRow.append(mjson["StandardDeviation"])
-            if mtype == "Minimum":
-              tableRow.append(mjson["Minimum"])
-            if mtype == "Maximum":
-              tableRow.append(mjson["Maximum"])
-            if mtype == "Volume":
-              tableRow.append(mjson["Volume"])
-  print header
-  headerInitialized = True
+            try:
+              if tableRow[structure+'.'+stype+'.'+mtype] == 'NA':
+                tableRow[structure+'.'+stype+'.'+mtype] = mjson[mtype]
+              else:
+                # already initialized
+                pass
+            except:
+              # does not exist
+              pass
 
   if tableRow:
     if len(tableRow)!=len(header):
+      print 'Table row:',str(tableRow)
+      print 'Table header:',str(header)
       abort()
-    table.append(tableRow)
+    tableRowVector = []
+    for colName in header:
+      tableRowVector.append(tableRow[colName])
+    table.append(tableRowVector)
 
-print table
+#print table
 
 from tabulate import tabulate
 t = tabulate(table,headers=header,tablefmt="tsv")

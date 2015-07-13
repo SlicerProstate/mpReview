@@ -20,12 +20,14 @@ def readColors(fileName):
     reader = csv.DictReader(csvfile, delimiter=',')
     for index,row in enumerate(reader):
       structureName = row['Label']
-      labelToNameMap[index] = structureName
+      labelToNameMap[int(row['Number'])] = structureName
+      #print 'Added',row['Number']
   return labelToNameMap
 
 data = sys.argv[1]
 
-mapping = { 1:3, 2:8, 3:8 }
+#mapping = { 1:3, 2:8, 3:8 }
+mapping = { 1:53 }
 
 # replace with the location on your system
 labelsFile = '/Users/fedorov/github/PCampReview/Resources/Colors/PCampReviewColors.csv'
@@ -35,7 +37,10 @@ labelToNameMap = readColors(labelsFile)
 allStudies = getValidDirs(data)
 
 # initialize this list if need to look only at certain studies
-studiesToConsider = ['PCAMPMRI-00730_20040422_1234','PCAMPMRI-00754_20040530_1401','PCAMPMRI-00763_20040616_1436','PCAMPMRI-00767_20040617_1130','PCAMPMRI-00801_20040121_1434','PCAMPMRI-00844_20040519_1140']
+#studiesToConsider = ['PCAMPMRI-00730_20040422_1234','PCAMPMRI-00754_20040530_1401','PCAMPMRI-00763_20040616_1436','PCAMPMRI-00767_20040617_1130','PCAMPMRI-00801_20040121_1434','PCAMPMRI-00844_20040519_1140']
+
+#studiesToConsider = ['PCAMPMRI-00813_20040822_1541','PCAMPMRI-00801_20040812_1226']
+studiesToConsider = []
 
 for c in allStudies:
 
@@ -51,15 +56,21 @@ for c in allStudies:
     continue
 
   for s in series:
+    if s.startswith('.'):
+      continue
 
     canonicalPath = os.path.join(studyDir,s,'Canonical')
     canonicalFile = os.path.join(canonicalPath,s+'.json')
-    seriesAttributes = json.loads(open(canonicalFile,'r').read())
+    try:
+      seriesAttributes = json.loads(open(canonicalFile,'r').read())
+    except:
+      print 'Failed to open',canonicalFile
+      continue
 
     # check if the series type is of interest
     # modify this as needed for the type of series of your interest
-    if seriesAttributes['CanonicalType']!='ADC':
-      continue
+    #if seriesAttributes['CanonicalType']!='ADC':
+    #  continue
 
     segmentationsPath = os.path.join(studyDir,s,'Segmentations')
     segmentations = glob.glob(segmentationsPath+'/*nrrd')

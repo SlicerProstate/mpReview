@@ -164,7 +164,7 @@ for c in studies:
 
         if os.path.exists(destSegFileName):
           print 'ERROR: file exists: ',destSegFileName
-          abort
+          continue
 
         shutil.copyfile(segmentationFile,destSegFileName)
         shutil.copyfile(imageFile,destReconFileName)
