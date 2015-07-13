@@ -32,3 +32,4 @@ Number,Label,R,G,B,A
 30,BPHROI_2,255,102,102,1
 31,NormalROI_PZ_2,0,150,0,1
 32,TumorROI_CGTZ_2,0,100,0,1
+53,Tumor_Unspecified_Location_1,250,195,53,1
