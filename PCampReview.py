@@ -1304,6 +1304,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     if self.editorWidget.helper.structureListWidget.structures.rowCount() > 0:
       self.editorWidget.helper.structureListWidget.selectStructure(0)
 
+    self.updateEditorAvailability()
+
     print('Exiting onReferenceChanged')
 
   '''
@@ -1365,6 +1367,14 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       if filesMoved:
         self.editorWidget.helper.structureListWidget.deleteSelectedStructure(confirm=False)
         slicer.mrmlScene.RemoveNode(slicer.util.getNode('Model*'+selectedModelVol))
+
+      self.updateEditorAvailability()
+
+  def updateEditorAvailability(self):
+    if self.editorWidget.helper.structureListWidget.structures.rowCount() == 0:
+      self.editorWidget.editLabelMapsFrame.enabled = False
+    else:
+      self.editorWidget.editLabelMapsFrame.enabled = True
 
   def onSliderChanged(self, newValue):
     newValue = int(newValue)
@@ -1632,6 +1642,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     if self.enableJumpToROI.checked:
       print('calling onJumpToROI '+str(selectedLabelID) + ' ' + selectedLabelVol)
       self.onJumpToROI(selectedLabelID,selectedLabelVol)
+    self.updateEditorAvailability()
 
   def onJumpToROI(self, selectedLabelID, selectedLabelVol):
     redSliceWidget = self.getLayoutManager().sliceWidget('Red')
