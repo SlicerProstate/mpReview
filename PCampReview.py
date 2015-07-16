@@ -57,6 +57,12 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     return result == qt.QMessageBox.Ok
 
   @staticmethod
+  def yesNoDialog(message):
+    result = qt.QMessageBox.question(slicer.util.mainWindow(), 'PCampReview', message,
+                                     qt.QMessageBox.Yes | qt.QMessageBox.No)
+    return result == qt.QMessageBox.Yes
+
+  @staticmethod
   def confirmOrSaveDialog(message):
     box = qt.QMessageBox(qt.QMessageBox.Question, 'PCampReview', message)
     box.addButton("Exit, discard changes", qt.QMessageBox.AcceptRole)
@@ -1390,7 +1396,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
   def onPropagateROI(self):
     # Get the selected label map
-    (rowIdx, selectedStructure, selectedLabel) = self.getSelectedStructure()
+    (rowIdx, selectedStructure, selectedLabel, selectedLabelID) = self.getSelectedStructure()
     if selectedLabel is None:
       return
     
@@ -1441,9 +1447,11 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         propagateInto.append(selectedID)
     
     # get the source structure
-    (rowIdx, selectedStructure, selectedLabel) = self.getSelectedStructure()
+    (rowIdx, selectedStructure, selectedLabel, selectedLabelID) = self.getSelectedStructure()
     if selectedLabel is None:
       return
+    
+    srcLabel = slicer.util.getNode(selectedLabel)
       
     # Check to make sure we don't propagate on top of something
     existingStructures = [self.seriesMap[x]['ShortName'] for x in propagateInto if len(slicer.util.getNodes(self.seriesMap[x]['ShortName']+'-'+selectedStructure+'-label*')) != 0]
@@ -1459,6 +1467,9 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     transform = slicer.vtkMRMLLinearTransformNode()
     slicer.mrmlScene.AddNode(transform)
     
+    # Collects empty dstLabel volumes
+    emptyDstLabel = []
+    
     # Do the resamples
     progress = self.makeProgressIndicator(len(propagateInto))
     nProcessed = 0
@@ -1473,7 +1484,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       
       # Resample srcSeries labels into the space of dstSeries, store result in tmpLabel
       parameters = {}
-      parameters["inputVolume"] = slicer.util.getNode(selectedLabel).GetID()
+      parameters["inputVolume"] = srcLabel.GetID()
       parameters["referenceVolume"] = self.seriesMap[dstSeries]['Volume'].GetID()
       parameters["outputVolume"] = dstLabel.GetID()
       # This transformation node will have just been created so it *should* be set to identity at this point
@@ -1486,6 +1497,18 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       self.__cliNode = None
       self.__cliNode = slicer.cli.run(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
       
+      # Check to make sure we actually got something in the dstLabel volume
+      dstLabelAddress = sitkUtils.GetSlicerITKReadWriteAddress(dstLabel.GetName())
+      dstLabelImage = sitk.ReadImage(dstLabelAddress)
+
+      ls = sitk.LabelStatisticsImageFilter()
+      ls.Execute(dstLabelImage,dstLabelImage)
+      bb = ls.GetBoundingBox(selectedLabelID)
+      
+      if len(bb) == 0:
+        emptyDstLabel.append(dstLabel)
+        print(labelName + " IS EMPTY")
+      
       progress.setValue(nProcessed)
       nProcessed += 1
       if progress.wasCanceled:
@@ -1495,7 +1518,53 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     
     # Delete the transform node
     slicer.mrmlScene.RemoveNode(transform)
-
+    
+    
+    if len(emptyDstLabel) > 0:
+      msg = 'NOTICE\n\nThe following volumes did not get a propagated ROI:\n\n'
+      for vol in emptyDstLabel:
+        msg += vol.GetName() + '\n'
+      msg += '\nAttempt reverse-nearest-neighbor propagation?\n'
+      if self.yesNoDialog(msg) == 1:
+        
+        # Get bounding box on non-zero label voxels in the source label map
+        srcLabelAddress = sitkUtils.GetSlicerITKReadWriteAddress(srcLabel.GetName())
+        srcLabelImage = sitk.ReadImage(srcLabelAddress)
+        ls.Execute(srcLabelImage,srcLabelImage)
+        bb = ls.GetBoundingBox(selectedLabelID)
+        
+        # Source label map's IJKtoRAS
+        IJKtoRAS = vtk.vtkMatrix4x4()
+        srcLabel.GetIJKToRASMatrix(IJKtoRAS)
+        
+        for dstLabel in emptyDstLabel:
+          
+          dstLabelData = dstLabel.GetImageData()
+          
+          # Destination label map's IJKtoRAS
+          RAStoIJK = vtk.vtkMatrix4x4()
+          dstLabel.GetRASToIJKMatrix(RAStoIJK)
+        
+          # Copy the voxels
+          for i in range(bb[0], bb[1]+1):
+            for j in range(bb[2], bb[3]+1):
+              for k in range(bb[4], bb[5]+1):
+                
+                if srcLabelImage[i,j,k] != 0:
+                  
+                  # RAS coord of this non-zero voxel in the source
+                  ras = IJKtoRAS.MultiplyPoint([i, j, k, 1])[:3]
+                  
+                  # IJK coord of the corresponding voxel in the destination
+                  ijkFloat = RAStoIJK.MultiplyPoint([ras[0], ras[1], ras[2], 1])[:3]
+                  ijk = [int(round(element)) for element in ijkFloat]
+                  
+                  # Set the voxel value in the destination
+                  dstLabelData.SetScalarComponentFromDouble(ijk[0],ijk[1],ijk[2], 0, selectedLabelID)
+          
+          # Update the dstLabel volume
+          dstLabel.GetImageData().GetPointData().GetScalars().Modified()
+    
     # Restore the foreground images that get knocked out by calling a cli
     self.restoreForeground()
     
@@ -1507,7 +1576,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       return
     
     # Get the label node to translate
-    (rowIdx, selectedStructure, selectedLabel) = self.getSelectedStructure()
+    (rowIdx, selectedStructure, selectedLabel, selectedLabelID) = self.getSelectedStructure()
     if selectedLabel is None:
       self.resetTranslate()
       return
@@ -1558,7 +1627,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
   def onHardenTransform(self):
     # Get the selected label
-    (rowIdx, selectedStructure, selectedLabel) = self.getSelectedStructure()
+    (rowIdx, selectedStructure, selectedLabel, selectedLabelID) = self.getSelectedStructure()
     if selectedLabel is None:
       return
       
@@ -1617,11 +1686,12 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     selectedIdx = self.structuresView.currentIndex()
     selectedRow = selectedIdx.row()
     if selectedRow < 0:
-      return selectedRow, None, None
+      return selectedRow, None, None, None
 
+    selectedLabelID = int(self.editorWidget.helper.structureListWidget.structures.item(selectedRow,0).text())
     selectedStructure = self.editorWidget.helper.structureListWidget.structures.item(selectedRow,2).text()
     selectedLabel = self.editorWidget.helper.structureListWidget.structures.item(selectedRow,3).text()
-    return selectedRow, selectedStructure, selectedLabel
+    return selectedRow, selectedStructure, selectedLabel, selectedLabelID
   
   def restoreForeground(self):
     # This relies on slice view names and also (apparently) trashes zoom levels
