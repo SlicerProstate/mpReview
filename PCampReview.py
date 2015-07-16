@@ -1525,7 +1525,13 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       for vol in emptyDstLabel:
         msg += vol.GetName() + '\n'
       msg += '\nAttempt reverse-nearest-neighbor propagation?\n'
-      if self.yesNoDialog(msg) == 1:
+      
+      if self.yesNoDialog(msg) == 0:
+        # User doesn't want to try RNN, remove the empty label node
+        for dstLabel in emptyDstLabel:
+          slicer.mrmlScene.RemoveNode(dstLabel)
+      else:  
+        # Attempt RNN
         
         # Get bounding box on non-zero label voxels in the source label map
         srcLabelAddress = sitkUtils.GetSlicerITKReadWriteAddress(srcLabel.GetName())
