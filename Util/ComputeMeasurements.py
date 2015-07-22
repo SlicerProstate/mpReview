@@ -214,6 +214,13 @@ for c in studies:
           if mtype == "Volume":
             spacing = label.GetSpacing()
             measurements["Volume"] = stats.GetCount(1)*spacing[0]*spacing[1]*spacing[2]
+          if mtype.startswith("Percentile"):
+            npImage = sitk.GetArrayFromImage(image)
+            npLabel = sitk.GetArrayFromImage(label)
+            pixels = npImage[npLabel==1]
+            pixels.sort()
+            percent = float(mtype[10:])/100.
+            measurements[mtype] = float(pixels[len(pixels)*percent])
 
         measurementsDir = os.path.join(studyDir,s,'Measurements')
         try:
@@ -222,6 +229,7 @@ for c in studies:
           pass
         measurementsFile = os.path.join(measurementsDir,s+'-'+structure+'-'+reader+'.json')
         f = open(measurementsFile,'w')
+        print measurements
         f.write(json.dumps(measurements))
         f.close()
 
