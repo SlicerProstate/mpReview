@@ -1,6 +1,5 @@
 from __future__ import division
 import os, json, xml.dom.minidom, string, glob, re, math
-import unittest
 from __main__ import vtk, qt, ctk, slicer
 import CompareVolumes
 from Editor import EditorWidget
@@ -8,6 +7,7 @@ from EditorLib import EditorLib
 import SimpleITK as sitk
 import sitkUtils
 from slicer.ScriptedLoadableModule import *
+from MultiVolumeExplorer import *
 
 
 class PCampReview(ScriptedLoadableModule):
@@ -109,6 +109,11 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.CLINode = None
     self.currentStep = 1
     self.logic = PCampReviewLogic()
+    self.multiVolumeExplorer = None
+
+    # set up temporary directory
+    self.tempDir = os.path.join(slicer.app.temporaryPath, 'PCampReview-tmp')
+    self.createDirectory(self.tempDir, message='Temporary directory location: ' + self.tempDir)
 
   def getSetting(self, settingName):
     settings = qt.QSettings()
@@ -259,17 +264,24 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     # Step 4: segmentation tools
     #
 
-    # reference node selector
-    # TODO: use MRML selector here ?
+    self.multiVolumeExplorerArea = ctk.ctkCollapsibleButton()
+    self.multiVolumeExplorerArea.text = "MultiVolumeExplorer"
+    self.multiVolumeExplorerArea.collapsed = True
+    multiVolumeExplorerLayout = qt.QFormLayout(self.multiVolumeExplorerArea)
+
+    self.multiVolumeExplorer = MultiVolumeExplorer(self.parent)
+    self.multiVolumeExplorer.setup(multiVolumeExplorerLayout)
+    self.segmentationGroupBoxLayout.addRow(self.multiVolumeExplorerArea)
+
     self.refSelector = qt.QComboBox()
     self.segmentationGroupBoxLayout.addRow(qt.QLabel("Reference image: "), self.refSelector)
     self.refSelector.connect('currentIndexChanged(int)', self.onReferenceChanged)
-    
+
     self.advancedSettingsArea = ctk.ctkCollapsibleButton()
     self.advancedSettingsArea.text = "Advanced Settings"
     self.advancedSettingsArea.collapsed = True
     advancedSettingsLayout = qt.QFormLayout(self.advancedSettingsArea)
-    
+
     # Show all/reference
     self.viewGroup = qt.QButtonGroup()
     self.multiView = qt.QRadioButton('All')
@@ -282,7 +294,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.groupLayout = qt.QFormLayout(self.groupWidget)
     self.groupLayout.addRow(self.multiView, self.singleView)
     advancedSettingsLayout.addRow("Show series: ", self.groupWidget)
-    
+
     # Change viewer orientation
     self.orientationBox = qt.QGroupBox()
     self.orientationBox.setLayout(qt.QFormLayout())
@@ -296,53 +308,53 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.orientationButtons['Axial'].setChecked(1)
     self.currentOrientation = 'Axial'
     advancedSettingsLayout.addRow('View orientation: ', self.orientationBox)
-    
+
     # Multi-volume frame controller
     self.mvSlider = ctk.ctkSliderWidget()
     self.mvSlider.connect('valueChanged(double)', self.onSliderChanged)
     self.mvSlider.enabled = False
     advancedSettingsLayout.addRow('Frame Number: ', self.mvSlider)
-    
+
     self.segmentationGroupBoxLayout.addRow(self.advancedSettingsArea)
-    
+
     self.translateArea = ctk.ctkCollapsibleButton()
     self.translateArea.text = "Translate Selected Label Map"
-    
+
     translateAreaLayout = qt.QFormLayout(self.translateArea)
-    
+
     self.translateLR = slicer.qMRMLSliderWidget()
     self.translateLR.minimum = -200
     self.translateLR.maximum = 200
     self.translateLR.connect('valueChanged(double)', self.onTranslate)
-    
+
     self.translatePA = slicer.qMRMLSliderWidget()
     self.translatePA.minimum = -200
     self.translatePA.maximum = 200
     self.translatePA.connect('valueChanged(double)', self.onTranslate)
-    
+
     self.translateIS = slicer.qMRMLSliderWidget()
     self.translateIS.minimum = -200
     self.translateIS.maximum = 200
     self.translateIS.connect('valueChanged(double)', self.onTranslate)
-    
+
     translateAreaLayout.addRow("Translate LR: ", self.translateLR)
     translateAreaLayout.addRow("Translate PA: ", self.translatePA)
     translateAreaLayout.addRow("Translate IS: ", self.translateIS)
-    
+
     self.hardenTransformButton = qt.QPushButton("Harden Transform")
     self.hardenTransformButton.enabled = False
     self.hardenTransformButton.connect('clicked(bool)', self.onHardenTransform)
     translateAreaLayout.addRow(self.hardenTransformButton)
-    
+
     self.translateArea.collapsed = 1
-    
+
     self.ignoreTranslate = False
-    
+
     # Create a transform node
     self.transformNode = slicer.vtkMRMLLinearTransformNode()
     self.transformNode.SetName('PCampReview-transform')
     slicer.mrmlScene.AddNode(self.transformNode)
-    
+
     self.segmentationGroupBoxLayout.addRow(self.translateArea)
 
     editorWidgetParent = slicer.qMRMLWidget()
@@ -361,7 +373,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     perStructureFrame = slicer.util.findChildren(volumesFrame,
                         'PerStructureVolumesFrame')[0]
     perStructureFrame.collapsed = False
-    
+
     self.structuresView = slicer.util.findChildren(volumesFrame,'StructuresView')[0]
     self.structuresView.connect("activated(QModelIndex)", self.onStructureClicked)
 
@@ -411,16 +423,16 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.modelsVisibilityButton.checkable = True
     modelsHLayout.addWidget(self.modelsVisibilityButton)
     self.modelsVisibilityButton.connect("toggled(bool)", self.onModelsVisibilityButton)
-    
+
     self.labelMapOutlineButton = qt.QPushButton('Outline')
     self.labelMapOutlineButton.checkable = True
     modelsHLayout.layout().addWidget(self.labelMapOutlineButton)
     self.labelMapOutlineButton.connect('toggled(bool)', self.setLabelOutline)
-    
+
     self.enableJumpToROI = qt.QCheckBox()
     self.enableJumpToROI.setText("Jump to ROI")
     modelsHLayout.addWidget(self.enableJumpToROI)
-    
+
     modelsHLayout.addStretch(1)
 
     # keep here names of the views created by CompareVolumes logic
@@ -455,10 +467,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.layout.addStretch(1)
 
     self.volumesLogic = slicer.modules.volumes.logic()
-
-    # set up temporary directory
-    self.tempDir = os.path.join(slicer.app.temporaryPath, 'PCampReview-tmp')
-    self.createDirectory(self.tempDir, message='Temporary directory location: ' + self.tempDir)
 
     # these are the PK maps that should be loaded
     self.pkMaps = ['Ktrans','Ve','Auc','TTP','MaxSlope']
