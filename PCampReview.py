@@ -1,6 +1,7 @@
 from __future__ import division
 import os, json, xml.dom.minidom, string, glob, re, math
 from __main__ import vtk, qt, ctk, slicer
+import PythonQt
 import CompareVolumes
 from Editor import EditorWidget
 from EditorLib import EditorLib
@@ -2002,10 +2003,48 @@ class PCampReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleW
 
   def __init__(self, parent=None):
     qSlicerMultiVolumeExplorerSimplifiedModuleWidget.__init__(self, parent)
+    self.chartPopupWindow = None
+    self.chartPopupSize = qt.QSize(600, 300)
+    self.chartPopupPosition = qt.QPoint(0,0)
 
   def setupAdditionalFrames(self):
     self.fiducialTable = PCampReviewFiducialTable(self)
     self.layout.addWidget(self.fiducialTable.widget)
+    self.popupChartButton = qt.QPushButton("Undock chart")
+    self.popupChartButton.setCheckable(True)
+    self.layout.addWidget(self.popupChartButton)
+
+  def setupConnections(self):
+    qSlicerMultiVolumeExplorerSimplifiedModuleWidget.setupConnections(self)
+    self.popupChartButton.connect('toggled(bool)', self.onDockChartViewToggled)
+
+  def onBackgroundInputChanged(self):
+    qSlicerMultiVolumeExplorerSimplifiedModuleWidget.onBackgroundInputChanged(self)
+    self.popupChartButton.setEnabled(self._bgMultiVolumeNode is not None)
+
+  def onDockChartViewToggled(self, checked):
+    if checked:
+      self.chartPopupWindow = qt.QDialog()
+      self.chartPopupWindow.setWindowFlags(PythonQt.QtCore.Qt.WindowStaysOnTopHint)
+      layout = qt.QGridLayout()
+      self.chartPopupWindow.setLayout(layout)
+      layout.addWidget(self._multiVolumeIntensityChart.chartView)
+      self.chartPopupWindow.finished.connect(self.dockChartView)
+      self.chartPopupWindow.resize(self.chartPopupSize)
+      self.chartPopupWindow.move(self.chartPopupPosition)
+      self.chartPopupWindow.show()
+      self.popupChartButton.setText("Dock chart")
+    else:
+      self.chartPopupWindow.close()
+
+  def dockChartView(self):
+    self.chartPopupSize = self.chartPopupWindow.size
+    self.chartPopupPosition = self.chartPopupWindow.pos
+    self.plottingFrameLayout.addWidget(self._multiVolumeIntensityChart.chartView)
+    self.popupChartButton.setText("Undock chart")
+    self.popupChartButton.disconnect('toggled(bool)', self.onDockChartViewToggled)
+    self.popupChartButton.checked = False
+    self.popupChartButton.connect('toggled(bool)', self.onDockChartViewToggled)
 
 
 class PCampReviewFiducialTable(object):
