@@ -7,7 +7,7 @@ from EditorLib import EditorLib
 import SimpleITK as sitk
 import sitkUtils
 from slicer.ScriptedLoadableModule import *
-from MultiVolumeExplorer import *
+from qSlicerMultiVolumeExplorerModuleWidget import qSlicerMultiVolumeExplorerSimplifiedModuleWidget
 
 
 class PCampReview(ScriptedLoadableModule):
@@ -96,7 +96,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.inputDataDir = inputDataDir if inputDataDir is not None else ''
 
     self.webFormURL = ''
-    
+
     # TODO: figure out why module/class hierarchy is different
     # between developer builds ans packages
     try:
@@ -174,7 +174,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.dataSourceSelectionGroupBoxLayout = qt.QFormLayout()
     self.studySelectionGroupBoxLayout = qt.QGridLayout()
     self.seriesSelectionGroupBoxLayout = qt.QGridLayout()
-    self.segmentationGroupBoxLayout = qt.QFormLayout()
+    self.segmentationGroupBoxLayout = qt.QGridLayout()
     self.completionGroupBoxLayout = qt.QFormLayout()
 
     self.dataSourceSelectionGroupBox.setLayout(self.dataSourceSelectionGroupBoxLayout)
@@ -264,17 +264,11 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     # Step 4: segmentation tools
     #
 
-    self.multiVolumeExplorerArea = ctk.ctkCollapsibleButton()
-    self.multiVolumeExplorerArea.text = "MultiVolumeExplorer"
-    self.multiVolumeExplorerArea.collapsed = True
-    multiVolumeExplorerLayout = qt.QFormLayout(self.multiVolumeExplorerArea)
-
-    self.multiVolumeExplorer = MultiVolumeExplorer(self.parent)
-    self.multiVolumeExplorer.setup(multiVolumeExplorerLayout)
-    self.segmentationGroupBoxLayout.addRow(self.multiVolumeExplorerArea)
-
     self.refSelector = qt.QComboBox()
-    self.segmentationGroupBoxLayout.addRow(qt.QLabel("Reference image: "), self.refSelector)
+    hbox = qt.QHBoxLayout()
+    hbox.addWidget(qt.QLabel("Reference image: "))
+    hbox.addWidget(self.refSelector)
+    self.segmentationGroupBoxLayout.addLayout(hbox, 0, 0)
     self.refSelector.connect('currentIndexChanged(int)', self.onReferenceChanged)
 
     self.advancedSettingsArea = ctk.ctkCollapsibleButton()
@@ -315,7 +309,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.mvSlider.enabled = False
     advancedSettingsLayout.addRow('Frame Number: ', self.mvSlider)
 
-    self.segmentationGroupBoxLayout.addRow(self.advancedSettingsArea)
+    self.segmentationGroupBoxLayout.addWidget(self.advancedSettingsArea)
 
     self.translateArea = ctk.ctkCollapsibleButton()
     self.translateArea.text = "Translate Selected Label Map"
@@ -355,7 +349,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.transformNode.SetName('PCampReview-transform')
     slicer.mrmlScene.AddNode(self.transformNode)
 
-    self.segmentationGroupBoxLayout.addRow(self.translateArea)
+    self.segmentationGroupBoxLayout.addWidget(self.translateArea)
 
     editorWidgetParent = slicer.qMRMLWidget()
     editorWidgetParent.setLayout(qt.QVBoxLayout())
@@ -405,7 +399,16 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.editorParameterNode.SetParameter('propagationMode',
                              str(slicer.vtkMRMLApplicationLogic.LabelLayer))
 
-    self.segmentationGroupBoxLayout.addRow(editorWidgetParent)
+    self.segmentationGroupBoxLayout.addWidget(editorWidgetParent)
+
+    self.multiVolumeExplorerArea = ctk.ctkCollapsibleButton()
+    self.multiVolumeExplorerArea.text = "MultiVolumeExplorer"
+    self.multiVolumeExplorerArea.collapsed = True
+    multiVolumeExplorerLayout = qt.QFormLayout(self.multiVolumeExplorerArea)
+
+    self.multiVolumeExplorer = PCampReviewMultiVolumeExplorer(multiVolumeExplorerLayout)
+    self.multiVolumeExplorer.setup()
+    self.segmentationGroupBoxLayout.addWidget(self.multiVolumeExplorerArea)
 
     self.modelsVisibility = True
     modelsFrame = qt.QFrame()
@@ -1993,3 +1996,129 @@ class PCampReviewTest(ScriptedLoadableModuleTest):
     self.delayDisplay('Saving')
 
     self.delayDisplay('Test passed!')
+
+
+class PCampReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleWidget):
+
+  def __init__(self, parent=None):
+    qSlicerMultiVolumeExplorerSimplifiedModuleWidget.__init__(self, parent)
+
+  def setupAdditionalFrames(self):
+    self.fiducialTable = PCampReviewFiducialTable(self)
+    self.layout.addWidget(self.fiducialTable.widget)
+
+
+class PCampReviewFiducialTable(object):
+
+  HEADERS = ["Name","Delete"]
+  MODIFIED_EVENT = "ModifiedEvent"
+  FIDUCIAL_LIST_OBSERVED_EVENTS = [MODIFIED_EVENT]
+
+  @property
+  def widget(self):
+    return self.fiducialGroupBox
+
+  def __init__(self, parent):
+    self.parent = parent
+    self.layout = None
+    self.fiducialsNode = None
+    self.connectedButtons = []
+    self.fiducialsNodeObservers = []
+    self.setup()
+
+  def setup(self):
+    self.fiducialGroupBox = qt.QGroupBox('')
+    self.layout = qt.QFormLayout()
+    self.fiducialGroupBox.setLayout(self.layout)
+    self.setupTargetFiducialListSelector()
+    self.setupFiducialsTable()
+    self.setupConnections()
+
+  def setupFiducialsTable(self):
+    self.table = qt.QTableWidget(1, 2)
+    self.table.setSelectionBehavior(qt.QAbstractItemView.SelectRows)
+    self.table.setSelectionMode(qt.QAbstractItemView.SingleSelection)
+    self.table.horizontalHeader().setStretchLastSection(True)
+    self.resetTable()
+    self.layout.addRow(self.table)
+
+  def resetTable(self):
+    self.table.clear()
+    self.table.setHorizontalHeaderLabels(self.HEADERS)
+
+  def setupTargetFiducialListSelector(self):
+    self.fiducialListSelector = slicer.qMRMLNodeComboBox()
+    self.fiducialListSelector.nodeTypes = (("vtkMRMLMarkupsFiducialNode"), "")
+    self.fiducialListSelector.addEnabled = True
+    self.fiducialListSelector.removeEnabled = True
+    self.fiducialListSelector.selectNodeUponCreation = True
+    self.fiducialListSelector.noneEnabled = False
+    self.fiducialListSelector.showHidden = False
+    self.fiducialListSelector.showChildNodeTypes = False
+    self.fiducialListSelector.setMRMLScene(slicer.mrmlScene)
+    hbox = qt.QHBoxLayout()
+    hbox.addWidget(qt.QLabel("Fiducial List: "))
+    hbox.addWidget(self.fiducialListSelector)
+    self.layout.addRow(hbox)
+    self.fiducialsNode = None
+
+  def setupConnections(self):
+    self.fiducialListSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onFiducialListSelected)
+    self.table.connect("cellChanged (int,int)", self.onCellChanged)
+
+  def cleanupButtons(self):
+    for button in self.connectedButtons:
+      button.clicked.disconnect(self.handleDeleteButtonClicked)
+    self.connectedButtons = []
+
+  def onFiducialListSelected(self):
+    self.removeObservers()
+    self.addObservers()
+    self.updateTable()
+
+  def removeObservers(self):
+    if self.fiducialsNode and len(self.fiducialsNodeObservers) > 0:
+      for observer in self.fiducialsNodeObservers:
+        self.fiducialsNode.RemoveObserver(observer)
+    self.fiducialsNodeObservers = []
+
+  def addObservers(self):
+    if self.fiducialListSelector.currentNode():
+      self.fiducialsNode = self.fiducialListSelector.currentNode()
+      for event in self.FIDUCIAL_LIST_OBSERVED_EVENTS:
+        self.fiducialsNodeObservers.append(self.fiducialsNode.AddObserver(event, self.onFiducialsUpdated))
+
+  def updateTable(self):
+    self.cleanupButtons()
+    self.resetTable()
+    if not self.fiducialsNode:
+      return
+    else:
+      nOfControlPoints = self.fiducialsNode.GetNumberOfFiducials()
+      if self.table.rowCount != nOfControlPoints:
+        self.table.setRowCount(nOfControlPoints)
+      for i in range(nOfControlPoints):
+        label = self.fiducialsNode.GetNthFiducialLabel(i)
+        cellLabel = qt.QTableWidgetItem(label)
+        self.table.setItem(i, 0, cellLabel)
+        self.addDeleteButton(i, 1)
+    self.table.show()
+
+  def addDeleteButton(self, row, col):
+    button = qt.QPushButton('X')
+    self.table.setCellWidget(row, col, button)
+    button.clicked.connect(lambda: self.handleDeleteButtonClicked(row))
+    self.connectedButtons.append(button)
+
+  def handleDeleteButtonClicked(self, idx):
+    if PCampReviewWidget.yesNoDialog("Do you really want to delete fiducial %s?"
+            % self.fiducialsNode.GetNthFiducialLabel(idx)):
+      self.fiducialsNode.RemoveMarkup(idx)
+
+  def onFiducialsUpdated(self, caller, event):
+    if caller.IsA("vtkMRMLMarkupsFiducialNode") and event == self.MODIFIED_EVENT:
+      self.updateTable()
+
+  def onCellChanged(self, row, col):
+    if col == 0:
+      self.fiducialsNode.SetNthFiducialLabel(row, self.table.item(row, col).text())
