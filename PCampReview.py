@@ -417,6 +417,14 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.multiVolumeExplorer.setup()
     self.segmentationGroupBoxLayout.addWidget(self.multiVolumeExplorerArea)
 
+    self.fiducialsArea = ctk.ctkCollapsibleButton()
+    self.fiducialsArea.text = "Fiducials"
+    self.fiducialsArea.collapsed = True
+    fiducialsWidgetLayout = qt.QFormLayout(self.fiducialsArea)
+
+    self.fiducialsWidget = PCampReviewFiducialTable(fiducialsWidgetLayout)
+    self.segmentationGroupBoxLayout.addWidget(self.fiducialsArea)
+
     self.modelsVisibility = True
     modelsFrame = qt.QFrame()
     modelsHLayout = qt.QHBoxLayout(modelsFrame)
@@ -1339,8 +1347,12 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       self.editorWidget.helper.structureListWidget.selectStructure(0)
 
     self.updateEditorAvailability()
-
-    self.multiVolumeExplorer.refreshObservers()
+    try:
+      mvNode = self.seriesMap[str(ref)]['MultiVolume']
+      self.multiVolumeExplorer.setMultiVolume(mvNode)
+      self.multiVolumeExplorer.refreshObservers()
+    except KeyError:
+      pass
     logging.debug('Exiting onReferenceChanged')
 
   '''
@@ -1503,7 +1515,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
   def onAcceptFiducialsPrompt(self):
     self.createFiducialsPrompt.close()
-    fiducialNode = self.multiVolumeExplorer.fiducialNode
+    fiducialNode = self.fiducialsWidget.getOrCreateFiducialNode()
+    addedFiducialIds = []
     for idx in range(self.fiducialLabelPropagateModel.rowCount()):
       item = self.fiducialLabelPropagateModel.item(idx)
       if item.checkState() == 2:
@@ -1511,9 +1524,20 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         selectedID = splitted[0]
         #name = splitted[1]
         label = slicer.util.getNode(splitted[2])
-        centroid = self.getCentroidForLabel(label, selectedID)
-        logging.debug("Creating fiducial at position %f, %f, %f" % tuple(centroid))
-        fiducialNode.AddFiducialFromArray(centroid, label.GetName())
+        try:
+          centroid = self.getCentroidForLabel(label, selectedID)
+          logging.debug("Creating fiducial at position %f, %f, %f" % tuple(centroid))
+          addedFiducialIds.append(fiducialNode.AddFiducialFromArray(centroid, label.GetName()))
+        except:
+          self.infoPopup("No label object with label %s. \n You might have forgotten to print a label."
+                         "To prevent the duplication of fiducials, all fiducials of the current "
+                         "creation step will be deleted." % label.GetName())
+          self.removeFiducialIDsFromNode(fiducialNode, addedFiducialIds)
+          return
+
+  def removeFiducialIDsFromNode(self, node, ids):
+    for idx in reversed(ids):
+      node.RemoveMarkup(idx)
 
   def getCentroidForLabel(self, label, labelId):
     # TODO: take care about labels without anything drawn and labels with separate regions
@@ -2119,10 +2143,6 @@ class PCampReviewTest(ScriptedLoadableModuleTest):
 
 class PCampReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleWidget):
 
-  @property
-  def fiducialNode(self):
-    return self.fiducialTable.getOrCreateFiducialNode()
-
   def __init__(self, parent=None):
     qSlicerMultiVolumeExplorerSimplifiedModuleWidget.__init__(self, parent)
     self.chartPopupWindow = None
@@ -2130,12 +2150,17 @@ class PCampReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleW
     self.chartPopupPosition = qt.QPoint(0,0)
     self.acceptNonVolumeData = True
 
+  def setMultiVolume(self, node):
+    self._bgMultiVolumeNode = node
+    self._multiVolumeIntensityChart.reset()
+    self.setFramesEnabled(True)
+    self.refreshFrameSlider()
+    self._multiVolumeIntensityChart.bgMultiVolumeNode = self._bgMultiVolumeNode
+
   def setupAdditionalFrames(self):
-    self.fiducialTable = PCampReviewFiducialTable(self)
-    self.layout.addWidget(self.fiducialTable.widget, 2, 0, 1, 3)
     self.popupChartButton = qt.QPushButton("Undock chart")
     self.popupChartButton.setCheckable(True)
-    self.layout.addWidget(self.popupChartButton, 4, 0, 1, 3)
+    self.layout.addWidget(self.popupChartButton, 3, 0, 1, 3)
 
   def setupConnections(self):
     qSlicerMultiVolumeExplorerSimplifiedModuleWidget.setupConnections(self)
@@ -2176,39 +2201,17 @@ class PCampReviewFiducialTable(object):
   MODIFIED_EVENT = "ModifiedEvent"
   FIDUCIAL_LIST_OBSERVED_EVENTS = [MODIFIED_EVENT]
 
-  @property
-  def widget(self):
-    return self.fiducialGroupBox
-
   def __init__(self, parent):
     self.parent = parent
-    self.layout = None
     self.fiducialsNode = None
     self.connectedButtons = []
     self.fiducialsNodeObservers = []
     self.setup()
 
   def setup(self):
-    self.fiducialGroupBox = qt.QGroupBox('')
-    self.layout = qt.QFormLayout()
-    self.fiducialGroupBox.setLayout(self.layout)
     self.setupTargetFiducialListSelector()
     self.setupFiducialsTable()
     self.setupConnections()
-
-  def setupFiducialsTable(self):
-    self.table = qt.QTableWidget(0, 2)
-    self.table.setSelectionBehavior(qt.QAbstractItemView.SelectRows)
-    self.table.setSelectionMode(qt.QAbstractItemView.SingleSelection)
-    self.table.setMaximumHeight(200)
-    self.table.horizontalHeader().setStretchLastSection(True)
-    self.table.setColumnWidth(1, 50)
-    self.resetTable()
-    self.layout.addRow(self.table)
-
-  def resetTable(self):
-    self.table.clear()
-    self.table.setHorizontalHeaderLabels(self.HEADERS)
 
   def setupTargetFiducialListSelector(self):
     self.fiducialListSelector = slicer.qMRMLNodeComboBox()
@@ -2223,8 +2226,22 @@ class PCampReviewFiducialTable(object):
     hbox = qt.QHBoxLayout()
     hbox.addWidget(qt.QLabel("Fiducial List: "))
     hbox.addWidget(self.fiducialListSelector)
-    self.layout.addRow(hbox)
+    self.parent.addRow(hbox)
     self.fiducialsNode = None
+
+  def setupFiducialsTable(self):
+    self.table = qt.QTableWidget(0, 2)
+    self.table.setSelectionBehavior(qt.QAbstractItemView.SelectRows)
+    self.table.setSelectionMode(qt.QAbstractItemView.SingleSelection)
+    self.table.setMaximumHeight(200)
+    self.table.horizontalHeader().setStretchLastSection(True)
+    self.table.setColumnWidth(1, 50)
+    self.resetTable()
+    self.parent.addRow(self.table)
+
+  def resetTable(self):
+    self.table.clear()
+    self.table.setHorizontalHeaderLabels(self.HEADERS)
 
   def setupConnections(self):
     self.fiducialListSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onFiducialListSelected)
@@ -2236,6 +2253,7 @@ class PCampReviewFiducialTable(object):
     self.connectedButtons = []
 
   def onFiducialListSelected(self):
+    logging.info("PCampReviewFiducialTable:onFiducialListSelected")
     self.removeObservers()
     self.addObservers()
     self.updateTable()
