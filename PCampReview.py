@@ -274,6 +274,16 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.segmentationGroupBoxLayout.addLayout(hbox, 0, 0)
     self.refSelector.connect('currentIndexChanged(int)', self.onReferenceChanged)
 
+
+    self.multiVolumeExplorerArea = ctk.ctkCollapsibleButton()
+    self.multiVolumeExplorerArea.text = "MultiVolumeExplorer"
+    self.multiVolumeExplorerArea.collapsed = True
+    multiVolumeExplorerLayout = qt.QFormLayout(self.multiVolumeExplorerArea)
+
+    self.multiVolumeExplorer = PCampReviewMultiVolumeExplorer(multiVolumeExplorerLayout)
+    self.multiVolumeExplorer.setup()
+    self.segmentationGroupBoxLayout.addWidget(self.multiVolumeExplorerArea)
+
     self.advancedSettingsArea = ctk.ctkCollapsibleButton()
     self.advancedSettingsArea.text = "Advanced Settings"
     self.advancedSettingsArea.collapsed = True
@@ -310,7 +320,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.mvSlider = ctk.ctkSliderWidget()
     self.mvSlider.connect('valueChanged(double)', self.onSliderChanged)
     self.mvSlider.enabled = False
-    advancedSettingsLayout.addRow('Frame Number: ', self.mvSlider)
+    # advancedSettingsLayout.addRow('Frame Number: ', self.mvSlider)
 
     self.segmentationGroupBoxLayout.addWidget(self.advancedSettingsArea)
 
@@ -352,7 +362,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.transformNode.SetName('PCampReview-transform')
     slicer.mrmlScene.AddNode(self.transformNode)
 
-    self.segmentationGroupBoxLayout.addWidget(self.translateArea)
+    advancedSettingsLayout.addRow(self.translateArea)
 
     editorWidgetParent = slicer.qMRMLWidget()
     editorWidgetParent.setLayout(qt.QVBoxLayout())
@@ -367,12 +377,24 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       widget = slicer.util.findChildren(volumesFrame,widgetName)[0]
       widget.hide()
 
+    editBoxFrame = self.editorWidget.editBoxFrame
+    # for buttonName in ["ErodeEffect", "DilateEffect", "GrowCutEffect", "WatershedFromMarkerEffect",
+    #                    "ThresholdEffect", "ChangeLabelEffect", "MakeModelEffect", "FastMarchingEffect"]:
+    #   slicer.util.findChildren(editBoxFrame,buttonName+'ToolButton')[0].hide()
+
+    effectButtonFrame = slicer.util.findChildren(editBoxFrame, "RowFrame1")[0].layout()
+    effectButtonFrame.addWidget(slicer.util.findChildren(editBoxFrame,'WindowLevelEffectToolButton')[0])
+    slicer.util.findChildren(editBoxFrame, "RowFrame2")[0].hide()
+
     perStructureFrame = slicer.util.findChildren(volumesFrame,
                         'PerStructureVolumesFrame')[0]
     perStructureFrame.collapsed = False
 
     self.structuresView = slicer.util.findChildren(volumesFrame,'StructuresView')[0]
     self.structuresView.connect("activated(QModelIndex)", self.onStructureClicked)
+
+    self.editorParameterNode = EditorLib.EditUtil.EditUtil.getParameterNode()
+    self.editorParameterNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onEditorWidgetParameterNodeChanged)
 
     buttonsFrame = slicer.util.findChildren(volumesFrame,'ButtonsFrame')[0]
     '''
@@ -407,15 +429,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
                              str(slicer.vtkMRMLApplicationLogic.LabelLayer))
 
     self.segmentationGroupBoxLayout.addWidget(editorWidgetParent)
-
-    self.multiVolumeExplorerArea = ctk.ctkCollapsibleButton()
-    self.multiVolumeExplorerArea.text = "MultiVolumeExplorer"
-    self.multiVolumeExplorerArea.collapsed = True
-    multiVolumeExplorerLayout = qt.QFormLayout(self.multiVolumeExplorerArea)
-
-    self.multiVolumeExplorer = PCampReviewMultiVolumeExplorer(multiVolumeExplorerLayout)
-    self.multiVolumeExplorer.setup()
-    self.segmentationGroupBoxLayout.addWidget(self.multiVolumeExplorerArea)
 
     self.fiducialsArea = ctk.ctkCollapsibleButton()
     self.fiducialsArea.text = "Fiducials"
@@ -494,6 +507,21 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     if os.path.exists(self.inputDataDir):
       self.tabWidget.setCurrentIndex(1)
+
+  def onEditorWidgetParameterNodeChanged(self, caller, event=-1):
+    effectName = caller.GetParameter("effect")
+    toolbox = self.editorWidget.toolsBox
+    if effectName in ["PaintEffect", "DrawEffect", "WandEffect", "LevelTracingEffect", "RectangleEffect",
+                      "IdentifyIslandsEffect", "ChangeIslandEffect", "RemoveIslandsEffect", "SaveIslandEffect"]:
+      toolOption = toolbox.currentOption
+      attributes = ["radius", "paintOver", "thresholdPaint", "sphere", "smudge", "pixelMode"]
+      for attr in attributes:
+        if hasattr(toolOption, attr):
+          getattr(toolOption, attr).hide()
+    try:
+      slicer.util.findChildren(self.editorWidget.toolsBox.optionsFrame, "EditorHelpButton")[0].hide()
+    except IndexError:
+      pass
 
   def enter(self):
     userName = self.getSetting('UserName')
@@ -2235,7 +2263,6 @@ class PCampReviewFiducialTable(object):
     self.table.setSelectionMode(qt.QAbstractItemView.SingleSelection)
     self.table.setMaximumHeight(200)
     self.table.horizontalHeader().setStretchLastSection(True)
-    self.table.setColumnWidth(1, 50)
     self.resetTable()
     self.parent.addRow(self.table)
 
