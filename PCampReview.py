@@ -559,7 +559,13 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         self.colorFile = lookupTableLoc
         self.customLUTLabel.text = 'Project-Specific LUT Found'
 
-    # setup the color table
+    # setup the color table, make sure PCampReview LUT is a singleton
+    allColorTableNodes = slicer.util.getNodes('vtkMRMLColorTableNode*').values()
+    for ctn in allColorTableNodes:
+      if ctn.GetName() == 'PCampReview':
+        slicer.mrmlScene.RemoveNode(ctn)
+        break
+
     self.PCampReviewColorNode = slicer.vtkMRMLColorTableNode()
     colorNode = self.PCampReviewColorNode
     colorNode.SetName('PCampReview')
