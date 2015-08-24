@@ -559,7 +559,13 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         self.colorFile = lookupTableLoc
         self.customLUTLabel.text = 'Project-Specific LUT Found'
 
-    # setup the color table
+    # setup the color table, make sure PCampReview LUT is a singleton
+    allColorTableNodes = slicer.util.getNodes('vtkMRMLColorTableNode*').values()
+    for ctn in allColorTableNodes:
+      if ctn.GetName() == 'PCampReview':
+        slicer.mrmlScene.RemoveNode(ctn)
+        break
+
     self.PCampReviewColorNode = slicer.vtkMRMLColorTableNode()
     colorNode = self.PCampReviewColorNode
     colorNode.SetName('PCampReview')
@@ -568,13 +574,16 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     with open(self.colorFile) as f:
       n = sum(1 for line in f)
     colorNode.SetNumberOfColors(n-1)
+    colorNode.NamesInitialisedOn()
     import csv
     self.structureNames = []
     with open(self.colorFile, 'rb') as csvfile:
       reader = csv.DictReader(csvfile, delimiter=',')
       for index,row in enumerate(reader):
-        colorNode.SetColor(index,row['Label'],float(row['R'])/255,
+        success = colorNode.SetColor(index ,row['Label'],float(row['R'])/255,
                 float(row['G'])/255,float(row['B'])/255,float(row['A']))
+        if not success:
+          print "color %s could not be set" % row['Label']
         self.structureNames.append(row['Label'])
       
   def onNameEntered(self):
