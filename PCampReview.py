@@ -2178,7 +2178,7 @@ class PCampReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleW
   def setupAdditionalFrames(self):
     self.popupChartButton = qt.QPushButton("Undock chart")
     self.popupChartButton.setCheckable(True)
-    self.layout.addWidget(self.popupChartButton, 3, 0, 1, 3)
+    self.layout.addRow(self.popupChartButton)
 
   def setupConnections(self):
     qSlicerMultiVolumeExplorerSimplifiedModuleWidget.setupConnections(self)
@@ -2206,7 +2206,8 @@ class PCampReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleW
   def dockChartView(self):
     self.chartPopupSize = self.chartPopupWindow.size
     self.chartPopupPosition = self.chartPopupWindow.pos
-    self.layout.addWidget(self._multiVolumeIntensityChart.chartView, 2, 0, 1, 3)
+    self.layout.addRow(self._multiVolumeIntensityChart.chartView)
+    self.layout.addRow(self.popupChartButton)
     self.popupChartButton.setText("Undock chart")
     self.popupChartButton.disconnect('toggled(bool)', self.onDockChartViewToggled)
     self.popupChartButton.checked = False
