@@ -1165,7 +1165,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         sItem.setCheckState(2)
 
     progress.delete()
-    self.setTabsEnabled([3], True)
+    self.setTabsEnabled([2], True)
 
   def onStep3Selected(self):
     # set up editor
