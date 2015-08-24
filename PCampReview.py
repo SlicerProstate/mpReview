@@ -216,24 +216,31 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     #
     self.dataDirButton = qt.QPushButton(self.inputDataDir)
     self.dataDirButton.connect('clicked()', self.onInputDirSelected)
-    self.studySelectionGroupBoxLayout.addWidget(qt.QLabel("Select data directory:"))
-    self.studySelectionGroupBoxLayout.addWidget(self.dataDirButton)
+    self.studySelectionGroupBoxLayout.addWidget(qt.QLabel("Data directory:"), 0, 0, 1, 1)
+    self.studySelectionGroupBoxLayout.addWidget(self.dataDirButton, 0 ,1, 1, 2)
+    infoGroupBox = qt.QWidget()
+    hbox = qt.QHBoxLayout()
+    hbox.setMargin(0)
+    infoGroupBox.setLayout(hbox)
+    self.studySelectionGroupBoxLayout.addWidget(infoGroupBox, 0, 3, 1, 1)
+    infoIcon = qt.QPixmap(os.path.join(self.resourcesPath, 'Icons', 'icon-infoBox.png'))
+    self.customLUTInfoIcon = qt.QLabel()
+    self.customLUTInfoIcon.setPixmap(infoIcon)
+    self.customLUTInfoIcon.setSizePolicy(PythonQt.QtGui.QSizePolicy())
+    hbox.addWidget(self.customLUTInfoIcon)
     self.customLUTLabel = qt.QLabel()
-    self.studySelectionGroupBoxLayout.addWidget(self.customLUTLabel)
-    self.inputDirLabel = qt.QLabel()
-    self.studySelectionGroupBoxLayout.addWidget(self.inputDirLabel)
-    self.resultsDirLabel = qt.QLabel()
-    self.studySelectionGroupBoxLayout.addWidget(self.resultsDirLabel)
+    hbox.addWidget(self.customLUTLabel)
 
+    self.studySelectionGroupBoxLayout.addWidget(qt.QLabel("Studies found:"), 2, 0, 1, 4)
     self.studiesView = qt.QListView()
     self.studiesView.setObjectName('StudiesTable')
     self.studiesView.setSpacing(3)
     self.studiesModel = qt.QStandardItemModel()
     self.studiesModel.setHorizontalHeaderLabels(['Study ID'])
     self.studiesView.setModel(self.studiesModel)
-    self.studiesView.setEditTriggers(qt.QAbstractItemView.NoEditTriggers)
+    self.studiesView.setEditTriggers(qt   .QAbstractItemView.NoEditTriggers)
     self.studiesView.connect('clicked(QModelIndex)', self.studySelected)
-    self.studySelectionGroupBoxLayout.addWidget(self.studiesView)
+    self.studySelectionGroupBoxLayout.addWidget(self.studiesView, 3, 0, 1, 4)
 
     #
     # Step 3: series selection
@@ -590,7 +597,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
   def checkAndSetLUT(self):
     # Default to module color table
     self.colorFile = os.path.join(self.resourcesPath, "Colors/PCampReviewColors.csv")
-    self.customLUTLabel.text = 'Using Default LUT'
+    self.customLUTLabel.setText('Using Default LUT')
 
     # Check for custom LUT
     if os.path.exists(self.inputDataDir):
@@ -599,7 +606,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       if os.path.isfile(lookupTableLoc):
         # use custom color table
         self.colorFile = lookupTableLoc
-        self.customLUTLabel.text = 'Project-Specific LUT Found'
+        self.customLUTLabel.setText('Project-Specific LUT Found')
 
     # setup the color table, make sure PCampReview LUT is a singleton
     allColorTableNodes = slicer.util.getNodes('vtkMRMLColorTableNode*').values()
