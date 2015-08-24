@@ -709,48 +709,12 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         Convention: create a directory for each type of resource saved,
         then subdirectory for each scan that was analyzed
     """
-    segmentationsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'Segmentations')
-    wlSettingsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'WindowLevelSettings')
-
-    self.createDirectory(segmentationsDir)
-    self.createDirectory(wlSettingsDir)
 
     import datetime
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+    username = self.getSetting('UserName')
 
-    # save all label nodes (there should be only one per volume!)
-    labelNodes = slicer.util.getNodes('*-label*')
-    logging.debug('All label nodes found: '+str(labelNodes))
-    savedMessage = 'Segmentations for the following series were saved:\n\n'
-    for label in labelNodes.values():
-
-      labelSeries = label.GetName().split(':')[0]
-      labelName =  label.GetName().split(':')[1]
-
-      # structure is root -> study -> resources -> series # ->
-      # Segmentations/Reconstructions/OncoQuant -> files
-      segmentationsDir = os.path.join(self.inputDataDir, self.selectedStudyName,
-                                      'RESOURCES', labelSeries, 'Segmentations')
-      self.createDirectory(segmentationsDir)
-
-      structureName = labelName[labelName[:-6].rfind("-")+1:-6]
-      # Only save labels with known structure names
-      if any(structureName == s for s in self.structureNames):
-        logging.debug("structure name is: %s" % structureName)
-        uniqueID = self.getSetting('UserName')+'-'+structureName+'-'+timestamp
-
-        labelFileName = os.path.join(segmentationsDir,uniqueID+'.nrrd')
-
-        sNode = slicer.vtkMRMLVolumeArchetypeStorageNode()
-        sNode.SetFileName(labelFileName)
-        sNode.SetWriteFileFormat('nrrd')
-        sNode.SetURI(None)
-        success = sNode.WriteData(label)
-        if success:
-          savedMessage = savedMessage + label.GetName()+'\n'
-          logging.debug(label.GetName()+' has been saved to '+labelFileName)
-
-    # save w/l settings for all non-label volume nodes
+    savedMessage = self.saveSegmentations(timestamp, username)# save w/l settings for all non-label volume nodes
     '''
     volumeNodes = slicer.util.getNodes('vtkMRMLScalarVolumeNode*')
     logging.debug('All volume nodes: '+str(volumeNodes))
@@ -765,7 +729,59 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       f.close()
     '''
 
+    savedMessage += "\n " + self.saveTargets(username, timestamp)
     self.infoPopup(savedMessage)
+
+  def saveSegmentations(self, timestamp, username):
+    segmentationsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'Segmentations')
+    wlSettingsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'WindowLevelSettings')
+    self.createDirectory(segmentationsDir)
+    self.createDirectory(wlSettingsDir)
+    # save all label nodes (there should be only one per volume!)
+    labelNodes = slicer.util.getNodes('*-label*')
+    logging.debug('All label nodes found: ' + str(labelNodes))
+    savedMessage = 'Segmentations for the following series were saved:\n\n'
+    for label in labelNodes.values():
+
+      labelSeries = label.GetName().split(':')[0]
+      labelName = label.GetName().split(':')[1]
+
+      # structure is root -> study -> resources -> series # ->
+      # Segmentations/Reconstructions/OncoQuant -> files
+      segmentationsDir = os.path.join(self.inputDataDir, self.selectedStudyName,
+                                      'RESOURCES', labelSeries, 'Segmentations')
+      self.createDirectory(segmentationsDir)
+
+      structureName = labelName[labelName[:-6].rfind("-") + 1:-6]
+      # Only save labels with known structure names
+      if any(structureName == s for s in self.structureNames):
+        logging.debug("structure name is: %s" % structureName)
+        uniqueID = username + '-' + structureName + '-' + timestamp
+
+        labelFileName = os.path.join(segmentationsDir, uniqueID + '.nrrd')
+
+        sNode = slicer.vtkMRMLVolumeArchetypeStorageNode()
+        sNode.SetFileName(labelFileName)
+        sNode.SetWriteFileFormat('nrrd')
+        sNode.SetURI(None)
+        success = sNode.WriteData(label)
+        if success:
+          savedMessage = savedMessage + label.GetName() + '\n'
+          logging.debug(label.GetName() + ' has been saved to ' + labelFileName)
+
+    return savedMessage
+
+  def saveTargets(self, username, timestamp):
+    savedMessage = ""
+    fiducialsNode = self.fiducialsWidget.fiducialsNode
+    if fiducialsNode:
+      targetsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'Targets')
+      self.createDirectory(targetsDir)
+      targetFileName = username+'-'+timestamp+'.fcsv'
+      path = os.path.join(targetsDir, targetFileName)
+      if slicer.util.saveNode(fiducialsNode, path):
+        savedMessage = 'Fiducials were saved'
+    return savedMessage
 
   def onInputDirSelected(self):
     self.inputDataDir = qt.QFileDialog.getExistingDirectory(self.parent,
