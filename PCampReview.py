@@ -157,7 +157,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       return qt.QIcon(qt.QPixmap(path))
 
     iconPath = os.path.join(self.resourcesPath, 'Icons')
-    self.dataSourceSelectionIcon = createQIconFromPath(os.path.join(iconPath,'icon-dataselection_fit.png'))
     self.studySelectionIcon = createQIconFromPath(os.path.join(iconPath, 'icon-studyselection_fit.png'))
     self.seriesSelectionIcon = createQIconFromPath(os.path.join(iconPath, 'icon-seriesselection_fit.png'))
     self.segmentationIcon = createQIconFromPath(os.path.join(iconPath, 'icon-segmentation_fit.png'))
@@ -168,19 +167,16 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.layout.addWidget(self.tabWidget)
     self.tabBar = self.tabWidget.childAt(1, 1)
 
-    self.dataSourceSelectionGroupBox = qt.QGroupBox()
     self.studySelectionGroupBox = qt.QGroupBox()
     self.seriesSelectionGroupBox = qt.QGroupBox()
     self.segmentationGroupBox = qt.QGroupBox()
     self.completionGroupBox = qt.QGroupBox()
 
-    self.dataSourceSelectionGroupBoxLayout = qt.QFormLayout()
     self.studySelectionGroupBoxLayout = qt.QGridLayout()
     self.seriesSelectionGroupBoxLayout = qt.QGridLayout()
     self.segmentationGroupBoxLayout = qt.QGridLayout()
     self.completionGroupBoxLayout = qt.QFormLayout()
 
-    self.dataSourceSelectionGroupBox.setLayout(self.dataSourceSelectionGroupBoxLayout)
     self.studySelectionGroupBox.setLayout(self.studySelectionGroupBoxLayout)
     self.seriesSelectionGroupBox.setLayout(self.seriesSelectionGroupBoxLayout)
     self.segmentationGroupBox.setLayout(self.segmentationGroupBoxLayout)
@@ -188,7 +184,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     self.tabWidget.setIconSize(qt.QSize(85, 30))
 
-    self.tabWidget.addTab(self.dataSourceSelectionGroupBox,self.dataSourceSelectionIcon, '')
     self.tabWidget.addTab(self.studySelectionGroupBox, self.studySelectionIcon, '')
     self.tabWidget.addTab(self.seriesSelectionGroupBox, self.seriesSelectionIcon, '')
     self.tabWidget.addTab(self.segmentationGroupBox, self.segmentationIcon, '')
@@ -206,8 +201,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       self.onStep3Selected()
     if currentIndex == 3:
       self.onStep4Selected()
-    if currentIndex == 4:
-      self.onStep5Selected()
 
   def setup(self):
     ScriptedLoadableModuleWidget.setup(self)
@@ -219,23 +212,19 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.parameters = {}
 
     #
-    # Step 1: selection of the data directory
+    # Step 1: selection of the data directory and the study to be analyzed
     #
     self.dataDirButton = qt.QPushButton(self.inputDataDir)
     self.dataDirButton.connect('clicked()', self.onInputDirSelected)
-    self.dataSourceSelectionGroupBoxLayout.addRow("Select data directory:", self.dataDirButton)
+    self.studySelectionGroupBoxLayout.addWidget(qt.QLabel("Select data directory:"))
+    self.studySelectionGroupBoxLayout.addWidget(self.dataDirButton)
     self.customLUTLabel = qt.QLabel()
-    self.dataSourceSelectionGroupBoxLayout.addRow(self.customLUTLabel)
+    self.studySelectionGroupBoxLayout.addWidget(self.customLUTLabel)
     self.inputDirLabel = qt.QLabel()
-    self.dataSourceSelectionGroupBoxLayout.addRow(self.inputDirLabel)
+    self.studySelectionGroupBoxLayout.addWidget(self.inputDirLabel)
     self.resultsDirLabel = qt.QLabel()
-    self.dataSourceSelectionGroupBoxLayout.addRow(self.resultsDirLabel)
-    self.checkAndSetLUT()
+    self.studySelectionGroupBoxLayout.addWidget(self.resultsDirLabel)
 
-    #
-    # Step 2: selection of the study to be analyzed
-    #
-    # TODO: add here source directory selector
     self.studiesView = qt.QListView()
     self.studiesView.setObjectName('StudiesTable')
     self.studiesView.setSpacing(3)
@@ -244,9 +233,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.studiesView.setModel(self.studiesModel)
     self.studiesView.setEditTriggers(qt.QAbstractItemView.NoEditTriggers)
     self.studiesView.connect('clicked(QModelIndex)', self.studySelected)
-    self.dataDirLabel = qt.QLabel()
-    self.dataDirLabel.text = "Current Data Dir: "
-    self.studySelectionGroupBoxLayout.addWidget(self.dataDirLabel)
     self.studySelectionGroupBoxLayout.addWidget(self.studiesView)
 
     #
@@ -282,7 +268,74 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     self.multiVolumeExplorer = PCampReviewMultiVolumeExplorer(multiVolumeExplorerLayout)
     self.multiVolumeExplorer.setup()
+    self.multiVolumeExplorer.metaDataSlider.connect('valueChanged(double)', self.onSliderChanged)
     self.segmentationGroupBoxLayout.addWidget(self.multiVolumeExplorerArea)
+
+    editorWidgetParent = slicer.qMRMLWidget()
+    editorWidgetParent.setLayout(qt.QVBoxLayout())
+    editorWidgetParent.setMRMLScene(slicer.mrmlScene)
+    self.editorWidget = EditorWidget(parent=editorWidgetParent)
+    self.editorWidget.setup()
+
+    volumesFrame = self.editorWidget.volumes
+    # hide unwanted widgets
+    for widgetName in ['AllButtonsFrameButton','ReplaceModelsCheckBox',
+      'MasterVolumeFrame','MergeVolumeFrame','SplitStructureButton']:
+      widget = slicer.util.findChildren(volumesFrame,widgetName)[0]
+      widget.hide()
+
+    editBoxFrame = self.editorWidget.editBoxFrame
+    # for buttonName in ["ErodeEffect", "DilateEffect", "GrowCutEffect", "WatershedFromMarkerEffect",
+    #                    "ThresholdEffect", "ChangeLabelEffect", "MakeModelEffect", "FastMarchingEffect"]:
+    #   slicer.util.findChildren(editBoxFrame,buttonName+'ToolButton')[0].hide()
+
+    effectButtonFrame = slicer.util.findChildren(editBoxFrame, "RowFrame1")[0].layout()
+    effectButtonFrame.addWidget(slicer.util.findChildren(editBoxFrame,'WindowLevelEffectToolButton')[0])
+    slicer.util.findChildren(editBoxFrame, "RowFrame2")[0].hide()
+
+    perStructureFrame = slicer.util.findChildren(volumesFrame,
+                        'PerStructureVolumesFrame')[0]
+    perStructureFrame.collapsed = False
+
+    self.structuresView = slicer.util.findChildren(volumesFrame,'StructuresView')[0]
+    self.structuresView.connect("activated(QModelIndex)", self.onStructureClicked)
+
+    self.editorParameterNode = EditorLib.EditUtil.EditUtil.getParameterNode()
+    self.editorParameterNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onEditorWidgetParameterNodeChanged)
+
+    buttonsFrame = slicer.util.findChildren(volumesFrame,'ButtonsFrame')[0]
+    '''
+    updateViewsButton = qt.QPushButton('Update Views')
+    buttonsFrame.layout().addWidget(updateViewsButton)
+    updateViewsButton.connect("clicked()", self.updateViews)
+    '''
+
+    redWidget = self.getLayoutManager().sliceWidget('Red')
+    controller = redWidget.sliceController()
+    moreButton = slicer.util.findChildren(controller,'MoreButton')[0]
+    moreButton.toggle()
+
+    deleteStructureButton = qt.QPushButton('Delete Structure')
+    buttonsFrame.layout().addWidget(deleteStructureButton)
+    deleteStructureButton.connect('clicked()', self.onDeleteStructure)
+
+    propagateButton = qt.QPushButton('Propagate Structure')
+    buttonsFrame.layout().addWidget(propagateButton)
+    propagateButton.connect('clicked()', self.onPropagateROI)
+
+    createFiducialsButton = qt.QPushButton('Create Fiducials')
+    buttonsFrame.layout().addWidget(createFiducialsButton)
+    createFiducialsButton.connect('clicked()', self.onCreateFiducialsButtonClicked)
+
+    #self.editorWidget.toolsColor.frame.setVisible(False)
+    self.editorWidget.toolsColor.colorSpin.setEnabled(False)
+    self.editorWidget.toolsColor.colorPatch.setEnabled(False)
+
+    self.editorParameterNode = self.editUtil.getParameterNode()
+    self.editorParameterNode.SetParameter('propagationMode',
+                             str(slicer.vtkMRMLApplicationLogic.LabelLayer))
+
+    self.segmentationGroupBoxLayout.addWidget(editorWidgetParent)
 
     self.advancedSettingsArea = ctk.ctkCollapsibleButton()
     self.advancedSettingsArea.text = "Advanced Settings"
@@ -364,72 +417,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     advancedSettingsLayout.addRow(self.translateArea)
 
-    editorWidgetParent = slicer.qMRMLWidget()
-    editorWidgetParent.setLayout(qt.QVBoxLayout())
-    editorWidgetParent.setMRMLScene(slicer.mrmlScene)
-    self.editorWidget = EditorWidget(parent=editorWidgetParent)
-    self.editorWidget.setup()
-
-    volumesFrame = self.editorWidget.volumes
-    # hide unwanted widgets
-    for widgetName in ['AllButtonsFrameButton','ReplaceModelsCheckBox',
-      'MasterVolumeFrame','MergeVolumeFrame','SplitStructureButton']:
-      widget = slicer.util.findChildren(volumesFrame,widgetName)[0]
-      widget.hide()
-
-    editBoxFrame = self.editorWidget.editBoxFrame
-    # for buttonName in ["ErodeEffect", "DilateEffect", "GrowCutEffect", "WatershedFromMarkerEffect",
-    #                    "ThresholdEffect", "ChangeLabelEffect", "MakeModelEffect", "FastMarchingEffect"]:
-    #   slicer.util.findChildren(editBoxFrame,buttonName+'ToolButton')[0].hide()
-
-    effectButtonFrame = slicer.util.findChildren(editBoxFrame, "RowFrame1")[0].layout()
-    effectButtonFrame.addWidget(slicer.util.findChildren(editBoxFrame,'WindowLevelEffectToolButton')[0])
-    slicer.util.findChildren(editBoxFrame, "RowFrame2")[0].hide()
-
-    perStructureFrame = slicer.util.findChildren(volumesFrame,
-                        'PerStructureVolumesFrame')[0]
-    perStructureFrame.collapsed = False
-
-    self.structuresView = slicer.util.findChildren(volumesFrame,'StructuresView')[0]
-    self.structuresView.connect("activated(QModelIndex)", self.onStructureClicked)
-
-    self.editorParameterNode = EditorLib.EditUtil.EditUtil.getParameterNode()
-    self.editorParameterNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onEditorWidgetParameterNodeChanged)
-
-    buttonsFrame = slicer.util.findChildren(volumesFrame,'ButtonsFrame')[0]
-    '''
-    updateViewsButton = qt.QPushButton('Update Views')
-    buttonsFrame.layout().addWidget(updateViewsButton)
-    updateViewsButton.connect("clicked()", self.updateViews)
-    '''
-
-    redWidget = self.getLayoutManager().sliceWidget('Red')
-    controller = redWidget.sliceController()
-    moreButton = slicer.util.findChildren(controller,'MoreButton')[0]
-    moreButton.toggle()
-
-    deleteStructureButton = qt.QPushButton('Delete Structure')
-    buttonsFrame.layout().addWidget(deleteStructureButton)
-    deleteStructureButton.connect('clicked()', self.onDeleteStructure)
-
-    propagateButton = qt.QPushButton('Propagate Structure')
-    buttonsFrame.layout().addWidget(propagateButton)
-    propagateButton.connect('clicked()', self.onPropagateROI)
-
-    createFiducialsButton = qt.QPushButton('Create Fiducials')
-    buttonsFrame.layout().addWidget(createFiducialsButton)
-    createFiducialsButton.connect('clicked()', self.onCreateFiducialsButtonClicked)
-
-    #self.editorWidget.toolsColor.frame.setVisible(False)
-    self.editorWidget.toolsColor.colorSpin.setEnabled(False)
-    self.editorWidget.toolsColor.colorPatch.setEnabled(False)
-
-    self.editorParameterNode = self.editUtil.getParameterNode()
-    self.editorParameterNode.SetParameter('propagationMode',
-                             str(slicer.vtkMRMLApplicationLogic.LabelLayer))
-
-    self.segmentationGroupBoxLayout.addWidget(editorWidgetParent)
-
     self.fiducialsArea = ctk.ctkCollapsibleButton()
     self.fiducialsArea.text = "Fiducials"
     self.fiducialsArea.collapsed = True
@@ -506,7 +493,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.selectedStudyName = None
 
     if os.path.exists(self.inputDataDir):
-      self.tabWidget.setCurrentIndex(1)
+      self.checkAndSetLUT()
+      self.onUpdateStudyTable()
 
   def onEditorWidgetParameterNodeChanged(self, caller, event=-1):
     effectName = caller.GetParameter("effect")
@@ -654,12 +642,12 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       self.URLPrompt.close()
       self.webFormURL = url
 
-  def onResultsDirEntered(self):
-    path = self.dirButton.directory
-    if len(path)>0:
-      self.setSetting('ResultsLocation',path)
-      self.dirPrompt.close()
-      self.parameters['ResultsLocation'] = path
+  # def onResultsDirEntered(self):
+  #   path = self.dirButton.directory
+  #   if len(path)>0:
+  #     self.setSetting('ResultsLocation',path)
+  #     self.dirPrompt.close()
+  #     self.parameters['ResultsLocation'] = path
 
   def onViewUpdateRequested(self, id):
     # Skip if not in a ref image yet
@@ -683,14 +671,14 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     logging.debug('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
     logging.debug('Row number: '+str(modelIndex.row()))
     self.selectedStudyName = self.studiesModel.item(modelIndex.row(),0).text()
-    self.setTabsEnabled([2], True)
+    self.setTabsEnabled([1], True)
 
   def seriesSelected(self, modelIndex):
     logging.debug('Row selected: '+self.seriesModel.item(modelIndex.row(),0).text())
     selectionModel = self.seriesView.selectionModel()
     logging.debug('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
     logging.debug('Row number: '+str(modelIndex.row()))
-    self.setTabsEnabled([3], True)
+    self.setTabsEnabled([2], True)
 
   def onQAFormClicked(self):
     self.webView = qt.QWebView()
@@ -786,11 +774,11 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     if self.inputDataDir != "":
       self.dataDirButton.text = self.inputDataDir
       self.setSetting('InputLocation', self.inputDataDir)
-      self.checkAndSetLUT()
       logging.debug('Directory selected:')
       logging.debug(self.inputDataDir)
       logging.debug(self.getSetting('InputLocation'))
-      self.tabWidget.setCurrentIndex(1)
+      self.checkAndSetLUT()
+      self.onUpdateStudyTable()
 
   def onBuildModels(self):
     """make models of the structure label nodesvolume"""
@@ -998,9 +986,9 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     for index in indexes:
       self.tabBar.setTabEnabled(index, enabled)
 
-  def checkStep4or5Leave(self):
-    if self.currentStep == 4 or self.currentStep == 5:
-      continueCurrentStep = self.showExitStep4Or5Warning()
+  def checkStep3or4Leave(self):
+    if self.currentStep == 3 or self.currentStep == 4:
+      continueCurrentStep = self.showExitStep3Or4Warning()
       if continueCurrentStep:
         self.tabWidget.setCurrentIndex(self.currentStep-1)
         return True
@@ -1009,27 +997,17 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     return False
 
   def onStep1Selected(self):
-    if self.checkStep4or5Leave() is True:
+    if self.checkStep3or4Leave() is True:
       return
     if self.currentStep == 1:
       return
     self.currentStep = 1
-    self.setTabsEnabled([2,3,4], False)
-    if self.inputDataDir != "":
-      self.setTabsEnabled([1], True)
+    self.setTabsEnabled([0],True)
+    self.setTabsEnabled([1,2,3], False)
 
-  def onStep2Selected(self):
-    if self.checkStep4or5Leave() is True:
-      return
-    if self.currentStep == 2:
-      return
-    self.currentStep = 2
-    self.setTabsEnabled([1],True)
-    self.setTabsEnabled([2,3,4], False)
-
+  def onUpdateStudyTable(self):
     studyDirs = []
     # get list of studies
-    self.dataDirLabel.text = "Current Data Dir: " + str(self.inputDataDir +"\n")
     if not os.path.exists(self.inputDataDir):
       return
 
@@ -1056,17 +1034,17 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     progress.delete()
 
-  def onStep3Selected(self):
-    if self.checkStep4or5Leave() is True:
+  def onStep2Selected(self):
+    if self.checkStep3or4Leave() is True:
       return
-    if self.currentStep == 3 or not self.selectedStudyName:
+    if self.currentStep == 2 or not self.selectedStudyName:
       return
 
-    self.currentStep = 3
+    self.currentStep = 2
 
-    self.setTabsEnabled([2],True)
-    self.setTabsEnabled([4], False)
-    logging.debug('Entering step 3')
+    self.setTabsEnabled([1,2],True)
+    self.setTabsEnabled([3], False)
+    logging.debug('Entering step 2')
 
     self.logic.cleanupDir(self.tempDir)
 
@@ -1166,15 +1144,15 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     progress.delete()
     self.setTabsEnabled([3], True)
 
-  def onStep4Selected(self):
+  def onStep3Selected(self):
     # set up editor
+    if self.currentStep == 3:
+      return
     if self.currentStep == 4:
+      self.currentStep = 3
       return
-    if self.currentStep == 5:
-      self.currentStep = 4
-      return
-    self.currentStep = 4
-    self.setTabsEnabled([3,4],True)
+    self.currentStep = 3
+    self.setTabsEnabled([2,3],True)
 
     self.editorWidget.enter()
 
@@ -1186,7 +1164,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     # if no series selected, go to the previous step
     if len(checkedItems) == 0:
-      self.onStep3Selected()
+      self.onStep2Selected()
       return
 
     self.volumeNodes = {}
@@ -1273,10 +1251,10 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     self.refSelectorIgnoreUpdates = False
 
-  def onStep5Selected(self):
-    self.currentStep = 5
+  def onStep4Selected(self):
+    self.currentStep = 4
 
-  def showExitStep4Or5Warning(self):
+  def showExitStep3Or4Warning(self):
     result = self.confirmOrSaveDialog('Unsaved contours will be lost!\n\nDo you still want to exit?')
     if result == 1:
       self.onSaveClicked()
@@ -1317,19 +1295,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       labelName = self.seriesMap[str(ref)]['ShortName']+'-label'
       refLabel = self.volumesLogic.CreateAndAddLabelVolume(slicer.mrmlScene,self.volumeNodes[0],labelName)
       self.seriesMap[str(ref)]['Label'] = refLabel
-
-    # Check for MultiVolume
-    try:
-      mvNode = self.seriesMap[str(ref)]['MultiVolume']
-      nFrames = mvNode.GetNumberOfFrames()
-      self.mvSlider.minimum = 0
-      self.mvSlider.maximum = nFrames-1
-      self.mvSlider.value = self.seriesMap[str(ref)]['FrameNumber']
-      self.mvSlider.enabled = True
-    except KeyError:
-      self.mvSlider.minimum = 0
-      self.mvSlider.maximum = 0
-      self.mvSlider.enabled = False
 
     dNode = refLabel.GetDisplayNode()
     dNode.SetAndObserveColorNodeID(self.PCampReviewColorNode.GetID())
@@ -1375,12 +1340,13 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       self.editorWidget.helper.structureListWidget.selectStructure(0)
 
     self.updateEditorAvailability()
+
     try:
       mvNode = self.seriesMap[str(ref)]['MultiVolume']
       self.multiVolumeExplorer.setMultiVolume(mvNode)
-      self.multiVolumeExplorer.refreshObservers()
     except KeyError:
-      pass
+      self.multiVolumeExplorer.setMultiVolume(None)
+    self.multiVolumeExplorer.refreshObservers()
     logging.debug('Exiting onReferenceChanged')
 
   '''
@@ -2177,6 +2143,14 @@ class PCampReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleW
     self.chartPopupSize = qt.QSize(600, 300)
     self.chartPopupPosition = qt.QPoint(0,0)
     self.acceptNonVolumeData = True
+
+  def setupInputFrame(self):
+    qSlicerMultiVolumeExplorerSimplifiedModuleWidget.setupInputFrame(self)
+    self._bgMultiVolumeSelectorLabel.hide()
+    self._bgMultiVolumeSelector.hide()
+
+  def getBackgroundMultiVolumeNode(self):
+    pass
 
   def setMultiVolume(self, node):
     self._bgMultiVolumeNode = node
