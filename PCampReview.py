@@ -1241,7 +1241,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
           self.seriesMap[seriesNumber]['Volume'] = self.logic.extractFrame(None,
                                                                      self.seriesMap[seriesNumber]['MultiVolume'],
                                                                      self.seriesMap[seriesNumber]['FrameNumber'])
-
       else:
         logging.debug('Failed to load image volume!')
         return
@@ -1274,6 +1273,26 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     self.refSelectorIgnoreUpdates = False
 
+    self.checkForMultiVolumes()
+
+  def checkForMultiVolumes(self):
+    multiVolumes = self.getMultiVolumes()
+    self.multiVolumeExplorer.showInputMultiVolumeSelector(len(multiVolumes) > 1)
+    multiVolume = None
+    if len(multiVolumes) == 1:
+      multiVolume = multiVolumes[0]
+    elif len(multiVolumes) > 1:
+      multiVolume = max(multiVolumes, key=lambda mv: mv.GetNumberOfFrames)
+      # TODO: set selector
+    self.multiVolumeExplorer.setMultiVolume(multiVolume)
+
+  def getMultiVolumes(self):
+    multiVolumes = []
+    for key, val in self.seriesMap.items():
+      if 'MultiVolume' in val.keys():
+        multiVolumes.append(val['MultiVolume'])
+    return multiVolumes
+
   def onStep4Selected(self):
     self.currentStep = 4
 
@@ -1297,6 +1316,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       return
 
     logging.debug('Reference series selected: '+str(ref))
+
+    self.multiVolumeExplorer.showFrameControl('MultiVolume' in self.seriesMap[str(ref)].keys())
 
     # volume nodes ordered by series number
     seriesNumbers= [int(x) for x in self.seriesMap.keys()]
@@ -1364,11 +1385,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     self.updateEditorAvailability()
 
-    try:
-      mvNode = self.seriesMap[str(ref)]['MultiVolume']
-      self.multiVolumeExplorer.setMultiVolume(mvNode)
-    except KeyError:
-      self.multiVolumeExplorer.setMultiVolume(None)
     self.multiVolumeExplorer.refreshObservers()
     logging.debug('Exiting onReferenceChanged')
 
@@ -2167,10 +2183,23 @@ class PCampReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleW
     self.chartPopupPosition = qt.QPoint(0,0)
     self.acceptNonVolumeData = True
 
-  def setupInputFrame(self):
-    qSlicerMultiVolumeExplorerSimplifiedModuleWidget.setupInputFrame(self)
-    self._bgMultiVolumeSelectorLabel.hide()
-    self._bgMultiVolumeSelector.hide()
+  def showInputMultiVolumeSelector(self, show):
+    if show:
+      self._bgMultiVolumeSelectorLabel.show()
+      self._bgMultiVolumeSelector.show()
+    else:
+      self._bgMultiVolumeSelectorLabel.hide()
+      self._bgMultiVolumeSelector.hide()
+
+  def showFrameControl(self, show):
+    if show:
+      self.frameLabel.show()
+      self.metaDataSlider.show()
+      self.playButton.show()
+    else:
+      self.frameLabel.hide()
+      self.metaDataSlider.hide()
+      self.playButton.hide()
 
   def getBackgroundMultiVolumeNode(self):
     pass
@@ -2190,6 +2219,9 @@ class PCampReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleW
   def setupConnections(self):
     qSlicerMultiVolumeExplorerSimplifiedModuleWidget.setupConnections(self)
     self.popupChartButton.connect('toggled(bool)', self.onDockChartViewToggled)
+
+  def createChart(self, sliceWidget, position):
+    self._multiVolumeIntensityChart.createChart(sliceWidget, position, ignoreCurrentBackground=True)
 
   def onBackgroundInputChanged(self):
     qSlicerMultiVolumeExplorerSimplifiedModuleWidget.onBackgroundInputChanged(self)
