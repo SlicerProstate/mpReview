@@ -1274,6 +1274,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.refSelectorIgnoreUpdates = False
 
     self.checkForMultiVolumes()
+    self.multiVolumeExplorer.showFrameControl(False)
 
   def checkForMultiVolumes(self):
     multiVolumes = self.getMultiVolumes()
@@ -1490,7 +1491,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     return itemCheckStates
 
   def updateEligibleLabelList(self):
-    # TODO: it might be interesting to save the checkstate since all checkstates are deleted
     savedCheckStates = dict()
     if self.fiducialLabelPropagateModel:
       savedCheckStates = self.getCheckStatesFromStructureFiducialTable()
@@ -2198,11 +2198,7 @@ class PCampReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleW
       self.frameControlWidget.hide()
 
   def setMultiVolume(self, node):
-    self._bgMultiVolumeNode = node
-    self._multiVolumeIntensityChart.reset()
-    self.setFramesEnabled(True)
-    self.refreshFrameSlider()
-    self._multiVolumeIntensityChart.bgMultiVolumeNode = self._bgMultiVolumeNode
+    self.bgMultiVolumeSelector.setCurrentNode(node)
 
   def setupAdditionalFrames(self):
     self.popupChartButton = qt.QPushButton("Undock chart")
