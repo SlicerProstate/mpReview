@@ -275,7 +275,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     self.multiVolumeExplorer = PCampReviewMultiVolumeExplorer(multiVolumeExplorerLayout)
     self.multiVolumeExplorer.setup()
-    self.multiVolumeExplorer.metaDataSlider.connect('valueChanged(double)', self.onSliderChanged)
+    self.multiVolumeExplorer.frameSlider.connect('valueChanged(double)', self.onSliderChanged)
     self.segmentationGroupBoxLayout.addWidget(self.multiVolumeExplorerArea)
 
     editorWidgetParent = slicer.qMRMLWidget()
@@ -2186,23 +2186,16 @@ class PCampReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleW
   def showInputMultiVolumeSelector(self, show):
     if show:
       self._bgMultiVolumeSelectorLabel.show()
-      self._bgMultiVolumeSelector.show()
+      self.bgMultiVolumeSelector.show()
     else:
       self._bgMultiVolumeSelectorLabel.hide()
-      self._bgMultiVolumeSelector.hide()
+      self.bgMultiVolumeSelector.hide()
 
   def showFrameControl(self, show):
     if show:
-      self.frameLabel.show()
-      self.metaDataSlider.show()
-      self.playButton.show()
+      self.frameControlWidget.show()
     else:
-      self.frameLabel.hide()
-      self.metaDataSlider.hide()
-      self.playButton.hide()
-
-  def getBackgroundMultiVolumeNode(self):
-    pass
+      self.frameControlWidget.hide()
 
   def setMultiVolume(self, node):
     self._bgMultiVolumeNode = node
@@ -2214,7 +2207,7 @@ class PCampReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleW
   def setupAdditionalFrames(self):
     self.popupChartButton = qt.QPushButton("Undock chart")
     self.popupChartButton.setCheckable(True)
-    self.layout.addRow(self.popupChartButton)
+    self.layout.addWidget(self.popupChartButton)
 
   def setupConnections(self):
     qSlicerMultiVolumeExplorerSimplifiedModuleWidget.setupConnections(self)
@@ -2222,6 +2215,12 @@ class PCampReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleW
 
   def createChart(self, sliceWidget, position):
     self._multiVolumeIntensityChart.createChart(sliceWidget, position, ignoreCurrentBackground=True)
+
+  def refreshGUIForNewBackgroundImage(self):
+    self._multiVolumeIntensityChart.reset()
+    self.setFramesEnabled(True)
+    self.refreshFrameSlider()
+    self._multiVolumeIntensityChart.bgMultiVolumeNode = self._bgMultiVolumeNode
 
   def onBackgroundInputChanged(self):
     qSlicerMultiVolumeExplorerSimplifiedModuleWidget.onBackgroundInputChanged(self)
@@ -2245,8 +2244,8 @@ class PCampReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleW
   def dockChartView(self):
     self.chartPopupSize = self.chartPopupWindow.size
     self.chartPopupPosition = self.chartPopupWindow.pos
-    self.layout.addRow(self._multiVolumeIntensityChart.chartView)
-    self.layout.addRow(self.popupChartButton)
+    self.layout.addWidget(self._multiVolumeIntensityChart.chartView)
+    self.layout.addWidget(self.popupChartButton)
     self.popupChartButton.setText("Undock chart")
     self.popupChartButton.disconnect('toggled(bool)', self.onDockChartViewToggled)
     self.popupChartButton.checked = False
