@@ -780,7 +780,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
   def saveTargets(self, username, timestamp):
     savedMessage = ""
-    fiducialsNode = self.fiducialsWidget.fiducialsNode
+    fiducialsNode = self.fiducialsWidget.currentNode
     if fiducialsNode:
       targetsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'Targets')
       self.createDirectory(targetsDir)
@@ -1274,7 +1274,28 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.refSelectorIgnoreUpdates = False
 
     self.checkForMultiVolumes()
+    self.checkForFiducials()
     self.multiVolumeExplorer.showFrameControl(False)
+
+  def checkForFiducials(self):
+    self.targetsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'Targets')
+    if not os.path.exists(self.targetsDir):
+      return
+    mostRecent = ""
+    storedTimeStamp = 0
+    for filename in [f for f in os.listdir(self.targetsDir) if re.match(self.getSetting('UserName')+"-[0-9]*.fcsv", f)]:
+      actualFileName = filename.split(".")[0]
+      timeStamp = int(actualFileName.split("-")[1])
+      if timeStamp > storedTimeStamp:
+        mostRecent = filename
+        storedTimeStamp = timeStamp
+    self.loadMostRecentFiducialList(mostRecent)
+
+  def loadMostRecentFiducialList(self, mostRecent):
+    if mostRecent != "":
+      path = os.path.join(self.targetsDir, mostRecent)
+      if slicer.util.loadMarkupsFiducialList(path):
+        self.fiducialsWidget.currentNode = slicer.util.getFirstNodeByName(mostRecent.split(".")[0])
 
   def checkForMultiVolumes(self):
     multiVolumes = self.getMultiVolumes()
@@ -2254,9 +2275,16 @@ class PCampReviewFiducialTable(object):
   MODIFIED_EVENT = "ModifiedEvent"
   FIDUCIAL_LIST_OBSERVED_EVENTS = [MODIFIED_EVENT]
 
+  @property
+  def currentNode(self):
+    return self.fiducialListSelector.currentNode()
+
+  @currentNode.setter
+  def currentNode(self, node):
+    self.fiducialListSelector.setCurrentNode(node)
+
   def __init__(self, parent):
     self.parent = parent
-    self.fiducialsNode = None
     self.connectedButtons = []
     self.fiducialsNodeObservers = []
     self.setup()
@@ -2280,7 +2308,6 @@ class PCampReviewFiducialTable(object):
     hbox.addWidget(qt.QLabel("Fiducial List: "))
     hbox.addWidget(self.fiducialListSelector)
     self.parent.addRow(hbox)
-    self.fiducialsNode = None
 
   def setupFiducialsTable(self):
     self.table = qt.QTableWidget(0, 2)
@@ -2311,28 +2338,27 @@ class PCampReviewFiducialTable(object):
     self.updateTable()
 
   def removeObservers(self):
-    if self.fiducialsNode and len(self.fiducialsNodeObservers) > 0:
+    if self.currentNode and len(self.fiducialsNodeObservers) > 0:
       for observer in self.fiducialsNodeObservers:
-        self.fiducialsNode.RemoveObserver(observer)
+        self._fiducialsNode.RemoveObserver(observer)
     self.fiducialsNodeObservers = []
 
   def addObservers(self):
     if self.fiducialListSelector.currentNode():
-      self.fiducialsNode = self.fiducialListSelector.currentNode()
       for event in self.FIDUCIAL_LIST_OBSERVED_EVENTS:
-        self.fiducialsNodeObservers.append(self.fiducialsNode.AddObserver(event, self.onFiducialsUpdated))
+        self.fiducialsNodeObservers.append(self.currentNode.AddObserver(event, self.onFiducialsUpdated))
 
   def updateTable(self):
     self.cleanupButtons()
     self.resetTable()
-    if not self.fiducialsNode:
+    if not self.currentNode:
       return
     else:
-      nOfControlPoints = self.fiducialsNode.GetNumberOfFiducials()
+      nOfControlPoints = self.currentNode.GetNumberOfFiducials()
       if self.table.rowCount != nOfControlPoints:
         self.table.setRowCount(nOfControlPoints)
       for i in range(nOfControlPoints):
-        label = self.fiducialsNode.GetNthFiducialLabel(i)
+        label = self.currentNode.GetNthFiducialLabel(i)
         cellLabel = qt.QTableWidgetItem(label)
         self.table.setItem(i, 0, cellLabel)
         self.addDeleteButton(i, 1)
@@ -2346,8 +2372,8 @@ class PCampReviewFiducialTable(object):
 
   def handleDeleteButtonClicked(self, idx):
     if PCampReviewWidget.yesNoDialog("Do you really want to delete fiducial %s?"
-            % self.fiducialsNode.GetNthFiducialLabel(idx)):
-      self.fiducialsNode.RemoveMarkup(idx)
+            % self.currentNode.GetNthFiducialLabel(idx)):
+      self.currentNode.RemoveMarkup(idx)
 
   def onFiducialsUpdated(self, caller, event):
     if caller.IsA("vtkMRMLMarkupsFiducialNode") and event == self.MODIFIED_EVENT:
@@ -2355,7 +2381,7 @@ class PCampReviewFiducialTable(object):
 
   def onCellChanged(self, row, col):
     if col == 0:
-      self.fiducialsNode.SetNthFiducialLabel(row, self.table.item(row, col).text())
+      self.currentNode.SetNthFiducialLabel(row, self.table.item(row, col).text())
 
   def getOrCreateFiducialNode(self):
     node = self.fiducialListSelector.currentNode()
