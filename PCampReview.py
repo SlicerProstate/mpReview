@@ -1275,7 +1275,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     self.checkForMultiVolumes()
     self.checkForFiducials()
-    self.multiVolumeExplorer.showFrameControl(False)
 
   def checkForFiducials(self):
     self.targetsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'Targets')
@@ -1307,6 +1306,10 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       multiVolume = max(multiVolumes, key=lambda mv: mv.GetNumberOfFrames)
       # TODO: set selector
     self.multiVolumeExplorer.setMultiVolume(multiVolume)
+    if len(multiVolumes) == 0:
+      self.multiVolumeExplorer.hide()
+    else:
+      self.multiVolumeExplorer.show()
 
   def getMultiVolumes(self):
     multiVolumes = []
@@ -1338,8 +1341,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       return
 
     logging.debug('Reference series selected: '+str(ref))
-
-    self.multiVolumeExplorer.showFrameControl('MultiVolume' in self.seriesMap[str(ref)].keys())
 
     # volume nodes ordered by series number
     seriesNumbers= [int(x) for x in self.seriesMap.keys()]
@@ -2199,10 +2200,6 @@ class PCampReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleW
 
   def __init__(self, parent=None):
     qSlicerMultiVolumeExplorerSimplifiedModuleWidget.__init__(self, parent)
-    self.chartPopupWindow = None
-    self.chartPopupSize = qt.QSize(600, 300)
-    self.chartPopupPosition = qt.QPoint(0,0)
-    self.acceptNonVolumeData = True
 
   def showInputMultiVolumeSelector(self, show):
     if show:
@@ -2212,23 +2209,11 @@ class PCampReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleW
       self._bgMultiVolumeSelectorLabel.hide()
       self.bgMultiVolumeSelector.hide()
 
-  def showFrameControl(self, show):
-    if show:
-      self.frameControlWidget.show()
-    else:
-      self.frameControlWidget.hide()
-
   def setMultiVolume(self, node):
     self.bgMultiVolumeSelector.setCurrentNode(node)
 
-  def setupAdditionalFrames(self):
-    self.popupChartButton = qt.QPushButton("Undock chart")
-    self.popupChartButton.setCheckable(True)
-    self.layout.addWidget(self.popupChartButton)
-
   def setupConnections(self):
     qSlicerMultiVolumeExplorerSimplifiedModuleWidget.setupConnections(self)
-    self.popupChartButton.connect('toggled(bool)', self.onDockChartViewToggled)
 
   def createChart(self, sliceWidget, position):
     self._multiVolumeIntensityChart.createChart(sliceWidget, position, ignoreCurrentBackground=True)
@@ -2242,31 +2227,6 @@ class PCampReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleW
   def onBackgroundInputChanged(self):
     qSlicerMultiVolumeExplorerSimplifiedModuleWidget.onBackgroundInputChanged(self)
     self.popupChartButton.setEnabled(self._bgMultiVolumeNode is not None)
-
-  def onDockChartViewToggled(self, checked):
-    if checked:
-      self.chartPopupWindow = qt.QDialog()
-      self.chartPopupWindow.setWindowFlags(PythonQt.QtCore.Qt.WindowStaysOnTopHint)
-      layout = qt.QGridLayout()
-      self.chartPopupWindow.setLayout(layout)
-      layout.addWidget(self._multiVolumeIntensityChart.chartView)
-      self.chartPopupWindow.finished.connect(self.dockChartView)
-      self.chartPopupWindow.resize(self.chartPopupSize)
-      self.chartPopupWindow.move(self.chartPopupPosition)
-      self.chartPopupWindow.show()
-      self.popupChartButton.setText("Dock chart")
-    else:
-      self.chartPopupWindow.close()
-
-  def dockChartView(self):
-    self.chartPopupSize = self.chartPopupWindow.size
-    self.chartPopupPosition = self.chartPopupWindow.pos
-    self.layout.addWidget(self._multiVolumeIntensityChart.chartView)
-    self.layout.addWidget(self.popupChartButton)
-    self.popupChartButton.setText("Undock chart")
-    self.popupChartButton.disconnect('toggled(bool)', self.onDockChartViewToggled)
-    self.popupChartButton.checked = False
-    self.popupChartButton.connect('toggled(bool)', self.onDockChartViewToggled)
 
 
 class PCampReviewFiducialTable(object):
