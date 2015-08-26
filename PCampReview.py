@@ -9,7 +9,7 @@ from EditorLib import EditorLib
 import SimpleITK as sitk
 import sitkUtils
 from slicer.ScriptedLoadableModule import *
-from qSlicerMultiVolumeExplorerModuleWidget import qSlicerMultiVolumeExplorerSimplifiedModuleWidget
+from qSlicerMultiVolumeExplorerModuleWidget import qSlicerMultiVolumeExplorerSimplifiedModuleWidget, MultiVolumeExplorerLogic
 
 
 class PCampReview(ScriptedLoadableModule):
@@ -375,12 +375,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.orientationButtons['Axial'].setChecked(1)
     self.currentOrientation = 'Axial'
     advancedSettingsLayout.addRow('View orientation: ', self.orientationBox)
-
-    # Multi-volume frame controller
-    self.mvSlider = ctk.ctkSliderWidget()
-    self.mvSlider.connect('valueChanged(double)', self.onSliderChanged)
-    self.mvSlider.enabled = False
-    # advancedSettingsLayout.addRow('Frame Number: ', self.mvSlider)
 
     self.segmentationGroupBoxLayout.addWidget(self.advancedSettingsArea)
 
@@ -1238,9 +1232,11 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
           self.seriesMap[seriesNumber]['MultiVolume'] = volume
           self.seriesMap[seriesNumber]['MultiVolume'].SetName(shortName+'_multivolume')
           self.seriesMap[seriesNumber]['FrameNumber'] = volume.GetNumberOfFrames()-1
-          self.seriesMap[seriesNumber]['Volume'] = self.logic.extractFrame(None,
-                                                                     self.seriesMap[seriesNumber]['MultiVolume'],
-                                                                     self.seriesMap[seriesNumber]['FrameNumber'])
+          scalarVolumeNode = MultiVolumeExplorerLogic.extractFrame(None,
+                                                                   self.seriesMap[seriesNumber]['MultiVolume'],
+                                                                   self.seriesMap[seriesNumber]['FrameNumber'])
+          scalarVolumeNode.SetName(shortName)
+          self.seriesMap[seriesNumber]['Volume'] = scalarVolumeNode
       else:
         logging.debug('Failed to load image volume!')
         return
@@ -1306,10 +1302,13 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       multiVolume = max(multiVolumes, key=lambda mv: mv.GetNumberOfFrames)
       # TODO: set selector
     self.multiVolumeExplorer.setMultiVolume(multiVolume)
-    if len(multiVolumes) == 0:
-      self.multiVolumeExplorer.hide()
+    self.showMultiVolumeExplorer(len(multiVolumes) > 0)
+
+  def showMultiVolumeExplorer(self, show):
+    if show:
+      self.multiVolumeExplorerArea.show()
     else:
-      self.multiVolumeExplorer.show()
+      self.multiVolumeExplorerArea.hide()
 
   def getMultiVolumes(self):
     multiVolumes = []
@@ -1481,15 +1480,16 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
   def onSliderChanged(self, newValue):
     newValue = int(newValue)
-    try:
-      self.seriesMap[self.refSeriesNumber]['Volume'] = self.logic.extractFrame(self.seriesMap[self.refSeriesNumber]['Volume'],
-                                                                       self.seriesMap[self.refSeriesNumber]['MultiVolume'],
-                                                                       newValue)
-      self.seriesMap[self.refSeriesNumber]['FrameNumber'] = newValue
-      self.seriesMap[self.refSeriesNumber]['MultiVolume'].GetDisplayNode().SetFrameComponent(newValue)
-    except:
-      # can get an event on reference switchover from a multivolume
-      pass
+    seriesNumber = self.multiVolumeExplorer.getCurrentSeriesNumber()
+    if seriesNumber in self.seriesMap.keys():
+      multiVolumeNode = self.seriesMap[seriesNumber]['MultiVolume']
+      scalarVolumeNode = MultiVolumeExplorerLogic.extractFrame(self.seriesMap[seriesNumber]['Volume'],
+                                                               multiVolumeNode,
+                                                               newValue)
+      scalarVolumeNode.SetName(multiVolumeNode.GetName().split('_multivolume')[0])
+      self.seriesMap[seriesNumber]['Volume'] = scalarVolumeNode
+      self.seriesMap[seriesNumber]['FrameNumber'] = newValue
+      multiVolumeNode.GetDisplayNode().SetFrameComponent(newValue)
 
   def getCreatedStructures(self):
     # TODO: usually not all structures shall be available for fiducial creation
@@ -2078,49 +2078,6 @@ class PCampReviewLogic(ScriptedLoadableModuleLogic):
       abbr = 'Subtract'
     return seriesNumber+'-'+abbr
 
-  # Extract frame from multiVolumeNode and put it into scalarVolumeNode
-  @staticmethod
-  def extractFrame(scalarVolumeNode, multiVolumeNode, frameId):
-    # if no scalar volume given, create one
-    if scalarVolumeNode is None:
-      scalarVolumeNode = slicer.vtkMRMLScalarVolumeNode()
-      scalarVolumeNode.SetScene(slicer.mrmlScene)
-      # name = mv node name minus _multivolume
-      scalarVolumeName = multiVolumeNode.GetName().split('_multivolume')[0]
-      scalarVolumeNode.SetName(scalarVolumeName)
-      slicer.mrmlScene.AddNode(scalarVolumeNode)
-
-    # Extract the image data
-    mvImage = multiVolumeNode.GetImageData()
-    extract = vtk.vtkImageExtractComponents()
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      extract.SetInput(mvImage)
-    else:
-      extract.SetInputData(mvImage)
-    extract.SetComponents(frameId)
-    extract.Update()
-
-    ras2ijk = vtk.vtkMatrix4x4()
-    ijk2ras = vtk.vtkMatrix4x4()
-    multiVolumeNode.GetRASToIJKMatrix(ras2ijk)
-    multiVolumeNode.GetIJKToRASMatrix(ijk2ras)
-    scalarVolumeNode.SetRASToIJKMatrix(ras2ijk)
-    scalarVolumeNode.SetIJKToRASMatrix(ijk2ras)
-
-    scalarVolumeNode.SetAndObserveImageData(extract.GetOutput())
-
-    # Create display node if missing
-    displayNode = scalarVolumeNode.GetDisplayNode()
-    if displayNode is None:
-      displayNode = slicer.mrmlScene.CreateNodeByClass('vtkMRMLScalarVolumeDisplayNode')
-      displayNode.SetReferenceCount(1)
-      displayNode.SetScene(slicer.mrmlScene)
-      slicer.mrmlScene.AddNode(displayNode)
-      displayNode.SetDefaultColorMap()
-      scalarVolumeNode.SetAndObserveDisplayNodeID(displayNode.GetID())
-
-    return scalarVolumeNode
-
   def __init__(self, parent=None):
     ScriptedLoadableModuleLogic.__init__(self, parent)
 
@@ -2201,6 +2158,12 @@ class PCampReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleW
   def __init__(self, parent=None):
     qSlicerMultiVolumeExplorerSimplifiedModuleWidget.__init__(self, parent)
 
+  def getCurrentSeriesNumber(self):
+    ref = -1
+    if self._bgMultiVolumeNode:
+      name = self._bgMultiVolumeNode.GetName()
+      ref = string.split(name,':')[0]
+    return ref
   def showInputMultiVolumeSelector(self, show):
     if show:
       self._bgMultiVolumeSelectorLabel.show()
@@ -2227,6 +2190,9 @@ class PCampReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleW
   def onBackgroundInputChanged(self):
     qSlicerMultiVolumeExplorerSimplifiedModuleWidget.onBackgroundInputChanged(self)
     self.popupChartButton.setEnabled(self._bgMultiVolumeNode is not None)
+
+  def onSliderChanged(self, frameId):
+    return
 
 
 class PCampReviewFiducialTable(object):
