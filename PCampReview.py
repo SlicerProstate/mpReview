@@ -565,7 +565,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     # something that has been removed from the scene by onStep3Select.
     try:
       self.editorWidget.helper.structureListWidget.merge = None
-    except:
+    except AttributeError:
       pass
       
 
