@@ -559,6 +559,17 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
         self.colorFile = lookupTableLoc
         self.customLUTLabel.text = 'Project-Specific LUT Found'
 
+    # Set merge volume in structureListWidget to None so Editor doesn't get confused by missing node
+    # This may be the first time we get here, in which case editorWidget is not
+    # created yet.  If it has been created, structureListWidget.merge is probably set to
+    # something that has been removed from the scene by onStep3Select.
+    try:
+      self.editorWidget.helper.structureListWidget.merge = None
+    except AttributeError:
+      pass
+      
+
+
     # setup the color table, make sure PCampReview LUT is a singleton
     allColorTableNodes = slicer.util.getNodes('vtkMRMLColorTableNode*').values()
     for ctn in allColorTableNodes:
@@ -1019,9 +1030,12 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     # Block the signals to master selector while removing the old nodes.
     # If signals are not blocked, a new volume node is selected automatically
     # on delete of a previously selected one leading to "Create merge ..."
-    # popup
+    # popup.
+    # structureListWidget seems to be a little sticky and will also get confused
+    # by nodes being removed from the scene.
     self.editorWidget.helper.masterSelector.blockSignals(True)
     self.editorWidget.helper.mergeSelector.blockSignals(True)
+    self.editorWidget.helper.structureListWidget.merge = None
 
     # if any volumes have been loaded (we returned back from a previous step)
     # then remove all of them from the scene
