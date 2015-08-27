@@ -205,7 +205,6 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
   def setupInformationFrame(self):
     self.informationGroupBox = qt.QGroupBox()
     self.informationGroupBox.setStyleSheet('background-color: rgb(230,230,230)')
-    self.informationGroupBox.setFixedHeight(40)
     self.informationViewBoxLayout = qt.QGridLayout()
     self.informationGroupBox.setLayout(self.informationViewBoxLayout)
 
