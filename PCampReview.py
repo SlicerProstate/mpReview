@@ -9,7 +9,8 @@ from EditorLib import EditorLib
 import SimpleITK as sitk
 import sitkUtils
 from slicer.ScriptedLoadableModule import *
-from qSlicerMultiVolumeExplorerModuleWidget import qSlicerMultiVolumeExplorerSimplifiedModuleWidget, MultiVolumeExplorerLogic
+from qSlicerMultiVolumeExplorerModuleWidget import qSlicerMultiVolumeExplorerSimplifiedModuleWidget
+from qSlicerMultiVolumeExplorerModuleHelper import qSlicerMultiVolumeExplorerModuleHelper as MVHelper
 
 
 class PCampReview(ScriptedLoadableModule):
@@ -1252,9 +1253,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
           self.seriesMap[seriesNumber]['MultiVolume'] = volume
           self.seriesMap[seriesNumber]['MultiVolume'].SetName(shortName+'_multivolume')
           self.seriesMap[seriesNumber]['FrameNumber'] = volume.GetNumberOfFrames()-1
-          scalarVolumeNode = MultiVolumeExplorerLogic.extractFrame(None,
-                                                                   self.seriesMap[seriesNumber]['MultiVolume'],
-                                                                   self.seriesMap[seriesNumber]['FrameNumber'])
+          scalarVolumeNode = MVHelper.extractFrame(None, self.seriesMap[seriesNumber]['MultiVolume'],
+                                                         self.seriesMap[seriesNumber]['FrameNumber'])
           scalarVolumeNode.SetName(shortName)
           self.seriesMap[seriesNumber]['Volume'] = scalarVolumeNode
       else:
@@ -1503,7 +1503,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     seriesNumber = self.multiVolumeExplorer.getCurrentSeriesNumber()
     if seriesNumber in self.seriesMap.keys():
       multiVolumeNode = self.seriesMap[seriesNumber]['MultiVolume']
-      scalarVolumeNode = MultiVolumeExplorerLogic.extractFrame(self.seriesMap[seriesNumber]['Volume'],
+      scalarVolumeNode = MVHelper.extractFrame(self.seriesMap[seriesNumber]['Volume'],
                                                                multiVolumeNode,
                                                                newValue)
       scalarVolumeNode.SetName(multiVolumeNode.GetName().split('_multivolume')[0])
