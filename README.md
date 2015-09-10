@@ -115,6 +115,7 @@ The following individuals and groups contributed directly to the development of 
 * Andrey Fedorov, Brigham and Women's Hospital
 * Alireza Mehrtash, Brigham and Women's Hospital
 * Robin Weiss, University of Chicago
+* Christian Herz, Brigham and Women's Hospital
 
 
 Missing features:
