@@ -22,6 +22,10 @@ WindowLevelExtension
 can be used to simplify setting window/level for the Foreground volume in 3D
 Slicer.
 
+### Dependencies
+
+This module expects that WindowLevelEffect extension (http://wiki.slicer.org/slicerWiki/index.php/Documentation/Nightly/Extensions/WindowLevelEffect) is installed. It is available from Slicer Extensions Manager.
+
 ### Data organization conventions
 
 The module expects that data is arranged in uniquely-named folders, each of which corresponds to an imaging study (in the DICOM meaning of a study). The data layout (see below, as printed by the Linux tree command line tool) somewhat mimics the layout used internally by XNAT (since this is what the author used internally for data organization). Each study is expected to have one top-level folder called RESOURCES. Within that folder, it is expected to have one folder for each imaging series, with the folder name matching the series number. Each series should have a sub-folder called Reconstructions. Reconstructions folder should contain:
