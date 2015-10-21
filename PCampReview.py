@@ -232,8 +232,9 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     #
     # Step 1: selection of the data directory and the study to be analyzed
     #
-    self.dataDirButton = qt.QPushButton(self.inputDataDir)
-    self.dataDirButton.connect('clicked()', self.onInputDirSelected)
+    self.dataDirButton = ctk.ctkDirectoryButton()
+    self.dataDirButton.directory = self.inputDataDir
+    self.dataDirButton.directoryChanged.connect(self.onInputDirSelected)
     self.studySelectionGroupBoxLayout.addWidget(qt.QLabel("Data directory:"), 0, 0, 1, 1)
     self.studySelectionGroupBoxLayout.addWidget(self.dataDirButton, 0 ,1, 1, 2)
     infoGroupBox = qt.QWidget()
@@ -816,9 +817,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     return savedMessage
 
   def onInputDirSelected(self):
-    self.inputDataDir = qt.QFileDialog.getExistingDirectory(self.parent,
-                                                            'Input data directory',
-                                                            self.inputDataDir)
+    self.inputDataDir = self.dataDirButton.directory
+
     if self.inputDataDir != "":
       self.dataDirButton.text = self.inputDataDir
       self.setSetting('InputLocation', self.inputDataDir)
@@ -895,7 +895,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
           try:
             modelMaker = slicer.modules.modelmaker
-            self.CLINode = slicer.cli.run(modelMaker, self.CLINode,
+            self.CLINode = slicer.cli.runPCampReview(modelMaker, self.CLINode,
                            parameters, wait_for_completion=True)
           except AttributeError:
             qt.QMessageBox.critical(slicer.util.mainWindow(),'Editor', 'The ModelMaker module is not available<p>Perhaps it was disabled in the application settings or did not load correctly.')
@@ -1747,7 +1747,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       parameters["numberOfThreads"] = -1
 
       self.__cliNode = None
-      self.__cliNode = slicer.cli.run(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
+      self.__cliNode = slicer.cli.runPCampReview(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
 
       # Check to make sure we actually got something in the dstLabel volume
       dstLabelAddress = sitkUtils.GetSlicerITKReadWriteAddress(dstLabel.GetName())
@@ -1909,7 +1909,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     parameters["numberOfThreads"] = -1
 
     self.__cliNode = None
-    self.__cliNode = slicer.cli.run(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
+    self.__cliNode = slicer.cli.runPCampReview(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
 
     # get the image data and get rid of the temp
     labelNode.SetAndObserveImageData(resampledLabelNode.GetImageData())
