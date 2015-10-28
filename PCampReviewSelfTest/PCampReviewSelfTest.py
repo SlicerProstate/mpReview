@@ -112,6 +112,7 @@ class PCampReviewSelfTestTest(ScriptedLoadableModuleTest):
 
     self.test_PCampReviewPreProcessor()
     self.test_PCampReview()
+    self.delayDisplay('Test passed!')
 
   def downloadTestData(self):
 
@@ -162,8 +163,6 @@ class PCampReviewSelfTestTest(ScriptedLoadableModuleTest):
       # TODO: remove for production
       w.onRunClicked()
 
-    self.delayDisplay('Test passed!')
-
   def test_PCampReview(self):
 
     self.delayDisplay("Starting the test")
@@ -178,37 +177,27 @@ class PCampReviewSelfTestTest(ScriptedLoadableModuleTest):
     w = slicer.modules.PCampReviewWidget
     w.dataDirButton.directory = self.outputDirectoryPreProcessor
 
+    self.delayDisplay('Study Selection')
     tabWidget = w.tabWidget.childAt(0,0)
     tabWidget.setCurrentIndex(0)
-
-    self.delayDisplay('Study Selection')
 
     model = w.studiesModel
     index = model.index(0,0)
 
     self.assertTrue(index.isValid(), msg="No valid study index available in study table")
     w.studySelected(index)
-    tabWidget.setCurrentIndex(2)
+
+    tabWidget.setCurrentIndex(1)
     self.delayDisplay('Series Selection')
 
+    tabWidget.setCurrentIndex(2)
+    self.delayDisplay('Segmentation Step')
+
+    refSelector = w.refSelector
+    self.assertGreater(refSelector.count, 1)
+    refSelector.setCurrentIndex(1)
+
     tabWidget.setCurrentIndex(3)
-    self.delayDisplay('Segmentation Processing')
+    self.delayDisplay('Completion Step')
 
-    tabWidget.setCurrentIndex(4)
     w.saveButton.animateClick()
-    self.delayDisplay('Saving')
-
-    '''
-    2. set directory as input
-    3. should fail to load and show prompt for executing preprocessor
-    4. (study list updated)
-    5. select first study
-    6. make sure that then some series are selected
-    7. go to segmentation tab
-    8. select reference image
-    9. create label
-    10. create fiducial from label
-    11. save everything
-    '''
-
-    self.delayDisplay('Test passed!')
