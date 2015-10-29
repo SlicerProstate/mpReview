@@ -43,6 +43,8 @@ if(BUILD_TESTING)
 
   # Additional build-time testing
   add_subdirectory(Testing)
+  add_subdirectory(PCampReviewPreprocessorSelfTest)
+  add_subdirectory(PCampReviewSelfTest)
 endif()
 
 #-----------------------------------------------------------------------------

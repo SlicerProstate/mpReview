@@ -1,11 +1,10 @@
 import os
 import DICOMLib
-import unittest
 from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 import argparse
 import sys, shutil
-
+from PCampReviewPreprocessorSelfTest import PCampReviewPreprocessorSelfTestTest as PCampReviewPreprocessorTest
 #
 # PCampReviewPreprocessor
 #   Prepares the DICOM data to be compatible with PCampReview module
@@ -83,6 +82,18 @@ class PCampReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
   this class and make use of the functionality without
   requiring an instance of the Widget
   """
+
+  @staticmethod
+  def makeProgressIndicator(maxVal):
+    progressIndicator = qt.QProgressDialog()
+    progressIndicator.minimumDuration = 0
+    progressIndicator.modal = True
+    progressIndicator.setMaximum(maxVal)
+    progressIndicator.setValue(0)
+    progressIndicator.setWindowTitle("Processing...")
+    progressIndicator.show()
+    return progressIndicator
+
   def __init__(self):
     ScriptedLoadableModuleLogic.__init__(self)
 
@@ -117,6 +128,7 @@ class PCampReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
 
           loadable = None
           node = None
+          dcmFile = None
 
           for pn in pluginNames:
             plugin = slicer.modules.dicomPlugins[pn]()
@@ -130,10 +142,10 @@ class PCampReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
           if loadable:
             node = plugin.load(loadable)
             dcmFile = loadable.files[0]
-            seriesNumber = slicer.dicomDatabase.fileValue(loadable.files[0], "0020,0011")
-            patientID = slicer.dicomDatabase.fileValue(loadable.files[0], "0010,0020")
-            studyDate = slicer.dicomDatabase.fileValue(loadable.files[0], "0008,0020")
-            studyTime = slicer.dicomDatabase.fileValue(loadable.files[0], "0008,0030")[0:4]
+            seriesNumber = slicer.dicomDatabase.fileValue(dcmFile, "0020,0011")
+            patientID = slicer.dicomDatabase.fileValue(dcmFile, "0010,0020")
+            studyDate = slicer.dicomDatabase.fileValue(dcmFile, "0008,0020")
+            studyTime = slicer.dicomDatabase.fileValue(dcmFile, "0008,0030")[0:4]
 
           if node:
             storageNode = node.CreateDefaultStorageNode()

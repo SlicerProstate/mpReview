@@ -1,28 +1,26 @@
 import os
-import unittest
 import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
-import logging
 import urllib
 
 
-class PCampReviewSelfTest(ScriptedLoadableModule):
+class PCampReviewPreprocessorSelfTest(ScriptedLoadableModule):
 
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
-    self.parent.title = "PCampReviewSelfTest"
+    self.parent.title = "PCampReviewPreprocessorSelfTest"
     self.parent.categories = ["Testing.TestCases"]
-    self.parent.dependencies = ["PCampReview", "PCampReviewPreprocessor"]
+    self.parent.dependencies = ["PCampReviewPreprocessor"]
     self.parent.contributors = ["Christian Herz (SPL)"]
     self.parent.helpText = """
-    This self test is designed for testing functionality of module PCampReview.
+    This self test is designed for testing functionality of module PCampReviewPreprocessor.
     """
     self.parent.acknowledgementText = """
     Supported by NIH U01CA151261 (PI Fennessy)
     """
 
 
-class PCampReviewSelfTestWidget(ScriptedLoadableModuleWidget):
+class PCampReviewPreprocessorSelfTestWidget(ScriptedLoadableModuleWidget):
 
   def setup(self):
     ScriptedLoadableModuleWidget.setup(self)
@@ -33,12 +31,12 @@ class PCampReviewSelfTestWidget(ScriptedLoadableModuleWidget):
 
     parametersFormLayout = qt.QFormLayout(parametersCollapsibleButton)
 
-    self.applyButton = qt.QPushButton("Apply")
-    self.applyButton.toolTip = "Run the algorithm."
-    self.applyButton.enabled = True
-    parametersFormLayout.addRow(self.applyButton)
+    self.runButton = qt.QPushButton("Run")
+    self.runButton.toolTip = "Run the algorithm."
+    self.runButton.enabled = True
+    parametersFormLayout.addRow(self.runButton)
 
-    self.applyButton.connect('clicked(bool)', self.onApplyButton)
+    self.runButton.connect('clicked(bool)', self.onApplyButton)
 
     self.layout.addStretch(1)
 
@@ -46,12 +44,12 @@ class PCampReviewSelfTestWidget(ScriptedLoadableModuleWidget):
     pass
 
   def onApplyButton(self):
-    test = PCampReviewSelfTestTest()
+    test = PCampReviewPreprocessorSelfTestTest()
     print("Run the test algorithm")
     test.runTest()
 
 
-class PCampReviewSelfTestLogic(ScriptedLoadableModuleLogic):
+class PCampReviewPreprocessorSelfTestLogic(ScriptedLoadableModuleLogic):
 
   def takeScreenshot(self,name,description,type=-1):
     # show the message even if not taking a screen shot
@@ -91,7 +89,7 @@ class PCampReviewSelfTestLogic(ScriptedLoadableModuleLogic):
     annotationLogic.CreateSnapShot(name, description, type, 1, imageData)
 
 
-class PCampReviewSelfTestTest(ScriptedLoadableModuleTest):
+class PCampReviewPreprocessorSelfTestTest(ScriptedLoadableModuleTest):
 
   TEST_DATA_ZIP = 'QIICR-QIN-PROSTATE-001.zip'
   FOLDER_NAME = 'QIN-PROSTATE-001'
@@ -108,10 +106,9 @@ class PCampReviewSelfTestTest(ScriptedLoadableModuleTest):
     """
     self.setUp()
 
-    self.logic = PCampReviewSelfTestLogic()
+    self.logic = PCampReviewPreprocessorSelfTestLogic()
 
     self.test_PCampReviewPreProcessor()
-    self.test_PCampReview()
     self.delayDisplay('Test passed!')
 
   def downloadTestData(self):
@@ -159,45 +156,4 @@ class PCampReviewSelfTestTest(ScriptedLoadableModuleTest):
     w.outputDirButton.directory = self.outputDirectoryPreProcessor
     w.copyDICOMButton.checked = True
 
-    if not os.path.exists(self.outputDirectoryPreProcessor):
-      # TODO: remove for production
-      w.onRunClicked()
-
-  def test_PCampReview(self):
-
-    self.delayDisplay("Starting the test")
-
-    if not self.sourceDirectory:
-      self.downloadTestData()
-
-    m = slicer.util.mainWindow()
-    m.moduleSelector().selectModule('PCampReview')
-    self.delayDisplay('Switched to PCampReview module')
-
-    w = slicer.modules.PCampReviewWidget
-    w.dataDirButton.directory = self.outputDirectoryPreProcessor
-
-    self.delayDisplay('Study Selection')
-    tabWidget = w.tabWidget.childAt(0,0)
-    tabWidget.setCurrentIndex(0)
-
-    model = w.studiesModel
-    index = model.index(0,0)
-
-    self.assertTrue(index.isValid(), msg="No valid study index available in study table")
-    w.studySelected(index)
-
-    tabWidget.setCurrentIndex(1)
-    self.delayDisplay('Series Selection')
-
-    tabWidget.setCurrentIndex(2)
-    self.delayDisplay('Segmentation Step')
-
-    refSelector = w.refSelector
-    self.assertGreater(refSelector.count, 1)
-    refSelector.setCurrentIndex(1)
-
-    tabWidget.setCurrentIndex(3)
-    self.delayDisplay('Completion Step')
-
-    w.saveButton.animateClick()
+    w.onRunClicked()
