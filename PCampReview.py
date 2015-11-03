@@ -11,6 +11,7 @@ import sitkUtils
 from slicer.ScriptedLoadableModule import *
 from qSlicerMultiVolumeExplorerModuleWidget import qSlicerMultiVolumeExplorerSimplifiedModuleWidget
 from qSlicerMultiVolumeExplorerModuleHelper import qSlicerMultiVolumeExplorerModuleHelper as MVHelper
+from PCampReviewSelfTest import PCampReviewSelfTestTest as PCampReviewTest
 
 
 class PCampReview(ScriptedLoadableModule):
@@ -37,6 +38,9 @@ class PCampReview(ScriptedLoadableModule):
       slicer.selfTests = {}
     slicer.selfTests['PCampReview'] = self.runTest
 
+  def runTest(self):
+    tester = PCampReviewTest()
+    tester.runTest()
 
 class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
@@ -232,8 +236,9 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     #
     # Step 1: selection of the data directory and the study to be analyzed
     #
-    self.dataDirButton = qt.QPushButton(self.inputDataDir)
-    self.dataDirButton.connect('clicked()', self.onInputDirSelected)
+    self.dataDirButton = ctk.ctkDirectoryButton()
+    self.dataDirButton.directory = self.inputDataDir
+    self.dataDirButton.directoryChanged.connect(self.onInputDirSelected)
     self.studySelectionGroupBoxLayout.addWidget(qt.QLabel("Data directory:"), 0, 0, 1, 1)
     self.studySelectionGroupBoxLayout.addWidget(self.dataDirButton, 0 ,1, 1, 2)
     infoGroupBox = qt.QWidget()
@@ -816,9 +821,8 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     return savedMessage
 
   def onInputDirSelected(self):
-    self.inputDataDir = qt.QFileDialog.getExistingDirectory(self.parent,
-                                                            'Input data directory',
-                                                            self.inputDataDir)
+    self.inputDataDir = self.dataDirButton.directory
+
     if self.inputDataDir != "":
       self.dataDirButton.text = self.inputDataDir
       self.setSetting('InputLocation', self.inputDataDir)
@@ -895,7 +899,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
           try:
             modelMaker = slicer.modules.modelmaker
-            self.CLINode = slicer.cli.run(modelMaker, self.CLINode,
+            self.CLINode = slicer.cli.runPCampReview(modelMaker, self.CLINode,
                            parameters, wait_for_completion=True)
           except AttributeError:
             qt.QMessageBox.critical(slicer.util.mainWindow(),'Editor', 'The ModelMaker module is not available<p>Perhaps it was disabled in the application settings or did not load correctly.')
@@ -1747,7 +1751,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       parameters["numberOfThreads"] = -1
 
       self.__cliNode = None
-      self.__cliNode = slicer.cli.run(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
+      self.__cliNode = slicer.cli.runPCampReview(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
 
       # Check to make sure we actually got something in the dstLabel volume
       dstLabelAddress = sitkUtils.GetSlicerITKReadWriteAddress(dstLabel.GetName())
@@ -1909,7 +1913,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     parameters["numberOfThreads"] = -1
 
     self.__cliNode = None
-    self.__cliNode = slicer.cli.run(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
+    self.__cliNode = slicer.cli.runPCampReview(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
 
     # get the image data and get rid of the temp
     labelNode.SetAndObserveImageData(resampledLabelNode.GetImageData())
@@ -2133,58 +2137,6 @@ class PCampReviewLogic(ScriptedLoadableModuleLogic):
     Run the actual algorithm
     """
     return True
-
-
-class PCampReviewTest(ScriptedLoadableModuleTest):
-
-  def setUp(self):
-    slicer.mrmlScene.Clear(0)
-
-  def runTest(self):
-    self.setUp()
-    self.test_PCampReview1()
-
-  def test_PCampReview1(self):
-    """ Ideally you should have several levels of tests.  At the lowest level
-    tests should exercise the functionality of the logic with different inputs
-    (both valid and invalid).  At higher levels your tests should emulate the
-    way the user would interact with your code and confirm that it still works
-    the way you intended.
-    One of the most important features of the tests is that it should alert other
-    developers when their changes will have an impact on the behavior of your
-    module.  For example, if a developer removes a feature that you depend on,
-    your test should break so they know that the feature is needed.
-    """
-
-    mainWidget = slicer.modules.pcampreview.widgetRepresentation().self()
-    tabWidget = mainWidget.tabWidget.childAt(0,0)
-
-    self.delayDisplay("Starting the test here!")
-    #
-    # first, get some data
-    #
-    tabWidget.setCurrentIndex(0)
-    self.delayDisplay('1')
-
-    tabWidget.setCurrentIndex(1)
-    self.delayDisplay('Study Selection')
-
-    model = mainWidget.studiesModel
-    index = model.index(0,0)
-
-    self.assertTrue(index.isValid(), msg="No valid study index available in studytable")
-    mainWidget.studySelected(index)
-    tabWidget.setCurrentIndex(2)
-    self.delayDisplay('Series Selection')
-
-    tabWidget.setCurrentIndex(3)
-    self.delayDisplay('Segmentation Processing')
-
-    tabWidget.setCurrentIndex(4)
-    mainWidget.saveButton.animateClick()
-    self.delayDisplay('Saving')
-
-    self.delayDisplay('Test passed!')
 
 
 class PCampReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleWidget):
