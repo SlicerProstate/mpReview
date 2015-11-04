@@ -4,23 +4,23 @@ from slicer.ScriptedLoadableModule import *
 import urllib
 
 
-class PCampReviewPreprocessorSelfTest(ScriptedLoadableModule):
+class mpReviewPreprocessorSelfTest(ScriptedLoadableModule):
 
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
-    self.parent.title = "PCampReviewPreprocessorSelfTest"
+    self.parent.title = "mpReviewPreprocessorSelfTest"
     self.parent.categories = ["Testing.TestCases"]
-    self.parent.dependencies = ["PCampReviewPreprocessor"]
+    self.parent.dependencies = ["mpReviewPreprocessor"]
     self.parent.contributors = ["Christian Herz (SPL)"]
     self.parent.helpText = """
-    This self test is designed for testing functionality of module PCampReviewPreprocessor.
+    This self test is designed for testing functionality of module mpReviewPreprocessor.
     """
     self.parent.acknowledgementText = """
     Supported by NIH U01CA151261 (PI Fennessy)
     """
 
 
-class PCampReviewPreprocessorSelfTestWidget(ScriptedLoadableModuleWidget):
+class mpReviewPreprocessorSelfTestWidget(ScriptedLoadableModuleWidget):
 
   def setup(self):
     ScriptedLoadableModuleWidget.setup(self)
@@ -44,12 +44,12 @@ class PCampReviewPreprocessorSelfTestWidget(ScriptedLoadableModuleWidget):
     pass
 
   def onApplyButton(self):
-    test = PCampReviewPreprocessorSelfTestTest()
+    test = mpReviewPreprocessorSelfTestTest()
     print("Run the test algorithm")
     test.runTest()
 
 
-class PCampReviewPreprocessorSelfTestLogic(ScriptedLoadableModuleLogic):
+class mpReviewPreprocessorSelfTestLogic(ScriptedLoadableModuleLogic):
 
   def takeScreenshot(self,name,description,type=-1):
     # show the message even if not taking a screen shot
@@ -89,7 +89,7 @@ class PCampReviewPreprocessorSelfTestLogic(ScriptedLoadableModuleLogic):
     annotationLogic.CreateSnapShot(name, description, type, 1, imageData)
 
 
-class PCampReviewPreprocessorSelfTestTest(ScriptedLoadableModuleTest):
+class mpReviewPreprocessorSelfTestTest(ScriptedLoadableModuleTest):
 
   TEST_DATA_ZIP = 'QIICR-QIN-PROSTATE-001.zip'
   FOLDER_NAME = 'QIN-PROSTATE-001'
@@ -106,9 +106,9 @@ class PCampReviewPreprocessorSelfTestTest(ScriptedLoadableModuleTest):
     """
     self.setUp()
 
-    self.logic = PCampReviewPreprocessorSelfTestLogic()
+    self.logic = mpReviewPreprocessorSelfTestLogic()
 
-    self.test_PCampReviewPreProcessor()
+    self.test_mpReviewPreProcessor()
     self.delayDisplay('Test passed!')
 
   def downloadTestData(self):
@@ -139,7 +139,7 @@ class PCampReviewPreprocessorSelfTestTest(ScriptedLoadableModuleTest):
     self.sourceDirectory = extractedPath
     self.outputDirectoryPreProcessor = os.path.abspath(self.sourceDirectory)+'_output'
 
-  def test_PCampReviewPreProcessor(self):
+  def test_mpReviewPreProcessor(self):
 
     self.delayDisplay("Starting the test")
 
@@ -147,11 +147,11 @@ class PCampReviewPreprocessorSelfTestTest(ScriptedLoadableModuleTest):
       self.downloadTestData()
 
     m = slicer.util.mainWindow()
-    m.moduleSelector().selectModule('PCampReviewPreprocessor')
-    self.delayDisplay('Switched to PCampReviewPreProcessor module')
-    self.logic.takeScreenshot('test_PCampReviewPreProcessor-1', 'Startup gui', slicer.qMRMLScreenShotDialog().FullLayout)
+    m.moduleSelector().selectModule('mpReviewPreprocessor')
+    self.delayDisplay('Switched to mpReviewPreProcessor module')
+    self.logic.takeScreenshot('test_mpReviewPreProcessor-1', 'Startup gui', slicer.qMRMLScreenShotDialog().FullLayout)
 
-    w = slicer.modules.PCampReviewPreprocessorWidget
+    w = slicer.modules.mpReviewPreprocessorWidget
     w.inputDirButton.directory = self.sourceDirectory
     w.outputDirButton.directory = self.outputDirectoryPreProcessor
     w.copyDICOMButton.checked = True

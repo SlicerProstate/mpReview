@@ -6,23 +6,23 @@ import logging
 import urllib
 
 
-class PCampReviewSelfTest(ScriptedLoadableModule):
+class mpReviewSelfTest(ScriptedLoadableModule):
 
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
-    self.parent.title = "PCampReviewSelfTest"
+    self.parent.title = "mpReviewSelfTest"
     self.parent.categories = ["Testing.TestCases"]
-    self.parent.dependencies = ["PCampReview"]
+    self.parent.dependencies = ["mpReview"]
     self.parent.contributors = ["Christian Herz (SPL)"]
     self.parent.helpText = """
-    This self test is designed for testing functionality of module PCampReview.
+    This self test is designed for testing functionality of module mpReview.
     """
     self.parent.acknowledgementText = """
     Supported by NIH U01CA151261 (PI Fennessy)
     """
 
 
-class PCampReviewSelfTestWidget(ScriptedLoadableModuleWidget):
+class mpReviewSelfTestWidget(ScriptedLoadableModuleWidget):
 
   def setup(self):
     ScriptedLoadableModuleWidget.setup(self)
@@ -46,12 +46,12 @@ class PCampReviewSelfTestWidget(ScriptedLoadableModuleWidget):
     pass
 
   def onApplyButton(self):
-    test = PCampReviewSelfTestTest()
+    test = mpReviewSelfTestTest()
     print("Run the test algorithm")
     test.runTest()
 
 
-class PCampReviewSelfTestLogic(ScriptedLoadableModuleLogic):
+class mpReviewSelfTestLogic(ScriptedLoadableModuleLogic):
 
   def takeScreenshot(self,name,description,type=-1):
     # show the message even if not taking a screen shot
@@ -91,10 +91,10 @@ class PCampReviewSelfTestLogic(ScriptedLoadableModuleLogic):
     annotationLogic.CreateSnapShot(name, description, type, 1, imageData)
 
 
-class PCampReviewSelfTestTest(ScriptedLoadableModuleTest):
+class mpReviewSelfTestTest(ScriptedLoadableModuleTest):
 
-  TEST_DATA_ZIP = 'PCampReview_test_data.zip'
-  FOLDER_NAME = 'PCampReview_test_data'
+  TEST_DATA_ZIP = 'mpReview_test_data.zip'
+  FOLDER_NAME = 'mpReview_test_data'
 
   def setUp(self):
     """ Do whatever is needed to reset the state - typically a scene clear will be enough.
@@ -107,14 +107,14 @@ class PCampReviewSelfTestTest(ScriptedLoadableModuleTest):
     """
     self.setUp()
 
-    self.logic = PCampReviewSelfTestLogic()
+    self.logic = mpReviewSelfTestLogic()
 
-    self.test_PCampReview()
+    self.test_mpReview()
     self.delayDisplay('Test passed!')
 
   def downloadTestData(self):
 
-    baseURL = 'http://slicer.kitware.com/midas3/download/folder/2807/PCampReview_test_data.zip'
+    baseURL = 'http://slicer.kitware.com/midas3/download/folder/2807/mpReview_test_data.zip'
 
     self.delayDisplay("Downloading")
 
@@ -138,7 +138,7 @@ class PCampReviewSelfTestTest(ScriptedLoadableModuleTest):
 
     self.sourceDirectory = os.path.join(extractedPath, 'PCampOut')
 
-  def test_PCampReview(self):
+  def test_mpReview(self):
 
     self.delayDisplay("Starting the test")
 
@@ -146,10 +146,10 @@ class PCampReviewSelfTestTest(ScriptedLoadableModuleTest):
       self.downloadTestData()
 
     m = slicer.util.mainWindow()
-    m.moduleSelector().selectModule('PCampReview')
-    self.delayDisplay('Switched to PCampReview module')
+    m.moduleSelector().selectModule('mpReview')
+    self.delayDisplay('Switched to mpReview module')
 
-    w = slicer.modules.PCampReviewWidget
+    w = slicer.modules.mpReviewWidget
     w.dataDirButton.directory = self.sourceDirectory
 
     self.delayDisplay('Study Selection')

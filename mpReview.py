@@ -11,17 +11,17 @@ import sitkUtils
 from slicer.ScriptedLoadableModule import *
 from qSlicerMultiVolumeExplorerModuleWidget import qSlicerMultiVolumeExplorerSimplifiedModuleWidget
 from qSlicerMultiVolumeExplorerModuleHelper import qSlicerMultiVolumeExplorerModuleHelper as MVHelper
-from PCampReviewSelfTest import PCampReviewSelfTestTest as PCampReviewTest
+from mpReviewSelfTest import mpReviewSelfTestTest as mpReviewTest
 
 
-class PCampReview(ScriptedLoadableModule):
+class mpReview(ScriptedLoadableModule):
 
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
-    parent.title = "PCampReview"
+    parent.title = "mpReview"
     parent.categories = ["Radiology"]
     parent.dependencies = []
-    parent.contributors = ["PCampReview"] # replace with "Firstname Lastname (Org)"
+    parent.contributors = ["mpReview"] # replace with "Firstname Lastname (Org)"
     parent.helpText = """
     """
     parent.acknowledgementText = """
@@ -36,13 +36,13 @@ class PCampReview(ScriptedLoadableModule):
       slicer.selfTests
     except AttributeError:
       slicer.selfTests = {}
-    slicer.selfTests['PCampReview'] = self.runTest
+    slicer.selfTests['mpReview'] = self.runTest
 
   def runTest(self):
-    tester = PCampReviewTest()
+    tester = mpReviewTest()
     tester.runTest()
 
-class PCampReviewWidget(ScriptedLoadableModuleWidget):
+class mpReviewWidget(ScriptedLoadableModuleWidget):
 
   VIEWFORM_URL = 'https://docs.google.com/forms/d/1Xwhvjn_HjRJAtgV5VruLCDJ_eyj1C-txi8HWn8VyXa4/viewform'
 
@@ -59,19 +59,19 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
   @staticmethod
   def confirmDialog(message):
-    result = qt.QMessageBox.question(slicer.util.mainWindow(), 'PCampReview', message,
+    result = qt.QMessageBox.question(slicer.util.mainWindow(), 'mpReview', message,
                                      qt.QMessageBox.Ok | qt.QMessageBox.Cancel)
     return result == qt.QMessageBox.Ok
 
   @staticmethod
   def yesNoDialog(message):
-    result = qt.QMessageBox.question(slicer.util.mainWindow(), 'PCampReview', message,
+    result = qt.QMessageBox.question(slicer.util.mainWindow(), 'mpReview', message,
                                      qt.QMessageBox.Yes | qt.QMessageBox.No)
     return result == qt.QMessageBox.Yes
 
   @staticmethod
   def confirmOrSaveDialog(message):
-    box = qt.QMessageBox(qt.QMessageBox.Question, 'PCampReview', message)
+    box = qt.QMessageBox(qt.QMessageBox.Question, 'mpReview', message)
     box.addButton("Exit, discard changes", qt.QMessageBox.AcceptRole)
     box.addButton("Save changes", qt.QMessageBox.ActionRole)
     box.addButton("Cancel", qt.QMessageBox.RejectRole)
@@ -97,7 +97,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
   def __init__(self, parent = None):
     ScriptedLoadableModuleWidget.__init__(self, parent)
-    self.resourcesPath = os.path.join(slicer.modules.pcampreview.path.replace(self.moduleName+".py",""), 'Resources')
+    self.resourcesPath = os.path.join(slicer.modules.mpreview.path.replace(self.moduleName+".py",""), 'Resources')
 
     inputDataDir = self.getSetting('InputLocation')
     self.inputDataDir = inputDataDir if inputDataDir is not None else ''
@@ -115,11 +115,11 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     # mrml node for invoking command line modules
     self.CLINode = None
     self.currentStep = 1
-    self.logic = PCampReviewLogic()
+    self.logic = mpReviewLogic()
     self.multiVolumeExplorer = None
 
     # set up temporary directory
-    self.tempDir = os.path.join(slicer.app.temporaryPath, 'PCampReview-tmp')
+    self.tempDir = os.path.join(slicer.app.temporaryPath, 'mpReview-tmp')
     self.createDirectory(self.tempDir, message='Temporary directory location: ' + self.tempDir)
     self.fiducialLabelPropagateModel = None
 
@@ -296,7 +296,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.multiVolumeExplorerArea.collapsed = True
     multiVolumeExplorerLayout = qt.QFormLayout(self.multiVolumeExplorerArea)
 
-    self.multiVolumeExplorer = PCampReviewMultiVolumeExplorer(multiVolumeExplorerLayout)
+    self.multiVolumeExplorer = mpReviewMultiVolumeExplorer(multiVolumeExplorerLayout)
     self.multiVolumeExplorer.setup()
     self.multiVolumeExplorer.frameSlider.connect('valueChanged(double)', self.onSliderChanged)
     self.segmentationGroupBoxLayout.addWidget(self.multiVolumeExplorerArea)
@@ -436,7 +436,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
     # Create a transform node
     self.transformNode = slicer.vtkMRMLLinearTransformNode()
-    self.transformNode.SetName('PCampReview-transform')
+    self.transformNode.SetName('mpReview-transform')
     slicer.mrmlScene.AddNode(self.transformNode)
 
     advancedSettingsLayout.addRow(self.translateArea)
@@ -446,7 +446,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.fiducialsArea.collapsed = True
     fiducialsWidgetLayout = qt.QFormLayout(self.fiducialsArea)
 
-    self.fiducialsWidget = PCampReviewFiducialTable(fiducialsWidgetLayout)
+    self.fiducialsWidget = mpReviewFiducialTable(fiducialsWidgetLayout)
     self.segmentationGroupBoxLayout.addWidget(self.fiducialsArea)
 
     self.modelsVisibility = True
@@ -614,7 +614,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
   def checkAndSetLUT(self):
     # Default to module color table
-    self.colorFile = os.path.join(self.resourcesPath, "Colors/PCampReviewColors.csv")
+    self.colorFile = os.path.join(self.resourcesPath, "Colors/mpReviewColors.csv")
     self.customLUTLabel.setText('Using Default LUT')
 
     # Check for custom LUT
@@ -637,16 +637,16 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       
 
 
-    # setup the color table, make sure PCampReview LUT is a singleton
+    # setup the color table, make sure mpReview LUT is a singleton
     allColorTableNodes = slicer.util.getNodes('vtkMRMLColorTableNode*').values()
     for ctn in allColorTableNodes:
-      if ctn.GetName() == 'PCampReview':
+      if ctn.GetName() == 'mpReview':
         slicer.mrmlScene.RemoveNode(ctn)
         break
 
-    self.PCampReviewColorNode = slicer.vtkMRMLColorTableNode()
-    colorNode = self.PCampReviewColorNode
-    colorNode.SetName('PCampReview')
+    self.mpReviewColorNode = slicer.vtkMRMLColorTableNode()
+    colorNode = self.mpReviewColorNode
+    colorNode.SetName('mpReview')
     slicer.mrmlScene.AddNode(colorNode)
     colorNode.SetTypeToUser()
     with open(self.colorFile) as f:
@@ -845,7 +845,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
       for n in xrange(numNodes):
         node = slicer.mrmlScene.GetNthNodeByClass( n, "vtkMRMLModelHierarchyNode" )
-        if node.GetName() == 'PCampReview-'+refLongName:
+        if node.GetName() == 'mpReview-'+refLongName:
           outHierarchy = node
           break
 
@@ -863,7 +863,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       else:
         outHierarchy = slicer.vtkMRMLModelHierarchyNode()
         outHierarchy.SetScene( slicer.mrmlScene )
-        outHierarchy.SetName( 'PCampReview-'+refLongName )
+        outHierarchy.SetName( 'mpReview-'+refLongName )
         slicer.mrmlScene.AddNode( outHierarchy )
 
       progress = self.makeProgressIndicator(len(labelNodes))
@@ -899,7 +899,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
           try:
             modelMaker = slicer.modules.modelmaker
-            self.CLINode = slicer.cli.runPCampReview(modelMaker, self.CLINode,
+            self.CLINode = slicer.cli.runmpReview(modelMaker, self.CLINode,
                            parameters, wait_for_completion=True)
           except AttributeError:
             qt.QMessageBox.critical(slicer.util.mainWindow(),'Editor', 'The ModelMaker module is not available<p>Perhaps it was disabled in the application settings or did not load correctly.')
@@ -925,7 +925,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     numNodes = slicer.mrmlScene.GetNumberOfNodesByClass( "vtkMRMLModelHierarchyNode" )
     for n in xrange(numNodes):
       node = slicer.mrmlScene.GetNthNodeByClass( n, "vtkMRMLModelHierarchyNode")
-      if node.GetName()[:12] == 'PCampReview-':
+      if node.GetName()[:12] == 'mpReview-':
         modelHierarchyNodes.append(node)
 
     for hierarchyNode in modelHierarchyNodes:
@@ -957,7 +957,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       numNodes = slicer.mrmlScene.GetNumberOfNodesByClass( "vtkMRMLModelHierarchyNode" )
       for n in xrange(numNodes):
         node = slicer.mrmlScene.GetNthNodeByClass( n, "vtkMRMLModelHierarchyNode" )
-        if node.GetName() == 'PCampReview-'+refLongName:
+        if node.GetName() == 'mpReview-'+refLongName:
           outHierarchy = node
           break
 
@@ -1027,7 +1027,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
 
       dNode = slicer.vtkMRMLLabelMapVolumeDisplayNode()
       slicer.mrmlScene.AddNode(dNode)
-      dNode.SetAndObserveColorNodeID(self.PCampReviewColorNode.GetID())
+      dNode.SetAndObserveColorNodeID(self.mpReviewColorNode.GetID())
       label.SetAndObserveDisplayNodeID(dNode.GetID())
 
       logging.debug('Label loaded, storage node is '+label.GetStorageNode().GetID())
@@ -1401,7 +1401,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       self.seriesMap[str(ref)]['Label'] = refLabel
 
     dNode = refLabel.GetDisplayNode()
-    dNode.SetAndObserveColorNodeID(self.PCampReviewColorNode.GetID())
+    dNode.SetAndObserveColorNodeID(self.mpReviewColorNode.GetID())
     logging.debug('Volume nodes: '+str(self.viewNames))
     self.cvLogic = CompareVolumes.CompareVolumesLogic()
 
@@ -1734,7 +1734,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       dstLabel = self.volumesLogic.CreateAndAddLabelVolume(slicer.mrmlScene,self.seriesMap[dstSeries]['Volume'],labelName)
       # Need to make sure the new label volume has the correct name
       dstLabel.SetName(labelName)
-      dstLabel.GetDisplayNode().SetAndObserveColorNodeID(self.PCampReviewColorNode.GetID())
+      dstLabel.GetDisplayNode().SetAndObserveColorNodeID(self.mpReviewColorNode.GetID())
 
       progress.labelText = labelName
 
@@ -1751,7 +1751,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
       parameters["numberOfThreads"] = -1
 
       self.__cliNode = None
-      self.__cliNode = slicer.cli.runPCampReview(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
+      self.__cliNode = slicer.cli.runmpReview(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
 
       # Check to make sure we actually got something in the dstLabel volume
       dstLabelAddress = sitkUtils.GetSlicerITKReadWriteAddress(dstLabel.GetName())
@@ -1913,7 +1913,7 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     parameters["numberOfThreads"] = -1
 
     self.__cliNode = None
-    self.__cliNode = slicer.cli.runPCampReview(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
+    self.__cliNode = slicer.cli.runmpReview(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
 
     # get the image data and get rid of the temp
     labelNode.SetAndObserveImageData(resampledLabelNode.GetImageData())
@@ -2053,12 +2053,12 @@ class PCampReviewWidget(ScriptedLoadableModuleWidget):
     self.applyButton.enabled = self.inputSelector.currentNode() and self.outputSelector.currentNode()
 
   def onApplyButton(self):
-    logic = PCampReviewLogic()
+    logic = mpReviewLogic()
     logging.debug("Run the algorithm")
     logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode())
 
 
-class PCampReviewLogic(ScriptedLoadableModuleLogic):
+class mpReviewLogic(ScriptedLoadableModuleLogic):
   """This class should implement all the actual
   computation done by your module.  The interface
   should be such that other python code can import
@@ -2139,7 +2139,7 @@ class PCampReviewLogic(ScriptedLoadableModuleLogic):
     return True
 
 
-class PCampReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleWidget):
+class mpReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleWidget):
 
   def __init__(self, parent=None):
     qSlicerMultiVolumeExplorerSimplifiedModuleWidget.__init__(self, parent)
@@ -2181,7 +2181,7 @@ class PCampReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleW
     return
 
 
-class PCampReviewFiducialTable(object):
+class mpReviewFiducialTable(object):
 
   HEADERS = ["Name","Delete"]
   MODIFIED_EVENT = "ModifiedEvent"
@@ -2246,7 +2246,7 @@ class PCampReviewFiducialTable(object):
     self.connectedButtons = []
 
   def onFiducialListSelected(self):
-    logging.debug("PCampReviewFiducialTable:onFiducialListSelected")
+    logging.debug("mpReviewFiducialTable:onFiducialListSelected")
     self.removeObservers()
     self._currentFiducialList = self.currentNode
     self.addObservers()
@@ -2287,7 +2287,7 @@ class PCampReviewFiducialTable(object):
     self.connectedButtons.append(button)
 
   def handleDeleteButtonClicked(self, idx):
-    if PCampReviewWidget.yesNoDialog("Do you really want to delete fiducial %s?"
+    if mpReviewWidget.yesNoDialog("Do you really want to delete fiducial %s?"
             % self.currentNode.GetNthFiducialLabel(idx)):
       self.currentNode.RemoveMarkup(idx)
 
