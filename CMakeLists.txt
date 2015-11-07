@@ -1,13 +1,13 @@
-cmake_minimum_required(VERSION 2.8.7)
+cmake_minimum_required(VERSION 3.0.1)
 
 #-----------------------------------------------------------------------------
-set(EXTENSION_NAME PCampReview)
-set(EXTENSION_HOMEPAGE "http://www.slicer.org/slicerWiki/index.php/Documentation/4.2/Extensions/PCampReview")
-set(EXTENSION_CATEGORY "Examples")
-set(EXTENSION_CONTRIBUTORS "Jean-Christophe Fillion-Robin (Kitware), Steve Pieper (Isomics)")
-set(EXTENSION_DESCRIPTION "This is an example of extension bundling a scripted loadable module")
-set(EXTENSION_ICONURL "http://viewvc.slicer.org/viewvc.cgi/Slicer4/trunk/Extensions/Testing/PCampReview/Resources/Icons/PCampReview.png?revision=19437&view=co")
-set(EXTENSION_SCREENSHOTURLS "http://wiki.slicer.org/slicerWiki/images/e/e2/Slicer-r19441-PCampReview-screenshot.png")
+set(EXTENSION_NAME mpReview)
+set(EXTENSION_HOMEPAGE "http://wiki.slicer.org/slicerWiki/index.php/Documentation/Nightly/Extensions/mpReview")
+set(EXTENSION_CATEGORY "Informatics")
+set(EXTENSION_CONTRIBUTORS "Andrey Fedorov (SPL), Robin Weiss (U. of Chicago), Alireza Mehrtash (SPL), Christian Herz (SPL)")
+set(EXTENSION_DESCRIPTION "Multiparametric Image Review (mpReview) module is intended to support review and annotation of multiparametric image data. The driving use case for the development of this module was review and segmentation of the regions of interest in prostate cancer multiparametric MRI. This work is done as part of the Quantitative Imaging Network (QIN) and Informatics Technology for Cancer Research (ITCR) initiatives of the National Cancer Institute, and is funded by the National Institutes of Health, National Cancer Institute through the grant U24 CA180918 (PIs Kikinis & Fedorov) and U01 CA151261 (PI Fennessy).")
+set(EXTENSION_ICONURL "http://wiki.slicer.org/slicerWiki/images/5/59/MpReviewLogo.png")
+set(EXTENSION_SCREENSHOTURLS "http://wiki.slicer.org/slicerWiki/images/d/d1/MpReview-Prostate.gif")
 
 
 #-----------------------------------------------------------------------------
@@ -15,7 +15,7 @@ find_package(Slicer REQUIRED)
 include(${Slicer_USE_FILE})
 
 #-----------------------------------------------------------------------------
-set(MODULE_NAME PCampReview)
+set(MODULE_NAME mpReview)
 
 #-----------------------------------------------------------------------------
 set(MODULE_PYTHON_SCRIPTS
@@ -23,7 +23,7 @@ set(MODULE_PYTHON_SCRIPTS
   )
 
 set(MODULE_PYTHON_RESOURCES
-  Resources/Colors/PCampReviewColors.csv
+  Resources/Colors/mpReviewColors.csv
   )
 
 #-----------------------------------------------------------------------------
@@ -39,12 +39,12 @@ if(BUILD_TESTING)
 
   # Register the unittest subclass in the main script as a ctest.
   # Note that the test will also be available at runtime.
-  slicer_add_python_unittest(SCRIPT PCampReview.py)
+  slicer_add_python_unittest(SCRIPT mpReview.py)
 
   # Additional build-time testing
   add_subdirectory(Testing)
-  add_subdirectory(PCampReviewPreprocessorSelfTest)
-  add_subdirectory(PCampReviewSelfTest)
+  add_subdirectory(mpReviewPreprocessorSelfTest)
+  add_subdirectory(mpReviewSelfTest)
 endif()
 
 #-----------------------------------------------------------------------------

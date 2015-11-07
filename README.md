@@ -1,6 +1,6 @@
 ### Intro
 
-PCampReview (which stands for "Prostate CAncer Multi-Parametric mri REVIEW") is a 3D Slicer (see http://slicer.org) module that facilitates review and annotation (segmentation) of multi-parametric imaging datasets. 
+Multiparametric Review (mpReview) is a 3D Slicer (see http://slicer.org) module that facilitates review and annotation (segmentation) of multi-parametric imaging datasets. 
 
 This module is work in progress, and has not yet been released as a 3D Slicer extension, but this is in the plans. Development of this module was supported by NIH via grants U01CA151261 and U24CA180918. Contact is Andrey Fedorov, fedorov@bwh.harvard.edu.
 
@@ -34,13 +34,13 @@ The module expects that data is arranged in uniquely-named folders, each of whic
 2. .xml file containing the output of DCMTK dcm2xml utility (see
    http://support.dcmtk.org/docs/dcm2xml.html).
 
-A converter utility is provided in Util/PCampReviewPreprocessor.py to put a
+A converter utility is provided in Util/mpReviewPreprocessor.py to put a
 collection of DICOM files into the format and hierarchy expected by
-PCampReview. Here is how converter should be used:
+mpReview. Here is how converter should be used:
 
 ```
 Slicer --no-main-window --no-splash --python-script \
-Util/PCampReviewPreprocessor.py -i <input folder, can contain sub-folders> -o <output folder>
+Util/mpReviewPreprocessor.py -i <input folder, can contain sub-folders> -o <output folder>
 ```
 
 And this is an example of the data layout for one imaging study after applying the converter.
@@ -120,13 +120,3 @@ The following individuals and groups contributed directly to the development of 
 * Alireza Mehrtash, Brigham and Women's Hospital
 * Robin Weiss, University of Chicago
 * Christian Herz, Brigham and Women's Hospital
-
-
-Missing features:
-  * provenance elements: who (user information), when (date), how (w/l, more?), what
-     (no information about the structures being segmented)
-
- TODO:
-  * clean up the code
-  * add support for multiple readers and reading date
-  * support visualization of multi-volume (DCE) and plotting

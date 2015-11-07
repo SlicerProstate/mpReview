@@ -4,23 +4,23 @@ from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 import argparse
 import sys, shutil
-from PCampReviewPreprocessorSelfTest import PCampReviewPreprocessorSelfTestTest as PCampReviewPreprocessorTest
+from mpReviewPreprocessorSelfTest import mpReviewPreprocessorSelfTestTest as mpReviewPreprocessorTest
 #
-# PCampReviewPreprocessor
-#   Prepares the DICOM data to be compatible with PCampReview module
+# mpReviewPreprocessor
+#   Prepares the DICOM data to be compatible with mpReview module
 #
 
-class PCampReviewPreprocessor(ScriptedLoadableModule):
+class mpReviewPreprocessor(ScriptedLoadableModule):
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
-    parent.title = "PCampReview Preprocessor"
-    parent.categories = ["Testing.PCampReview Tests"]
+    parent.title = "mpReview Preprocessor"
+    parent.categories = ["Informatics"]
     parent.dependencies = []
-    parent.contributors = ["Andrey Fedorov (BWH)"]
+    parent.contributors = ["Andrey Fedorov (SPL), Robin Weiss (U. of Chicago), Christian Herz (SPL)"]
     parent.helpText = """
-    This is a module for conditioning DICOM data for processing using PCampReview module
+    This is a module for conditioning DICOM data for processing using mpReview module
     """
-    parent.acknowledgementText = """This module is based on the PCampReviewPreprocessor module that was originally developed by Csaba Pinter, PerkLab, Queen's University and was supported through the Applied Cancer Research Unit program of Cancer Care Ontario with funds provided by the Ontario Ministry of Health and Long-Term Care. This module was developed by Andrey Fedorov, BWH, and was supported by NIH via grants U24CA180918 and U01CA151261.""" # replace with organization, grant and thanks.
+    parent.acknowledgementText = """Development of this module was supported in part by NIH via grants U24CA180918 and U01CA151261."""
     self.parent = parent
 
     # Add this test to the SelfTest module's list for discovery when the module
@@ -30,17 +30,17 @@ class PCampReviewPreprocessor(ScriptedLoadableModule):
       slicer.selfTests
     except AttributeError:
       slicer.selfTests = {}
-    slicer.selfTests['PCampReviewPreprocessor'] = self.runTest
+    slicer.selfTests['mpReviewPreprocessor'] = self.runTest
 
   def runTest(self):
-    tester = PCampReviewPreprocessorTest()
+    tester = mpReviewPreprocessorTest()
     tester.runTest()
 
 #
-# PCampReviewPreprocessorWidget
+# mpReviewPreprocessorWidget
 #
 
-class PCampReviewPreprocessorWidget(ScriptedLoadableModuleWidget):
+class mpReviewPreprocessorWidget(ScriptedLoadableModuleWidget):
   def setup(self):
     self.developerMode = True
     ScriptedLoadableModuleWidget.setup(self)
@@ -67,15 +67,15 @@ class PCampReviewPreprocessorWidget(ScriptedLoadableModuleWidget):
     applyButton.connect('clicked()',self.onRunClicked)
 
   def onRunClicked(self):
-    logic = PCampReviewPreprocessorLogic()
+    logic = mpReviewPreprocessorLogic()
     logic.Convert(self.inputDirButton.directory, self.outputDirButton.directory,
         copyDICOM=self.copyDICOMButton.checked)
 
 #
-# PCampReviewPreprocessorLogic
+# mpReviewPreprocessorLogic
 #
 
-class PCampReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
+class mpReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
   """This class should implement all the actual
   computation done by your module.  The interface
   should be such that other python code can import
@@ -97,7 +97,7 @@ class PCampReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
   def __init__(self):
     ScriptedLoadableModuleLogic.__init__(self)
 
-    self.dataDir = os.path.join(slicer.app.temporaryPath, "PCampReviewPreprocessor")
+    self.dataDir = os.path.join(slicer.app.temporaryPath, "mpReviewPreprocessor")
     if os.access(self.dataDir, os.F_OK):
       shutil.rmtree(self.dataDir)
 
@@ -196,7 +196,7 @@ class PCampReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
 def main(argv):
   try:
     # Parse command-line arguments
-    parser = argparse.ArgumentParser(description="PCampReview preprocessor")
+    parser = argparse.ArgumentParser(description="mpReview preprocessor")
     parser.add_argument("-i", "--input-folder", dest="input_folder", metavar="PATH",
                         default="-", required=True, help="Folder of input DICOM files (can contain sub-folders)")
     parser.add_argument("-o", "--output-folder", dest="output_folder", metavar="PATH",
@@ -211,7 +211,7 @@ def main(argv):
     if args.output_folder == ".":
       print('Current directory is selected as output folder (default). To change it, please specify --output-folder')
 
-    logic = PCampReviewPreprocessorLogic()
+    logic = mpReviewPreprocessorLogic()
     logic.Convert(args.input_folder,args.output_folder,copyDICOM=args.copyDICOM)
 
   except Exception, e:
