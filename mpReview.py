@@ -19,13 +19,14 @@ class mpReview(ScriptedLoadableModule):
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
     parent.title = "mpReview"
-    parent.categories = ["Radiology"]
-    parent.dependencies = []
-    parent.contributors = ["mpReview"] # replace with "Firstname Lastname (Org)"
+    parent.categories = ["Informatics"]
+    parent.dependencies = ["WindowLevelEffect"]
+    parent.contributors = ["Andrey Fedorov (SPL), Robin Weiss (U. of Chicago), Alireza Mehrtash (SPL), Christian Herz (SPL)"]
     parent.helpText = """
+    Multiparametric Image Review (mpReview) module is intended to support review and annotation of multiparametric image data. The driving use case for the development of this module was review and segmentation of the regions of interest in prostate cancer multiparametric MRI. 
     """
     parent.acknowledgementText = """
-    Supported by NIH U01CA151261 (PI Fennessy)
+    Supported by NIH U24 CA180918 (PIs Fedorov & Kikinis) and U01CA151261 (PI Fennessy)
     """ # replace with organization, grant and thanks.
     self.parent = parent
 

@@ -14,13 +14,13 @@ class mpReviewPreprocessor(ScriptedLoadableModule):
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
     parent.title = "mpReview Preprocessor"
-    parent.categories = ["Testing.mpReview Tests"]
+    parent.categories = ["Informatics"]
     parent.dependencies = []
-    parent.contributors = ["Andrey Fedorov (BWH)"]
+    parent.contributors = ["Andrey Fedorov (SPL), Robin Weiss (U. of Chicago), Christian Herz (SPL)"]
     parent.helpText = """
     This is a module for conditioning DICOM data for processing using mpReview module
     """
-    parent.acknowledgementText = """This module is based on the mpReviewPreprocessor module that was originally developed by Csaba Pinter, PerkLab, Queen's University and was supported through the Applied Cancer Research Unit program of Cancer Care Ontario with funds provided by the Ontario Ministry of Health and Long-Term Care. This module was developed by Andrey Fedorov, BWH, and was supported by NIH via grants U24CA180918 and U01CA151261.""" # replace with organization, grant and thanks.
+    parent.acknowledgementText = """Development of this module was supported in part by NIH via grants U24CA180918 and U01CA151261."""
     self.parent = parent
 
     # Add this test to the SelfTest module's list for discovery when the module
