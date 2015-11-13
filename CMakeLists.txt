@@ -42,9 +42,9 @@ if(BUILD_TESTING)
   slicer_add_python_unittest(SCRIPT mpReview.py)
 
   # Additional build-time testing
-  add_subdirectory(Testing)
-  add_subdirectory(mpReviewPreprocessorSelfTest)
-  add_subdirectory(mpReviewSelfTest)
+  # Testing is disabled for now due to the lack of a small realistic dataset
+  # that can be used to exercise the module functionality
+  # add_subdirectory(Testing)
 endif()
 
 #-----------------------------------------------------------------------------
