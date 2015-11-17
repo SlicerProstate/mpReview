@@ -1,9 +1,12 @@
 <RCC>
     <qresource prefix="/">
-        <file>Icons/icon-completion-fit.png</file>
-        <file>Icons/icon-dataselection-fit.png</file>
-        <file>Icons/icon-segmentation-fit.png</file>
-        <file>Icons/icon-seriesselection-fit.png</file>
-        <file>Icons/icon-studyselection-fit.png</file>
+      <file>Icons/icon-completion_fit.png</file>
+      <file>Icons/icon-infoBox.png</file>
+      <file>Icons/icon-segmentation_fit.png</file>
+      <file>Icons/icon-seriesselection_fit.png</file>
+      <file>Icons/icon-studyselection_fit.png</file>
+      <file>Icons/mpReview-simple-small.png</file>
+      <file>Icons/mpReviewExtensionLogo.png</file>
+      <file>Icons/mpReviewLogo128px.png</file>
     </qresource>
 </RCC>

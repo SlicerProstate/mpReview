@@ -11,7 +11,6 @@ import sitkUtils
 from slicer.ScriptedLoadableModule import *
 from qSlicerMultiVolumeExplorerModuleWidget import qSlicerMultiVolumeExplorerSimplifiedModuleWidget
 from qSlicerMultiVolumeExplorerModuleHelper import qSlicerMultiVolumeExplorerModuleHelper as MVHelper
-from mpReviewSelfTest import mpReviewSelfTestTest as mpReviewTest
 
 
 class mpReview(ScriptedLoadableModule):
