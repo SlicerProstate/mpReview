@@ -37,11 +37,9 @@ class mpReview(ScriptedLoadableModule):
       slicer.selfTests
     except AttributeError:
       slicer.selfTests = {}
-    slicer.selfTests['mpReview'] = self.runTest
 
   def runTest(self):
-    tester = mpReviewTest()
-    tester.runTest()
+    return
 
 class mpReviewWidget(ScriptedLoadableModuleWidget):
 
