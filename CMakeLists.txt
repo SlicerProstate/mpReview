@@ -24,6 +24,14 @@ set(MODULE_PYTHON_SCRIPTS
 
 set(MODULE_PYTHON_RESOURCES
   Resources/Colors/mpReviewColors.csv
+  Resources/Icons/icon-completion_fit.png
+  Resources/Icons/icon-infoBox.png
+  Resources/Icons/icon-segmentation_fit.png
+  Resources/Icons/icon-seriesselection_fit.png
+  Resources/Icons/icon-studyselection_fit.png
+  Resources/Icons/mpReview-simple-small.png
+  Resources/Icons/mpReviewExtensionLogo.png
+  Resources/Icons/mpReviewLogo128px.png
   )
 
 #-----------------------------------------------------------------------------
