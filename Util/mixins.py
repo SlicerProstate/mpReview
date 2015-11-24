@@ -76,6 +76,16 @@ class ModuleWidgetMixin(object):
         setattr(rowLayout, key, value)
     return widget
 
+  def _createListView(self, name, headerLabels):
+    view = qt.QListView()
+    view.setObjectName(name)
+    view.setSpacing(3)
+    model = qt.QStandardItemModel()
+    model.setHorizontalHeaderLabels(headerLabels)
+    view.setModel(model)
+    view.setEditTriggers(qt.QAbstractItemView.NoEditTriggers)
+    return view, model
+
   def createIcon(self, filename, iconPath=None):
     if not iconPath:
       iconPath = os.path.join(self.modulePath, 'Resources/Icons')
@@ -83,12 +93,23 @@ class ModuleWidgetMixin(object):
     pixmap = qt.QPixmap(path)
     return qt.QIcon(pixmap)
 
+  def createSliderWidget(self, minimum, maximum):
+    slider = slicer.qMRMLSliderWidget()
+    slider.minimum = minimum
+    slider.maximum = maximum
+    return slider
+
   def createLabel(self, title, **kwargs):
     label = qt.QLabel(title)
     return self.extendQtGuiElementProperties(label, **kwargs)
 
   def createButton(self, title, **kwargs):
     button = qt.QPushButton(title)
+    button.setCursor(qt.Qt.PointingHandCursor)
+    return self.extendQtGuiElementProperties(button, **kwargs)
+
+  def createRadioButton(self, text, **kwargs):
+    button = qt.QRadioButton(text)
     button.setCursor(qt.Qt.PointingHandCursor)
     return self.extendQtGuiElementProperties(button, **kwargs)
 
