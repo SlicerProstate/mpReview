@@ -8,7 +8,7 @@ from EditorLib import EditorLib
 import SimpleITK as sitk
 import sitkUtils
 from slicer.ScriptedLoadableModule import *
-from Util.mixins import ModuleWidgetMixin, ModuleLogicMixin
+from Util.mixins import ModuleWidgetMixin
 from qSlicerMultiVolumeExplorerModuleWidget import qSlicerMultiVolumeExplorerSimplifiedModuleWidget
 from qSlicerMultiVolumeExplorerModuleHelper import qSlicerMultiVolumeExplorerModuleHelper as MVHelper
 
@@ -1947,13 +1947,22 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode())
 
 
-class mpReviewLogic(ScriptedLoadableModuleLogic, ModuleLogicMixin):
+class mpReviewLogic(ScriptedLoadableModuleLogic):
   """This class should implement all the actual
   computation done by your module.  The interface
   should be such that other python code can import
   this class and make use of the functionality without
   requiring an instance of the Widget
   """
+
+  @staticmethod
+  def createDirectory(directory, message=None):
+    if message:
+      logging.debug(message)
+    try:
+      os.makedirs(directory)
+    except OSError:
+      logging.debug('Failed to create the following directory: ' + directory)
 
   @staticmethod
   def cleanupDir(d):
