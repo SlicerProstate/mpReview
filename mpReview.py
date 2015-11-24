@@ -205,6 +205,35 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
     if currentIndex == 3:
       self.onStep4Selected()
 
+  def setup(self):
+    ScriptedLoadableModuleWidget.setup(self)
+
+    self.setupIcons()
+    self.setupInformationFrame()
+    self.setupTabBarNavigation()
+
+    self.parameters = {}
+
+    self.setupDataAndStudySelectionUI()
+    self.setupSeriesSelectionUI()
+    self.setupSegmentationToolsUI()
+    self.setupCompletionUI()
+
+    self.layout.addStretch(1)
+
+    self.volumesLogic = slicer.modules.volumes.logic()
+
+    # these are the PK maps that should be loaded
+    self.pkMaps = ['Ktrans','Ve','Auc','TTP','MaxSlope']
+    self.volumeNodes = {}
+    self.refSelectorIgnoreUpdates = False
+    self.selectedStudyName = None
+
+    if os.path.exists(self.inputDataDir):
+      self.dataDirLabel.setText(self.inputDataDir)
+      self.checkAndSetLUT()
+      self.onUpdateStudyTable()
+
   def setupInformationFrame(self):
     self.informationGroupBox = qt.QGroupBox()
     self.informationGroupBox.setStyleSheet('background-color: rgb(230,230,230)')
@@ -221,66 +250,20 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
     self.informationViewBoxLayout.addWidget(self.dataDirLabel, 1, 1, 1, 3)
     self.layout.addWidget(self.informationGroupBox)
 
-  def setup(self):
-    ScriptedLoadableModuleWidget.setup(self)
-    # Instantiate and connect widgets ...
+  def setupCompletionUI(self):
+    self.qaButton = qt.QPushButton("PI-RADS v2 review form")
+    self.completionGroupBoxLayout.addWidget(self.qaButton)
+    self.qaButton.connect('clicked()', self.onQAFormClicked)
+    self.saveButton = qt.QPushButton("Save")
+    self.completionGroupBoxLayout.addWidget(self.saveButton)
+    self.saveButton.connect('clicked()', self.onSaveClicked)
+    '''
+      self.piradsButton = qt.QPushButton("PI-RADS review")
+      self.layout.addWidget(self.piradsButton)
+      # self.piradsButton.connect('clicked()',self.onPiradsClicked)
+      '''
 
-    self.setupIcons()
-    self.setupInformationFrame()
-    self.setupTabBarNavigation()
-
-    self.parameters = {}
-
-    #
-    # Step 1: selection of the data directory and the study to be analyzed
-    #
-    self.dataDirButton = ctk.ctkDirectoryButton()
-    self.dataDirButton.directory = self.inputDataDir
-    self.dataDirButton.directoryChanged.connect(self.onInputDirSelected)
-    self.studySelectionGroupBoxLayout.addWidget(qt.QLabel("Data directory:"), 0, 0, 1, 1)
-    self.studySelectionGroupBoxLayout.addWidget(self.dataDirButton, 0 ,1, 1, 2)
-    infoGroupBox = qt.QWidget()
-    hbox = qt.QHBoxLayout()
-    hbox.setMargin(0)
-    infoGroupBox.setLayout(hbox)
-    self.studySelectionGroupBoxLayout.addWidget(infoGroupBox, 0, 3, 1, 1)
-    infoIcon = qt.QPixmap(os.path.join(self.resourcesPath, 'Icons', 'icon-infoBox.png'))
-    self.customLUTInfoIcon = qt.QLabel()
-    self.customLUTInfoIcon.setPixmap(infoIcon)
-    self.customLUTInfoIcon.setSizePolicy(PythonQt.QtGui.QSizePolicy())
-    hbox.addWidget(self.customLUTInfoIcon)
-    self.customLUTLabel = qt.QLabel()
-    hbox.addWidget(self.customLUTLabel)
-
-    self.studySelectionGroupBoxLayout.addWidget(qt.QLabel("Studies found:"), 2, 0, 1, 4)
-    self.studiesView = qt.QListView()
-    self.studiesView.setObjectName('StudiesTable')
-    self.studiesView.setSpacing(3)
-    self.studiesModel = qt.QStandardItemModel()
-    self.studiesModel.setHorizontalHeaderLabels(['Study ID'])
-    self.studiesView.setModel(self.studiesModel)
-    self.studiesView.setEditTriggers(qt   .QAbstractItemView.NoEditTriggers)
-    self.studiesView.connect('clicked(QModelIndex)', self.studySelected)
-    self.studySelectionGroupBoxLayout.addWidget(self.studiesView, 3, 0, 1, 4)
-
-    #
-    # Step 3: series selection
-    #
-    self.seriesView = qt.QListView()
-    self.seriesView.setObjectName('SeriesTable')
-    self.seriesView.setSpacing(3)
-    self.seriesModel = qt.QStandardItemModel()
-    self.seriesModel.setHorizontalHeaderLabels(['Series ID'])
-    self.seriesView.setModel(self.seriesModel)
-    self.seriesView.setSelectionMode(qt.QAbstractItemView.ExtendedSelection)
-    self.seriesView.connect('clicked(QModelIndex)', self.seriesSelected)
-    self.seriesView.setEditTriggers(qt.QAbstractItemView.NoEditTriggers)
-    self.seriesSelectionGroupBoxLayout.addWidget(self.seriesView)
-
-    #
-    # Step 4: segmentation tools
-    #
-
+  def setupSegmentationToolsUI(self):
     self.refSelector = qt.QComboBox()
     hbox = qt.QHBoxLayout()
     hbox.addWidget(qt.QLabel("Reference image: "))
@@ -307,9 +290,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
 
     volumesFrame = self.editorWidget.volumes
     # hide unwanted widgets
-    for widgetName in ['AllButtonsFrameButton','ReplaceModelsCheckBox',
-      'MasterVolumeFrame','MergeVolumeFrame','SplitStructureButton']:
-      widget = slicer.util.findChildren(volumesFrame,widgetName)[0]
+    for widgetName in ['AllButtonsFrameButton', 'ReplaceModelsCheckBox',
+                       'MasterVolumeFrame', 'MergeVolumeFrame', 'SplitStructureButton']:
+      widget = slicer.util.findChildren(volumesFrame, widgetName)[0]
       widget.hide()
 
     editBoxFrame = self.editorWidget.editBoxFrame
@@ -318,29 +301,26 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
     #   slicer.util.findChildren(editBoxFrame,buttonName+'ToolButton')[0].hide()
 
     effectButtonFrame = slicer.util.findChildren(editBoxFrame, "RowFrame1")[0].layout()
-    effectButtonFrame.addWidget(slicer.util.findChildren(editBoxFrame,'WindowLevelEffectToolButton')[0])
+    effectButtonFrame.addWidget(slicer.util.findChildren(editBoxFrame, 'WindowLevelEffectToolButton')[0])
     slicer.util.findChildren(editBoxFrame, "RowFrame2")[0].hide()
 
     perStructureFrame = slicer.util.findChildren(volumesFrame,
-                        'PerStructureVolumesFrame')[0]
+                                                 'PerStructureVolumesFrame')[0]
     perStructureFrame.collapsed = False
-
-    self.structuresView = slicer.util.findChildren(volumesFrame,'StructuresView')[0]
+    self.structuresView = slicer.util.findChildren(volumesFrame, 'StructuresView')[0]
     self.structuresView.connect("activated(QModelIndex)", self.onStructureClicked)
 
     self.editorParameterNode = EditorLib.EditUtil.EditUtil.getParameterNode()
     self.editorParameterNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onEditorWidgetParameterNodeChanged)
-
-    buttonsFrame = slicer.util.findChildren(volumesFrame,'ButtonsFrame')[0]
+    buttonsFrame = slicer.util.findChildren(volumesFrame, 'ButtonsFrame')[0]
     '''
-    updateViewsButton = qt.QPushButton('Update Views')
-    buttonsFrame.layout().addWidget(updateViewsButton)
-    updateViewsButton.connect("clicked()", self.updateViews)
-    '''
-
+        updateViewsButton = qt.QPushButton('Update Views')
+        buttonsFrame.layout().addWidget(updateViewsButton)
+        updateViewsButton.connect("clicked()", self.updateViews)
+        '''
     redWidget = self.getLayoutManager().sliceWidget('Red')
     controller = redWidget.sliceController()
-    moreButton = slicer.util.findChildren(controller,'MoreButton')[0]
+    moreButton = slicer.util.findChildren(controller, 'MoreButton')[0]
     moreButton.toggle()
 
     deleteStructureButton = qt.QPushButton('Delete Structure')
@@ -354,15 +334,13 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
     createFiducialsButton = qt.QPushButton('Create Fiducials')
     buttonsFrame.layout().addWidget(createFiducialsButton)
     createFiducialsButton.connect('clicked()', self.onCreateFiducialsButtonClicked)
-
-    #self.editorWidget.toolsColor.frame.setVisible(False)
+    # self.editorWidget.toolsColor.frame.setVisible(False)
     self.editorWidget.toolsColor.colorSpin.setEnabled(False)
     self.editorWidget.toolsColor.colorPatch.setEnabled(False)
 
     self.editorParameterNode = self.editUtil.getParameterNode()
     self.editorParameterNode.SetParameter('propagationMode',
-                             str(slicer.vtkMRMLApplicationLogic.LabelLayer))
-
+                                          str(slicer.vtkMRMLApplicationLogic.LabelLayer))
     self.segmentationGroupBoxLayout.addWidget(editorWidgetParent)
 
     self.advancedSettingsArea = ctk.ctkCollapsibleButton()
@@ -375,8 +353,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
     self.multiView = qt.QRadioButton('All')
     self.singleView = qt.QRadioButton('Reference only')
     self.multiView.setChecked(1)
-    self.viewGroup.addButton(self.multiView,1)
-    self.viewGroup.addButton(self.singleView,2)
+    self.viewGroup.addButton(self.multiView, 1)
+    self.viewGroup.addButton(self.singleView, 2)
     self.viewGroup.connect('buttonClicked(int)', self.onViewUpdateRequested)
     self.groupWidget = qt.QGroupBox()
     self.groupLayout = qt.QFormLayout(self.groupWidget)
@@ -478,46 +456,46 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
     # keep here names of the views created by CompareVolumes logic
     self.viewNames = []
 
-    #
-    # Step 6: save results
-    #
-    #self.step5frame = ctk.ctkCollapsibleButton()
-    #self.step5frame.text = "Step 5: Save results"
-    #self.layout.addWidget(self.step5frame)
+  def setupSeriesSelectionUI(self):
+    self.seriesView = qt.QListView()
+    self.seriesView.setObjectName('SeriesTable')
+    self.seriesView.setSpacing(3)
+    self.seriesModel = qt.QStandardItemModel()
+    self.seriesModel.setHorizontalHeaderLabels(['Series ID'])
+    self.seriesView.setModel(self.seriesModel)
+    self.seriesView.setSelectionMode(qt.QAbstractItemView.ExtendedSelection)
+    self.seriesView.connect('clicked(QModelIndex)', self.seriesSelected)
+    self.seriesView.setEditTriggers(qt.QAbstractItemView.NoEditTriggers)
+    self.seriesSelectionGroupBoxLayout.addWidget(self.seriesView)
 
-    # Layout within the dummy collapsible button
-    #step5Layout = qt.QFormLayout(self.step5frame)
-    # TODO: add here source directory selector
-
-    self.qaButton = qt.QPushButton("PI-RADS v2 review form")
-    self.completionGroupBoxLayout.addWidget(self.qaButton)
-    self.qaButton.connect('clicked()',self.onQAFormClicked)
-
-    self.saveButton = qt.QPushButton("Save")
-    self.completionGroupBoxLayout.addWidget(self.saveButton)
-    self.saveButton.connect('clicked()', self.onSaveClicked)
-
-    '''
-    self.piradsButton = qt.QPushButton("PI-RADS review")
-    self.layout.addWidget(self.piradsButton)
-    # self.piradsButton.connect('clicked()',self.onPiradsClicked)
-    '''
-
-    # Add vertical spacer
-    self.layout.addStretch(1)
-
-    self.volumesLogic = slicer.modules.volumes.logic()
-
-    # these are the PK maps that should be loaded
-    self.pkMaps = ['Ktrans','Ve','Auc','TTP','MaxSlope']
-    self.volumeNodes = {}
-    self.refSelectorIgnoreUpdates = False
-    self.selectedStudyName = None
-
-    if os.path.exists(self.inputDataDir):
-      self.dataDirLabel.setText(self.inputDataDir)
-      self.checkAndSetLUT()
-      self.onUpdateStudyTable()
+  def setupDataAndStudySelectionUI(self):
+    self.dataDirButton = ctk.ctkDirectoryButton()
+    self.dataDirButton.directory = self.inputDataDir
+    self.dataDirButton.directoryChanged.connect(self.onInputDirSelected)
+    self.studySelectionGroupBoxLayout.addWidget(qt.QLabel("Data directory:"), 0, 0, 1, 1)
+    self.studySelectionGroupBoxLayout.addWidget(self.dataDirButton, 0, 1, 1, 2)
+    infoGroupBox = qt.QWidget()
+    hbox = qt.QHBoxLayout()
+    hbox.setMargin(0)
+    infoGroupBox.setLayout(hbox)
+    self.studySelectionGroupBoxLayout.addWidget(infoGroupBox, 0, 3, 1, 1)
+    infoIcon = qt.QPixmap(os.path.join(self.resourcesPath, 'Icons', 'icon-infoBox.png'))
+    self.customLUTInfoIcon = qt.QLabel()
+    self.customLUTInfoIcon.setPixmap(infoIcon)
+    self.customLUTInfoIcon.setSizePolicy(PythonQt.QtGui.QSizePolicy())
+    hbox.addWidget(self.customLUTInfoIcon)
+    self.customLUTLabel = qt.QLabel()
+    hbox.addWidget(self.customLUTLabel)
+    self.studySelectionGroupBoxLayout.addWidget(qt.QLabel("Studies found:"), 2, 0, 1, 4)
+    self.studiesView = qt.QListView()
+    self.studiesView.setObjectName('StudiesTable')
+    self.studiesView.setSpacing(3)
+    self.studiesModel = qt.QStandardItemModel()
+    self.studiesModel.setHorizontalHeaderLabels(['Study ID'])
+    self.studiesView.setModel(self.studiesModel)
+    self.studiesView.setEditTriggers(qt.QAbstractItemView.NoEditTriggers)
+    self.studiesView.connect('clicked(QModelIndex)', self.studySelected)
+    self.studySelectionGroupBoxLayout.addWidget(self.studiesView, 3, 0, 1, 4)
 
   def onEditorWidgetParameterNodeChanged(self, caller, event=-1):
     effectName = caller.GetParameter("effect")
