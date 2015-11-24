@@ -4,7 +4,6 @@ from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 import argparse
 import sys, shutil
-from mpReviewPreprocessorSelfTest import mpReviewPreprocessorSelfTestTest as mpReviewPreprocessorTest
 #
 # mpReviewPreprocessor
 #   Prepares the DICOM data to be compatible with mpReview module
