@@ -1,7 +1,6 @@
 from __future__ import division
 import os, json, xml.dom.minidom, string, glob, re, math
 from __main__ import vtk, qt, ctk, slicer
-import PythonQt
 import logging
 import CompareVolumes
 from Editor import EditorWidget
@@ -72,6 +71,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.tempDir = os.path.join(slicer.app.temporaryPath, 'mpReview-tmp')
     self.logic.createDirectory(self.tempDir, message='Temporary directory location: ' + self.tempDir)
     self.fiducialLabelPropagateModel = None
+    self.modulePath = os.path.dirname(slicer.util.modulePath(self.moduleName))
 
   def getAllSliceWidgets(self):
     widgetNames = self.layoutManager.sliceViewNames()
@@ -99,14 +99,10 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       view.scheduleRender()
 
   def setupIcons(self):
-    def createQIconFromPath(path):
-      return qt.QIcon(qt.QPixmap(path))
-
-    iconPath = os.path.join(self.resourcesPath, 'Icons')
-    self.studySelectionIcon = createQIconFromPath(os.path.join(iconPath, 'icon-studyselection_fit.png'))
-    self.seriesSelectionIcon = createQIconFromPath(os.path.join(iconPath, 'icon-seriesselection_fit.png'))
-    self.segmentationIcon = createQIconFromPath(os.path.join(iconPath, 'icon-segmentation_fit.png'))
-    self.completionIcon = createQIconFromPath(os.path.join(iconPath, 'icon-completion_fit.png'))
+    self.studySelectionIcon = self.createIcon('icon-studyselection_fit.png')
+    self.seriesSelectionIcon = self.createIcon('icon-seriesselection_fit.png')
+    self.segmentationIcon = self.createIcon('icon-segmentation_fit.png')
+    self.completionIcon = self.createIcon('icon-completion_fit.png')
 
   def setupTabBarNavigation(self):
     self.tabWidget = qt.QTabWidget()
@@ -422,10 +418,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     hbox.setMargin(0)
     infoGroupBox.setLayout(hbox)
     self.studySelectionGroupBoxLayout.addWidget(infoGroupBox, 0, 3, 1, 1)
-    infoIcon = qt.QPixmap(os.path.join(self.resourcesPath, 'Icons', 'icon-infoBox.png'))
+    infoPixmap = qt.QPixmap(os.path.join(self.resourcesPath, 'Icons', 'icon-infoBox.png'))
     self.customLUTInfoIcon = qt.QLabel()
-    self.customLUTInfoIcon.setPixmap(infoIcon)
-    self.customLUTInfoIcon.setSizePolicy(PythonQt.QtGui.QSizePolicy())
+    self.customLUTInfoIcon.setPixmap(infoPixmap)
     hbox.addWidget(self.customLUTInfoIcon)
     self.customLUTLabel = qt.QLabel()
     hbox.addWidget(self.customLUTLabel)
@@ -1491,7 +1486,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       return
 
     self.createFiducialsPrompt = qt.QDialog()
-    self.createFiducialsPrompt.setWindowFlags(PythonQt.QtCore.Qt.WindowStaysOnTopHint)
+    self.createFiducialsPrompt.setWindowFlags(qt.Qt.WindowStaysOnTopHint)
     fiducialsPromptLayout = qt.QVBoxLayout()
     self.createFiducialsPrompt.setLayout(fiducialsPromptLayout)
 
