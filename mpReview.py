@@ -157,7 +157,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.setupSeriesSelectionUI()
     self.setupSegmentationToolsUI()
     self.setupCompletionUI()
-
+    self.setupConnections()
     self.layout.addStretch(1)
 
     self.volumesLogic = slicer.modules.volumes.logic()
@@ -192,15 +192,49 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def setupCompletionUI(self):
     self.qaButton = qt.QPushButton("PI-RADS v2 review form")
     self.completionGroupBoxLayout.addWidget(self.qaButton)
-    self.qaButton.connect('clicked()', self.onQAFormClicked)
     self.saveButton = qt.QPushButton("Save")
     self.completionGroupBoxLayout.addWidget(self.saveButton)
-    self.saveButton.connect('clicked()', self.onSaveClicked)
     '''
       self.piradsButton = qt.QPushButton("PI-RADS review")
       self.layout.addWidget(self.piradsButton)
       # self.piradsButton.connect('clicked()',self.onPiradsClicked)
       '''
+
+  def setupConnections(self):
+
+    def setupButtonConnections():
+      self.dataDirButton.directoryChanged.connect(self.onInputDirSelected)
+      self.deleteStructureButton.connect('clicked()', self.onDeleteStructure)
+      self.propagateButton.connect('clicked()', self.onPropagateROI)
+      self.createFiducialsButton.connect('clicked()', self.onCreateFiducialsButtonClicked)
+      self.hardenTransformButton.connect('clicked(bool)', self.onHardenTransform)
+      self.buildModelsButton.connect("clicked()", self.onBuildModels)
+      self.modelsVisibilityButton.connect("toggled(bool)", self.onModelsVisibilityButton)
+      self.labelMapOutlineButton.connect('toggled(bool)', self.setLabelOutline)
+      self.qaButton.connect('clicked()', self.onQAFormClicked)
+      self.saveButton.connect('clicked()', self.onSaveClicked)
+      for orientation in self.orientations:
+        self.orientationButtons[orientation].connect("clicked()", lambda o=orientation: self.setOrientation(o))
+      self.viewButtonGroup.connect('buttonClicked(int)', self.onViewUpdateRequested)
+
+    def setupSliderConnections():
+      self.translateLR.connect('valueChanged(double)', self.onTranslate)
+      self.translatePA.connect('valueChanged(double)', self.onTranslate)
+      self.translateIS.connect('valueChanged(double)', self.onTranslate)
+      self.multiVolumeExplorer.frameSlider.connect('valueChanged(double)', self.onSliderChanged)
+
+    def setupViewConnections():
+      self.studiesView.connect('clicked(QModelIndex)', self.onStudySelected)
+      self.seriesView.connect('clicked(QModelIndex)', self.onSeriesSelected)
+      self.structuresView.connect("activated(QModelIndex)", self.onStructureClicked)
+
+    def setupOtherConnections():
+      self.refSelector.connect('currentIndexChanged(int)', self.onReferenceChanged)
+
+    setupButtonConnections()
+    setupSliderConnections()
+    setupViewConnections()
+    setupOtherConnections()
 
   def setupSegmentationToolsUI(self):
     self.refSelector = qt.QComboBox()
@@ -208,7 +242,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     hbox.addWidget(qt.QLabel("Reference image: "))
     hbox.addWidget(self.refSelector)
     self.segmentationGroupBoxLayout.addLayout(hbox, 0, 0)
-    self.refSelector.connect('currentIndexChanged(int)', self.onReferenceChanged)
 
 
     self.multiVolumeExplorerArea = ctk.ctkCollapsibleButton()
@@ -218,7 +251,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     self.multiVolumeExplorer = mpReviewMultiVolumeExplorer(multiVolumeExplorerLayout)
     self.multiVolumeExplorer.setup()
-    self.multiVolumeExplorer.frameSlider.connect('valueChanged(double)', self.onSliderChanged)
     self.segmentationGroupBoxLayout.addWidget(self.multiVolumeExplorerArea)
 
     editorWidgetParent = slicer.qMRMLWidget()
@@ -247,7 +279,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
                                                  'PerStructureVolumesFrame')[0]
     perStructureFrame.collapsed = False
     self.structuresView = slicer.util.findChildren(volumesFrame, 'StructuresView')[0]
-    self.structuresView.connect("activated(QModelIndex)", self.onStructureClicked)
 
     self.editorParameterNode = EditorLib.EditUtil.EditUtil.getParameterNode()
     self.editorParameterNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onEditorWidgetParameterNodeChanged)
@@ -262,17 +293,14 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     moreButton = slicer.util.findChildren(controller, 'MoreButton')[0]
     moreButton.toggle()
 
-    deleteStructureButton = qt.QPushButton('Delete Structure')
-    buttonsFrame.layout().addWidget(deleteStructureButton)
-    deleteStructureButton.connect('clicked()', self.onDeleteStructure)
+    self.deleteStructureButton = qt.QPushButton('Delete Structure')
+    buttonsFrame.layout().addWidget(self.deleteStructureButton)
 
-    propagateButton = qt.QPushButton('Propagate Structure')
-    buttonsFrame.layout().addWidget(propagateButton)
-    propagateButton.connect('clicked()', self.onPropagateROI)
+    self.propagateButton = qt.QPushButton('Propagate Structure')
+    buttonsFrame.layout().addWidget(self.propagateButton)
 
-    createFiducialsButton = qt.QPushButton('Create Fiducials')
-    buttonsFrame.layout().addWidget(createFiducialsButton)
-    createFiducialsButton.connect('clicked()', self.onCreateFiducialsButtonClicked)
+    self.createFiducialsButton = qt.QPushButton('Create Fiducials')
+    buttonsFrame.layout().addWidget(self.createFiducialsButton)
     # self.editorWidget.toolsColor.frame.setVisible(False)
     self.editorWidget.toolsColor.colorSpin.setEnabled(False)
     self.editorWidget.toolsColor.colorPatch.setEnabled(False)
@@ -288,13 +316,12 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     advancedSettingsLayout = qt.QFormLayout(self.advancedSettingsArea)
 
     # Show all/reference
-    self.viewGroup = qt.QButtonGroup()
+    self.viewButtonGroup = qt.QButtonGroup()
     self.multiView = qt.QRadioButton('All')
     self.singleView = qt.QRadioButton('Reference only')
     self.multiView.setChecked(1)
-    self.viewGroup.addButton(self.multiView, 1)
-    self.viewGroup.addButton(self.singleView, 2)
-    self.viewGroup.connect('buttonClicked(int)', self.onViewUpdateRequested)
+    self.viewButtonGroup.addButton(self.multiView, 1)
+    self.viewButtonGroup.addButton(self.singleView, 2)
     self.groupWidget = qt.QGroupBox()
     self.groupLayout = qt.QFormLayout(self.groupWidget)
     self.groupLayout.addRow(self.multiView, self.singleView)
@@ -308,7 +335,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     for orientation in self.orientations:
       self.orientationButtons[orientation] = qt.QRadioButton()
       self.orientationButtons[orientation].text = orientation
-      self.orientationButtons[orientation].connect("clicked()", lambda o=orientation: self.setOrientation(o))
       self.orientationBox.layout().addWidget(self.orientationButtons[orientation])
     self.orientationButtons['Axial'].setChecked(1)
     self.currentOrientation = 'Axial'
@@ -324,17 +350,14 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.translateLR = slicer.qMRMLSliderWidget()
     self.translateLR.minimum = -200
     self.translateLR.maximum = 200
-    self.translateLR.connect('valueChanged(double)', self.onTranslate)
 
     self.translatePA = slicer.qMRMLSliderWidget()
     self.translatePA.minimum = -200
     self.translatePA.maximum = 200
-    self.translatePA.connect('valueChanged(double)', self.onTranslate)
 
     self.translateIS = slicer.qMRMLSliderWidget()
     self.translateIS.minimum = -200
     self.translateIS.maximum = 200
-    self.translateIS.connect('valueChanged(double)', self.onTranslate)
 
     translateAreaLayout.addRow("Translate LR: ", self.translateLR)
     translateAreaLayout.addRow("Translate PA: ", self.translatePA)
@@ -342,7 +365,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     self.hardenTransformButton = qt.QPushButton("Harden Transform")
     self.hardenTransformButton.enabled = False
-    self.hardenTransformButton.connect('clicked(bool)', self.onHardenTransform)
     translateAreaLayout.addRow(self.hardenTransformButton)
 
     self.translateArea.collapsed = 1
@@ -372,19 +394,16 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     modelsLabel = qt.QLabel('Structure Models: ')
     modelsHLayout.addWidget(modelsLabel)
 
-    buildModelsButton = qt.QPushButton('Make')
-    modelsHLayout.addWidget(buildModelsButton)
-    buildModelsButton.connect("clicked()", self.onBuildModels)
+    self.buildModelsButton = qt.QPushButton('Make')
+    modelsHLayout.addWidget(self.buildModelsButton)
 
     self.modelsVisibilityButton = qt.QPushButton('Hide')
     self.modelsVisibilityButton.checkable = True
     modelsHLayout.addWidget(self.modelsVisibilityButton)
-    self.modelsVisibilityButton.connect("toggled(bool)", self.onModelsVisibilityButton)
 
     self.labelMapOutlineButton = qt.QPushButton('Outline')
     self.labelMapOutlineButton.checkable = True
     modelsHLayout.layout().addWidget(self.labelMapOutlineButton)
-    self.labelMapOutlineButton.connect('toggled(bool)', self.setLabelOutline)
 
     self.enableJumpToROI = qt.QCheckBox()
     self.enableJumpToROI.setText("Jump to ROI")
@@ -403,14 +422,12 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.seriesModel.setHorizontalHeaderLabels(['Series ID'])
     self.seriesView.setModel(self.seriesModel)
     self.seriesView.setSelectionMode(qt.QAbstractItemView.ExtendedSelection)
-    self.seriesView.connect('clicked(QModelIndex)', self.onSeriesSelected)
     self.seriesView.setEditTriggers(qt.QAbstractItemView.NoEditTriggers)
     self.seriesSelectionGroupBoxLayout.addWidget(self.seriesView)
 
   def setupDataAndStudySelectionUI(self):
     self.dataDirButton = ctk.ctkDirectoryButton()
     self.dataDirButton.directory = self.inputDataDir
-    self.dataDirButton.directoryChanged.connect(self.onInputDirSelected)
     self.studySelectionGroupBoxLayout.addWidget(qt.QLabel("Data directory:"), 0, 0, 1, 1)
     self.studySelectionGroupBoxLayout.addWidget(self.dataDirButton, 0, 1, 1, 2)
     infoGroupBox = qt.QWidget()
@@ -432,7 +449,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.studiesModel.setHorizontalHeaderLabels(['Study ID'])
     self.studiesView.setModel(self.studiesModel)
     self.studiesView.setEditTriggers(qt.QAbstractItemView.NoEditTriggers)
-    self.studiesView.connect('clicked(QModelIndex)', self.onStudySelected)
     self.studySelectionGroupBoxLayout.addWidget(self.studiesView, 3, 0, 1, 4)
 
   def onEditorWidgetParameterNodeChanged(self, caller, event=-1):
@@ -1343,7 +1359,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.setOpacityOnAllSliceWidgets(1.0)
     self.editUtil.setLabelOutline(self.labelMapOutlineButton.checked)
 
-    self.onViewUpdateRequested(self.viewGroup.checkedId())
+    self.onViewUpdateRequested(self.viewButtonGroup.checkedId())
 
     logging.debug('Setting master node for the Editor to '+self.volumeNodes[0].GetID())
 
