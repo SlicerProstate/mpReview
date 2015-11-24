@@ -9,6 +9,7 @@ from EditorLib import EditorLib
 import SimpleITK as sitk
 import sitkUtils
 from slicer.ScriptedLoadableModule import *
+from Util.mixins import ModuleWidgetMixin, ModuleLogicMixin
 from qSlicerMultiVolumeExplorerModuleWidget import qSlicerMultiVolumeExplorerSimplifiedModuleWidget
 from qSlicerMultiVolumeExplorerModuleHelper import qSlicerMultiVolumeExplorerModuleHelper as MVHelper
 
@@ -40,58 +41,9 @@ class mpReview(ScriptedLoadableModule):
   def runTest(self):
     return
 
-class mpReviewWidget(ScriptedLoadableModuleWidget):
+class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   VIEWFORM_URL = 'https://docs.google.com/forms/d/1Xwhvjn_HjRJAtgV5VruLCDJ_eyj1C-txi8HWn8VyXa4/viewform'
-
-  @staticmethod
-  def makeProgressIndicator(maxVal):
-    progressIndicator = qt.QProgressDialog()
-    progressIndicator.minimumDuration = 0
-    progressIndicator.modal = True
-    progressIndicator.setMaximum(maxVal)
-    progressIndicator.setValue(0)
-    progressIndicator.setWindowTitle("Processing...")
-    progressIndicator.show()
-    return progressIndicator
-
-  @staticmethod
-  def confirmDialog(message):
-    result = qt.QMessageBox.question(slicer.util.mainWindow(), 'mpReview', message,
-                                     qt.QMessageBox.Ok | qt.QMessageBox.Cancel)
-    return result == qt.QMessageBox.Ok
-
-  @staticmethod
-  def yesNoDialog(message):
-    result = qt.QMessageBox.question(slicer.util.mainWindow(), 'mpReview', message,
-                                     qt.QMessageBox.Yes | qt.QMessageBox.No)
-    return result == qt.QMessageBox.Yes
-
-  @staticmethod
-  def confirmOrSaveDialog(message):
-    box = qt.QMessageBox(qt.QMessageBox.Question, 'mpReview', message)
-    box.addButton("Exit, discard changes", qt.QMessageBox.AcceptRole)
-    box.addButton("Save changes", qt.QMessageBox.ActionRole)
-    box.addButton("Cancel", qt.QMessageBox.RejectRole)
-    return box.exec_()
-
-  @staticmethod
-  def infoPopup(message):
-    messageBox = qt.QMessageBox()
-    messageBox.information(None, 'Slicer mpMRI review', message)
-
-  @staticmethod
-  def createDirectory(directory, message=None):
-    if message:
-      logging.debug(message)
-    try:
-      os.makedirs(directory)
-    except OSError:
-      logging.debug('Failed to create the following directory: ' + directory)
-
-  @staticmethod
-  def getLayoutManager():
-    return slicer.app.layoutManager()
 
   def __init__(self, parent = None):
     ScriptedLoadableModuleWidget.__init__(self, parent)
@@ -118,21 +70,12 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
 
     # set up temporary directory
     self.tempDir = os.path.join(slicer.app.temporaryPath, 'mpReview-tmp')
-    self.createDirectory(self.tempDir, message='Temporary directory location: ' + self.tempDir)
+    self.logic.createDirectory(self.tempDir, message='Temporary directory location: ' + self.tempDir)
     self.fiducialLabelPropagateModel = None
 
-  def getSetting(self, settingName):
-    settings = qt.QSettings()
-    return settings.value(self.moduleName + '/' + settingName)
-
-  def setSetting(self, settingName, value):
-    settings = qt.QSettings()
-    settings.setValue(self.moduleName + '/'+ settingName, value)
-
   def getAllSliceWidgets(self):
-    layoutManager = self.getLayoutManager()
-    widgetNames = layoutManager.sliceViewNames()
-    return [layoutManager.sliceWidget(wn) for wn in widgetNames]
+    widgetNames = self.layoutManager.sliceViewNames()
+    return [self.layoutManager.sliceWidget(wn) for wn in widgetNames]
 
   def setOffsetOnAllSliceWidgets(self,offset):
     for widget in self.getAllSliceWidgets():
@@ -318,7 +261,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
         buttonsFrame.layout().addWidget(updateViewsButton)
         updateViewsButton.connect("clicked()", self.updateViews)
         '''
-    redWidget = self.getLayoutManager().sliceWidget('Red')
+    redWidget = self.layoutManager.sliceWidget('Red')
     controller = redWidget.sliceController()
     moreButton = slicer.util.findChildren(controller, 'MoreButton')[0]
     moreButton.toggle()
@@ -464,7 +407,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
     self.seriesModel.setHorizontalHeaderLabels(['Series ID'])
     self.seriesView.setModel(self.seriesModel)
     self.seriesView.setSelectionMode(qt.QAbstractItemView.ExtendedSelection)
-    self.seriesView.connect('clicked(QModelIndex)', self.seriesSelected)
+    self.seriesView.connect('clicked(QModelIndex)', self.onSeriesSelected)
     self.seriesView.setEditTriggers(qt.QAbstractItemView.NoEditTriggers)
     self.seriesSelectionGroupBoxLayout.addWidget(self.seriesView)
 
@@ -494,7 +437,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
     self.studiesModel.setHorizontalHeaderLabels(['Study ID'])
     self.studiesView.setModel(self.studiesModel)
     self.studiesView.setEditTriggers(qt.QAbstractItemView.NoEditTriggers)
-    self.studiesView.connect('clicked(QModelIndex)', self.studySelected)
+    self.studiesView.connect('clicked(QModelIndex)', self.onStudySelected)
     self.studySelectionGroupBoxLayout.addWidget(self.studiesView, 3, 0, 1, 4)
 
   def onEditorWidgetParameterNodeChanged(self, caller, event=-1):
@@ -610,8 +553,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
       self.editorWidget.helper.structureListWidget.merge = None
     except AttributeError:
       pass
-      
-
 
     # setup the color table, make sure mpReview LUT is a singleton
     allColorTableNodes = slicer.util.getNodes('vtkMRMLColorTableNode*').values()
@@ -677,7 +618,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
       # If view ref only
       layoutNode.SetViewArrangement(layoutNode.SlicerLayoutOneUpRedSliceView)
 
-  def studySelected(self, modelIndex):
+  def onStudySelected(self, modelIndex):
     logging.debug('Row selected: '+self.studiesModel.item(modelIndex.row(),0).text())
     selectionModel = self.studiesView.selectionModel()
     logging.debug('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
@@ -686,7 +627,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
     self.patientIDLabel.setText(self.selectedStudyName.split("_")[0])
     self.setTabsEnabled([1], True)
 
-  def seriesSelected(self, modelIndex):
+  def onSeriesSelected(self, modelIndex):
     logging.debug('Row selected: '+self.seriesModel.item(modelIndex.row(),0).text())
     selectionModel = self.seriesView.selectionModel()
     logging.debug('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
@@ -743,13 +684,11 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
     '''
 
     savedMessage += "\n " + self.saveTargets(username, timestamp)
-    self.infoPopup(savedMessage)
+    self.notificationDialog(savedMessage)
 
   def saveSegmentations(self, timestamp, username):
-    segmentationsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'Segmentations')
     wlSettingsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'WindowLevelSettings')
-    self.createDirectory(segmentationsDir)
-    self.createDirectory(wlSettingsDir)
+    self.logic.createDirectory(wlSettingsDir)
     # save all label nodes (there should be only one per volume!)
     labelNodes = slicer.util.getNodes('*-label*')
     logging.debug('All label nodes found: ' + str(labelNodes))
@@ -763,7 +702,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
       # Segmentations/Reconstructions/OncoQuant -> files
       segmentationsDir = os.path.join(self.inputDataDir, self.selectedStudyName,
                                       'RESOURCES', labelSeries, 'Segmentations')
-      self.createDirectory(segmentationsDir)
+      self.logic.createDirectory(segmentationsDir)
 
       structureName = labelName[labelName[:-6].rfind("-") + 1:-6]
       # Only save labels with known structure names
@@ -789,7 +728,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
     fiducialsNode = self.fiducialsWidget.currentNode
     if fiducialsNode:
       targetsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'Targets')
-      self.createDirectory(targetsDir)
+      self.logic.createDirectory(targetsDir)
       targetFileName = username+'-'+timestamp+'.fcsv'
       path = os.path.join(targetsDir, targetFileName)
       if slicer.util.saveNode(fiducialsNode, path):
@@ -1399,7 +1338,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
     self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[self.rows,self.cols],viewNames=self.sliceNames,orientation=self.currentOrientation)
 
     # Make sure redslice has the ref image (the others were set with viewerPerVolume)
-    redSliceWidget = self.getLayoutManager().sliceWidget('Red')
+    redSliceWidget = self.layoutManager.sliceWidget('Red')
     redSliceNode = redSliceWidget.mrmlSliceNode()
     redSliceNode.SetOrientation(self.currentOrientation)
     compositeNode = redSliceWidget.mrmlSliceCompositeNode()
@@ -1465,7 +1404,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
       # create backup directory if necessary
       backupSegmentationsDir = os.path.join(self.inputDataDir, self.selectedStudyName,
                                             'RESOURCES', self.refSeriesNumber, 'Backup')
-      self.createDirectory(backupSegmentationsDir)
+      self.logic.createDirectory(backupSegmentationsDir)
       # move relevant nrrd files
       globPath = os.path.join(self.resourcesDir,self.refSeriesNumber,"Segmentations",
                               self.getSetting('UserName')+'-'+selectedModelVol+'-[0-9]*.nrrd')
@@ -1598,9 +1537,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
           logging.debug("Creating fiducial at position %f, %f, %f" % tuple(centroid))
           addedFiducialIds.append(fiducialNode.AddFiducialFromArray(centroid, label.GetName()))
         except:
-          self.infoPopup("No label object with label %s. \n You might have forgotten to print a label."
-                         "To prevent the duplication of fiducials, all fiducials of the current "
-                         "creation step will be deleted." % label.GetName())
+          self.notificationDialog("No label object with label %s. \n You might have forgotten to print a label."
+                                  "To prevent the duplication of fiducials, all fiducials of the current "
+                                  "creation step will be deleted." % label.GetName())
           self.removeFiducialIDsFromNode(fiducialNode, addedFiducialIds)
           return
 
@@ -1692,7 +1631,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
       for vol in existingStructures:
         msg += vol + '\n'
       msg += '\nCannot propagate on top of existing structures.  Delete the existing structures and try again.\n'
-      self.infoPopup(msg)
+      self.notificationDialog(msg)
       return
 
     # Create identity transform
@@ -1934,9 +1873,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
   def restoreForeground(self):
     # This relies on slice view names and also (apparently) trashes zoom levels
     # Is there a better way to do this?
-    layoutManager = self.getLayoutManager()
-    for view in layoutManager.sliceViewNames():
-      widget = layoutManager.sliceWidget(view)
+    for view in self.layoutManager.sliceViewNames():
+      widget = self.layoutManager.sliceWidget(view)
       compositeNode = widget.mrmlSliceCompositeNode()
       try:
         compositeNode.SetForegroundVolumeID(self.seriesMap[view]['Volume'].GetID())
@@ -1953,7 +1891,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
     self.updateEditorAvailability()
 
   def onJumpToROI(self, selectedLabelID, selectedLabelVol):
-    redSliceWidget = self.getLayoutManager().sliceWidget('Red')
+    redSliceWidget = self.layoutManager.sliceWidget('Red')
     redSliceNode = redSliceWidget.mrmlSliceNode()
     redSliceOffset = redSliceNode.GetSliceOffset()
 
@@ -2019,7 +1957,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
         self.setOffsetOnAllSliceWidgets(sagittal_offset)
 
       # snap to IJK to try and avoid rounding errors
-      sliceLogics = self.getLayoutManager().mrmlSliceLogics()
+      sliceLogics = self.layoutManager.mrmlSliceLogics()
       numLogics = sliceLogics.GetNumberOfItems()
       for n in range(numLogics):
         l = sliceLogics.GetItemAsObject(n)
@@ -2034,7 +1972,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
     logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode())
 
 
-class mpReviewLogic(ScriptedLoadableModuleLogic):
+class mpReviewLogic(ScriptedLoadableModuleLogic, ModuleLogicMixin):
   """This class should implement all the actual
   computation done by your module.  The interface
   should be such that other python code can import
