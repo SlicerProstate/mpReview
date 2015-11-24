@@ -42,6 +42,13 @@ slicerMacroBuildScriptedModule(
   WITH_GENERIC_TESTS
   )
 
+slicerMacroBuildScriptedModule(
+  NAME mpReviewPreprocessor
+  SCRIPTS mpReviewPreprocessor.py
+  RESOURCES ""
+  WITH_GENERIC_TESTS
+  )
+
 #-----------------------------------------------------------------------------
 if(BUILD_TESTING)
 
