@@ -160,7 +160,7 @@ class mpReviewSelfTestTest(ScriptedLoadableModuleTest):
     index = model.index(0,0)
 
     self.assertTrue(index.isValid(), msg="No valid study index available in study table")
-    w.studySelected(index)
+    w.onStudySelected(index)
 
     tabWidget.setCurrentIndex(1)
     self.delayDisplay('Series Selection')

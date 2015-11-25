@@ -1,7 +1,6 @@
 from __future__ import division
 import os, json, xml.dom.minidom, string, glob, re, math
 from __main__ import vtk, qt, ctk, slicer
-import PythonQt
 import logging
 import CompareVolumes
 from Editor import EditorWidget
@@ -9,6 +8,7 @@ from EditorLib import EditorLib
 import SimpleITK as sitk
 import sitkUtils
 from slicer.ScriptedLoadableModule import *
+from Util.mixins import ModuleWidgetMixin
 from qSlicerMultiVolumeExplorerModuleWidget import qSlicerMultiVolumeExplorerSimplifiedModuleWidget
 from qSlicerMultiVolumeExplorerModuleHelper import qSlicerMultiVolumeExplorerModuleHelper as MVHelper
 
@@ -40,58 +40,9 @@ class mpReview(ScriptedLoadableModule):
   def runTest(self):
     return
 
-class mpReviewWidget(ScriptedLoadableModuleWidget):
+class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   VIEWFORM_URL = 'https://docs.google.com/forms/d/1Xwhvjn_HjRJAtgV5VruLCDJ_eyj1C-txi8HWn8VyXa4/viewform'
-
-  @staticmethod
-  def makeProgressIndicator(maxVal):
-    progressIndicator = qt.QProgressDialog()
-    progressIndicator.minimumDuration = 0
-    progressIndicator.modal = True
-    progressIndicator.setMaximum(maxVal)
-    progressIndicator.setValue(0)
-    progressIndicator.setWindowTitle("Processing...")
-    progressIndicator.show()
-    return progressIndicator
-
-  @staticmethod
-  def confirmDialog(message):
-    result = qt.QMessageBox.question(slicer.util.mainWindow(), 'mpReview', message,
-                                     qt.QMessageBox.Ok | qt.QMessageBox.Cancel)
-    return result == qt.QMessageBox.Ok
-
-  @staticmethod
-  def yesNoDialog(message):
-    result = qt.QMessageBox.question(slicer.util.mainWindow(), 'mpReview', message,
-                                     qt.QMessageBox.Yes | qt.QMessageBox.No)
-    return result == qt.QMessageBox.Yes
-
-  @staticmethod
-  def confirmOrSaveDialog(message):
-    box = qt.QMessageBox(qt.QMessageBox.Question, 'mpReview', message)
-    box.addButton("Exit, discard changes", qt.QMessageBox.AcceptRole)
-    box.addButton("Save changes", qt.QMessageBox.ActionRole)
-    box.addButton("Cancel", qt.QMessageBox.RejectRole)
-    return box.exec_()
-
-  @staticmethod
-  def infoPopup(message):
-    messageBox = qt.QMessageBox()
-    messageBox.information(None, 'Slicer mpMRI review', message)
-
-  @staticmethod
-  def createDirectory(directory, message=None):
-    if message:
-      logging.debug(message)
-    try:
-      os.makedirs(directory)
-    except OSError:
-      logging.debug('Failed to create the following directory: ' + directory)
-
-  @staticmethod
-  def getLayoutManager():
-    return slicer.app.layoutManager()
 
   def __init__(self, parent = None):
     ScriptedLoadableModuleWidget.__init__(self, parent)
@@ -118,79 +69,66 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
 
     # set up temporary directory
     self.tempDir = os.path.join(slicer.app.temporaryPath, 'mpReview-tmp')
-    self.createDirectory(self.tempDir, message='Temporary directory location: ' + self.tempDir)
+    self.logic.createDirectory(self.tempDir, message='Temporary directory location: ' + self.tempDir)
     self.fiducialLabelPropagateModel = None
-
-  def getSetting(self, settingName):
-    settings = qt.QSettings()
-    return settings.value(self.moduleName + '/' + settingName)
-
-  def setSetting(self, settingName, value):
-    settings = qt.QSettings()
-    settings.setValue(self.moduleName + '/'+ settingName, value)
+    self.modulePath = os.path.dirname(slicer.util.modulePath(self.moduleName))
 
   def getAllSliceWidgets(self):
-    layoutManager = self.getLayoutManager()
-    widgetNames = layoutManager.sliceViewNames()
-    return [layoutManager.sliceWidget(wn) for wn in widgetNames]
+    widgetNames = self.layoutManager.sliceViewNames()
+    return [self.layoutManager.sliceWidget(wn) for wn in widgetNames]
 
-  def setOffsetOnAllSliceWidgets(self,offset):
+  def setOffsetOnAllSliceWidgets(self, offset):
     for widget in self.getAllSliceWidgets():
       node = widget.mrmlSliceNode()
       node.SetSliceOffset(offset)
 
-  def linkAllSliceWidgets(self,link):
+  def linkAllSliceWidgets(self, link):
     for widget in self.getAllSliceWidgets():
       sc = widget.mrmlSliceCompositeNode()
       sc.SetLinkedControl(link)
       sc.SetInteractionFlagsModifier(4+8+16)
 
-  def setOpacityOnAllSliceWidgets(self,opacity):
+  def setOpacityOnAllSliceWidgets(self, opacity):
     for widget in self.getAllSliceWidgets():
       sc = widget.mrmlSliceCompositeNode()
       sc.SetForegroundOpacity(opacity)
 
-  def updateViewRenderers (self):
+  def updateViewRenderer (self):
     for widget in self.getAllSliceWidgets():
       view = widget.sliceView()
       view.scheduleRender()
 
   def setupIcons(self):
-    def createQIconFromPath(path):
-      return qt.QIcon(qt.QPixmap(path))
-
-    iconPath = os.path.join(self.resourcesPath, 'Icons')
-    self.studySelectionIcon = createQIconFromPath(os.path.join(iconPath, 'icon-studyselection_fit.png'))
-    self.seriesSelectionIcon = createQIconFromPath(os.path.join(iconPath, 'icon-seriesselection_fit.png'))
-    self.segmentationIcon = createQIconFromPath(os.path.join(iconPath, 'icon-segmentation_fit.png'))
-    self.completionIcon = createQIconFromPath(os.path.join(iconPath, 'icon-completion_fit.png'))
+    self.studySelectionIcon = self.createIcon('icon-studyselection_fit.png')
+    self.seriesSelectionIcon = self.createIcon('icon-seriesselection_fit.png')
+    self.segmentationIcon = self.createIcon('icon-segmentation_fit.png')
+    self.completionIcon = self.createIcon('icon-completion_fit.png')
 
   def setupTabBarNavigation(self):
     self.tabWidget = qt.QTabWidget()
     self.layout.addWidget(self.tabWidget)
-    self.tabBar = self.tabWidget.childAt(1, 1)
 
-    self.studySelectionGroupBox = qt.QGroupBox()
-    self.seriesSelectionGroupBox = qt.QGroupBox()
-    self.segmentationGroupBox = qt.QGroupBox()
-    self.completionGroupBox = qt.QGroupBox()
+    studySelectionGroupBox = qt.QGroupBox()
+    seriesSelectionGroupBox = qt.QGroupBox()
+    segmentationGroupBox = qt.QGroupBox()
+    completionGroupBox = qt.QGroupBox()
 
     self.studySelectionGroupBoxLayout = qt.QGridLayout()
     self.seriesSelectionGroupBoxLayout = qt.QGridLayout()
     self.segmentationGroupBoxLayout = qt.QGridLayout()
     self.completionGroupBoxLayout = qt.QFormLayout()
 
-    self.studySelectionGroupBox.setLayout(self.studySelectionGroupBoxLayout)
-    self.seriesSelectionGroupBox.setLayout(self.seriesSelectionGroupBoxLayout)
-    self.segmentationGroupBox.setLayout(self.segmentationGroupBoxLayout)
-    self.completionGroupBox.setLayout(self.completionGroupBoxLayout)
+    studySelectionGroupBox.setLayout(self.studySelectionGroupBoxLayout)
+    seriesSelectionGroupBox.setLayout(self.seriesSelectionGroupBoxLayout)
+    segmentationGroupBox.setLayout(self.segmentationGroupBoxLayout)
+    completionGroupBox.setLayout(self.completionGroupBoxLayout)
 
     self.tabWidget.setIconSize(qt.QSize(85, 30))
 
-    self.tabWidget.addTab(self.studySelectionGroupBox, self.studySelectionIcon, '')
-    self.tabWidget.addTab(self.seriesSelectionGroupBox, self.seriesSelectionIcon, '')
-    self.tabWidget.addTab(self.segmentationGroupBox, self.segmentationIcon, '')
-    self.tabWidget.addTab(self.completionGroupBox, self.completionIcon, '')
+    self.tabWidget.addTab(studySelectionGroupBox, self.studySelectionIcon, '')
+    self.tabWidget.addTab(seriesSelectionGroupBox, self.seriesSelectionIcon, '')
+    self.tabWidget.addTab(segmentationGroupBox, self.segmentationIcon, '')
+    self.tabWidget.addTab(completionGroupBox, self.completionIcon, '')
     self.tabWidget.connect('currentChanged(int)',self.onTabWidgetClicked)
 
     self.setTabsEnabled([1,2,3,4], False)
@@ -205,25 +143,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
     if currentIndex == 3:
       self.onStep4Selected()
 
-  def setupInformationFrame(self):
-    self.informationGroupBox = qt.QGroupBox()
-    self.informationGroupBox.setStyleSheet('background-color: rgb(230,230,230)')
-    self.informationViewBoxLayout = qt.QGridLayout()
-    self.informationGroupBox.setLayout(self.informationViewBoxLayout)
-
-    self.catPatientIDLabel = qt.QLabel('Patient ID: ')
-    self.patientIDLabel = qt.QLabel()
-    self.catDataDirLabel = qt.QLabel('Current Data Dir: ')
-    self.dataDirLabel = qt.QLabel()
-    self.informationViewBoxLayout.addWidget(self.catPatientIDLabel, 0, 0, 1, 1)
-    self.informationViewBoxLayout.addWidget(self.patientIDLabel, 0, 1, 1, 3)
-    self.informationViewBoxLayout.addWidget(self.catDataDirLabel, 1, 0, 1, 1)
-    self.informationViewBoxLayout.addWidget(self.dataDirLabel, 1, 1, 1, 3)
-    self.layout.addWidget(self.informationGroupBox)
-
   def setup(self):
     ScriptedLoadableModuleWidget.setup(self)
-    # Instantiate and connect widgets ...
 
     self.setupIcons()
     self.setupInformationFrame()
@@ -231,279 +152,11 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
 
     self.parameters = {}
 
-    #
-    # Step 1: selection of the data directory and the study to be analyzed
-    #
-    self.dataDirButton = ctk.ctkDirectoryButton()
-    self.dataDirButton.directory = self.inputDataDir
-    self.dataDirButton.directoryChanged.connect(self.onInputDirSelected)
-    self.studySelectionGroupBoxLayout.addWidget(qt.QLabel("Data directory:"), 0, 0, 1, 1)
-    self.studySelectionGroupBoxLayout.addWidget(self.dataDirButton, 0 ,1, 1, 2)
-    infoGroupBox = qt.QWidget()
-    hbox = qt.QHBoxLayout()
-    hbox.setMargin(0)
-    infoGroupBox.setLayout(hbox)
-    self.studySelectionGroupBoxLayout.addWidget(infoGroupBox, 0, 3, 1, 1)
-    infoIcon = qt.QPixmap(os.path.join(self.resourcesPath, 'Icons', 'icon-infoBox.png'))
-    self.customLUTInfoIcon = qt.QLabel()
-    self.customLUTInfoIcon.setPixmap(infoIcon)
-    self.customLUTInfoIcon.setSizePolicy(PythonQt.QtGui.QSizePolicy())
-    hbox.addWidget(self.customLUTInfoIcon)
-    self.customLUTLabel = qt.QLabel()
-    hbox.addWidget(self.customLUTLabel)
-
-    self.studySelectionGroupBoxLayout.addWidget(qt.QLabel("Studies found:"), 2, 0, 1, 4)
-    self.studiesView = qt.QListView()
-    self.studiesView.setObjectName('StudiesTable')
-    self.studiesView.setSpacing(3)
-    self.studiesModel = qt.QStandardItemModel()
-    self.studiesModel.setHorizontalHeaderLabels(['Study ID'])
-    self.studiesView.setModel(self.studiesModel)
-    self.studiesView.setEditTriggers(qt   .QAbstractItemView.NoEditTriggers)
-    self.studiesView.connect('clicked(QModelIndex)', self.studySelected)
-    self.studySelectionGroupBoxLayout.addWidget(self.studiesView, 3, 0, 1, 4)
-
-    #
-    # Step 3: series selection
-    #
-    self.seriesView = qt.QListView()
-    self.seriesView.setObjectName('SeriesTable')
-    self.seriesView.setSpacing(3)
-    self.seriesModel = qt.QStandardItemModel()
-    self.seriesModel.setHorizontalHeaderLabels(['Series ID'])
-    self.seriesView.setModel(self.seriesModel)
-    self.seriesView.setSelectionMode(qt.QAbstractItemView.ExtendedSelection)
-    self.seriesView.connect('clicked(QModelIndex)', self.seriesSelected)
-    self.seriesView.setEditTriggers(qt.QAbstractItemView.NoEditTriggers)
-    self.seriesSelectionGroupBoxLayout.addWidget(self.seriesView)
-
-    #
-    # Step 4: segmentation tools
-    #
-
-    self.refSelector = qt.QComboBox()
-    hbox = qt.QHBoxLayout()
-    hbox.addWidget(qt.QLabel("Reference image: "))
-    hbox.addWidget(self.refSelector)
-    self.segmentationGroupBoxLayout.addLayout(hbox, 0, 0)
-    self.refSelector.connect('currentIndexChanged(int)', self.onReferenceChanged)
-
-
-    self.multiVolumeExplorerArea = ctk.ctkCollapsibleButton()
-    self.multiVolumeExplorerArea.text = "MultiVolumeExplorer"
-    self.multiVolumeExplorerArea.collapsed = True
-    multiVolumeExplorerLayout = qt.QFormLayout(self.multiVolumeExplorerArea)
-
-    self.multiVolumeExplorer = mpReviewMultiVolumeExplorer(multiVolumeExplorerLayout)
-    self.multiVolumeExplorer.setup()
-    self.multiVolumeExplorer.frameSlider.connect('valueChanged(double)', self.onSliderChanged)
-    self.segmentationGroupBoxLayout.addWidget(self.multiVolumeExplorerArea)
-
-    editorWidgetParent = slicer.qMRMLWidget()
-    editorWidgetParent.setLayout(qt.QVBoxLayout())
-    editorWidgetParent.setMRMLScene(slicer.mrmlScene)
-    self.editorWidget = EditorWidget(parent=editorWidgetParent)
-    self.editorWidget.setup()
-
-    volumesFrame = self.editorWidget.volumes
-    # hide unwanted widgets
-    for widgetName in ['AllButtonsFrameButton','ReplaceModelsCheckBox',
-      'MasterVolumeFrame','MergeVolumeFrame','SplitStructureButton']:
-      widget = slicer.util.findChildren(volumesFrame,widgetName)[0]
-      widget.hide()
-
-    editBoxFrame = self.editorWidget.editBoxFrame
-    # for buttonName in ["ErodeEffect", "DilateEffect", "GrowCutEffect", "WatershedFromMarkerEffect",
-    #                    "ThresholdEffect", "ChangeLabelEffect", "MakeModelEffect", "FastMarchingEffect"]:
-    #   slicer.util.findChildren(editBoxFrame,buttonName+'ToolButton')[0].hide()
-
-    effectButtonFrame = slicer.util.findChildren(editBoxFrame, "RowFrame1")[0].layout()
-    effectButtonFrame.addWidget(slicer.util.findChildren(editBoxFrame,'WindowLevelEffectToolButton')[0])
-    slicer.util.findChildren(editBoxFrame, "RowFrame2")[0].hide()
-
-    perStructureFrame = slicer.util.findChildren(volumesFrame,
-                        'PerStructureVolumesFrame')[0]
-    perStructureFrame.collapsed = False
-
-    self.structuresView = slicer.util.findChildren(volumesFrame,'StructuresView')[0]
-    self.structuresView.connect("activated(QModelIndex)", self.onStructureClicked)
-
-    self.editorParameterNode = EditorLib.EditUtil.EditUtil.getParameterNode()
-    self.editorParameterNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onEditorWidgetParameterNodeChanged)
-
-    buttonsFrame = slicer.util.findChildren(volumesFrame,'ButtonsFrame')[0]
-    '''
-    updateViewsButton = qt.QPushButton('Update Views')
-    buttonsFrame.layout().addWidget(updateViewsButton)
-    updateViewsButton.connect("clicked()", self.updateViews)
-    '''
-
-    redWidget = self.getLayoutManager().sliceWidget('Red')
-    controller = redWidget.sliceController()
-    moreButton = slicer.util.findChildren(controller,'MoreButton')[0]
-    moreButton.toggle()
-
-    deleteStructureButton = qt.QPushButton('Delete Structure')
-    buttonsFrame.layout().addWidget(deleteStructureButton)
-    deleteStructureButton.connect('clicked()', self.onDeleteStructure)
-
-    propagateButton = qt.QPushButton('Propagate Structure')
-    buttonsFrame.layout().addWidget(propagateButton)
-    propagateButton.connect('clicked()', self.onPropagateROI)
-
-    createFiducialsButton = qt.QPushButton('Create Fiducials')
-    buttonsFrame.layout().addWidget(createFiducialsButton)
-    createFiducialsButton.connect('clicked()', self.onCreateFiducialsButtonClicked)
-
-    #self.editorWidget.toolsColor.frame.setVisible(False)
-    self.editorWidget.toolsColor.colorSpin.setEnabled(False)
-    self.editorWidget.toolsColor.colorPatch.setEnabled(False)
-
-    self.editorParameterNode = self.editUtil.getParameterNode()
-    self.editorParameterNode.SetParameter('propagationMode',
-                             str(slicer.vtkMRMLApplicationLogic.LabelLayer))
-
-    self.segmentationGroupBoxLayout.addWidget(editorWidgetParent)
-
-    self.advancedSettingsArea = ctk.ctkCollapsibleButton()
-    self.advancedSettingsArea.text = "Advanced Settings"
-    self.advancedSettingsArea.collapsed = True
-    advancedSettingsLayout = qt.QFormLayout(self.advancedSettingsArea)
-
-    # Show all/reference
-    self.viewGroup = qt.QButtonGroup()
-    self.multiView = qt.QRadioButton('All')
-    self.singleView = qt.QRadioButton('Reference only')
-    self.multiView.setChecked(1)
-    self.viewGroup.addButton(self.multiView,1)
-    self.viewGroup.addButton(self.singleView,2)
-    self.viewGroup.connect('buttonClicked(int)', self.onViewUpdateRequested)
-    self.groupWidget = qt.QGroupBox()
-    self.groupLayout = qt.QFormLayout(self.groupWidget)
-    self.groupLayout.addRow(self.multiView, self.singleView)
-    advancedSettingsLayout.addRow("Show series: ", self.groupWidget)
-
-    # Change viewer orientation
-    self.orientationBox = qt.QGroupBox()
-    self.orientationBox.setLayout(qt.QFormLayout())
-    self.orientationButtons = {}
-    self.orientations = ("Axial", "Sagittal", "Coronal")
-    for orientation in self.orientations:
-      self.orientationButtons[orientation] = qt.QRadioButton()
-      self.orientationButtons[orientation].text = orientation
-      self.orientationButtons[orientation].connect("clicked()", lambda o=orientation: self.setOrientation(o))
-      self.orientationBox.layout().addWidget(self.orientationButtons[orientation])
-    self.orientationButtons['Axial'].setChecked(1)
-    self.currentOrientation = 'Axial'
-    advancedSettingsLayout.addRow('View orientation: ', self.orientationBox)
-
-    self.segmentationGroupBoxLayout.addWidget(self.advancedSettingsArea)
-
-    self.translateArea = ctk.ctkCollapsibleButton()
-    self.translateArea.text = "Translate Selected Label Map"
-
-    translateAreaLayout = qt.QFormLayout(self.translateArea)
-
-    self.translateLR = slicer.qMRMLSliderWidget()
-    self.translateLR.minimum = -200
-    self.translateLR.maximum = 200
-    self.translateLR.connect('valueChanged(double)', self.onTranslate)
-
-    self.translatePA = slicer.qMRMLSliderWidget()
-    self.translatePA.minimum = -200
-    self.translatePA.maximum = 200
-    self.translatePA.connect('valueChanged(double)', self.onTranslate)
-
-    self.translateIS = slicer.qMRMLSliderWidget()
-    self.translateIS.minimum = -200
-    self.translateIS.maximum = 200
-    self.translateIS.connect('valueChanged(double)', self.onTranslate)
-
-    translateAreaLayout.addRow("Translate LR: ", self.translateLR)
-    translateAreaLayout.addRow("Translate PA: ", self.translatePA)
-    translateAreaLayout.addRow("Translate IS: ", self.translateIS)
-
-    self.hardenTransformButton = qt.QPushButton("Harden Transform")
-    self.hardenTransformButton.enabled = False
-    self.hardenTransformButton.connect('clicked(bool)', self.onHardenTransform)
-    translateAreaLayout.addRow(self.hardenTransformButton)
-
-    self.translateArea.collapsed = 1
-
-    self.ignoreTranslate = False
-
-    # Create a transform node
-    self.transformNode = slicer.vtkMRMLLinearTransformNode()
-    self.transformNode.SetName('mpReview-transform')
-    slicer.mrmlScene.AddNode(self.transformNode)
-
-    advancedSettingsLayout.addRow(self.translateArea)
-
-    self.fiducialsArea = ctk.ctkCollapsibleButton()
-    self.fiducialsArea.text = "Fiducials"
-    self.fiducialsArea.collapsed = True
-    fiducialsWidgetLayout = qt.QFormLayout(self.fiducialsArea)
-
-    self.fiducialsWidget = mpReviewFiducialTable(fiducialsWidgetLayout)
-    self.segmentationGroupBoxLayout.addWidget(self.fiducialsArea)
-
-    self.modelsVisibility = True
-    modelsFrame = qt.QFrame()
-    modelsHLayout = qt.QHBoxLayout(modelsFrame)
-    perStructureFrame.layout().addWidget(modelsFrame)
-
-    modelsLabel = qt.QLabel('Structure Models: ')
-    modelsHLayout.addWidget(modelsLabel)
-
-    buildModelsButton = qt.QPushButton('Make')
-    modelsHLayout.addWidget(buildModelsButton)
-    buildModelsButton.connect("clicked()", self.onBuildModels)
-
-    self.modelsVisibilityButton = qt.QPushButton('Hide')
-    self.modelsVisibilityButton.checkable = True
-    modelsHLayout.addWidget(self.modelsVisibilityButton)
-    self.modelsVisibilityButton.connect("toggled(bool)", self.onModelsVisibilityButton)
-
-    self.labelMapOutlineButton = qt.QPushButton('Outline')
-    self.labelMapOutlineButton.checkable = True
-    modelsHLayout.layout().addWidget(self.labelMapOutlineButton)
-    self.labelMapOutlineButton.connect('toggled(bool)', self.setLabelOutline)
-
-    self.enableJumpToROI = qt.QCheckBox()
-    self.enableJumpToROI.setText("Jump to ROI")
-    modelsHLayout.addWidget(self.enableJumpToROI)
-
-    modelsHLayout.addStretch(1)
-
-    # keep here names of the views created by CompareVolumes logic
-    self.viewNames = []
-
-    #
-    # Step 6: save results
-    #
-    #self.step5frame = ctk.ctkCollapsibleButton()
-    #self.step5frame.text = "Step 5: Save results"
-    #self.layout.addWidget(self.step5frame)
-
-    # Layout within the dummy collapsible button
-    #step5Layout = qt.QFormLayout(self.step5frame)
-    # TODO: add here source directory selector
-
-    self.qaButton = qt.QPushButton("PI-RADS v2 review form")
-    self.completionGroupBoxLayout.addWidget(self.qaButton)
-    self.qaButton.connect('clicked()',self.onQAFormClicked)
-
-    self.saveButton = qt.QPushButton("Save")
-    self.completionGroupBoxLayout.addWidget(self.saveButton)
-    self.saveButton.connect('clicked()', self.onSaveClicked)
-
-    '''
-    self.piradsButton = qt.QPushButton("PI-RADS review")
-    self.layout.addWidget(self.piradsButton)
-    # self.piradsButton.connect('clicked()',self.onPiradsClicked)
-    '''
-
-    # Add vertical spacer
+    self.setupDataAndStudySelectionUI()
+    self.setupSeriesSelectionUI()
+    self.setupSegmentationToolsUI()
+    self.setupCompletionUI()
+    self.setupConnections()
     self.layout.addStretch(1)
 
     self.volumesLogic = slicer.modules.volumes.logic()
@@ -518,6 +171,249 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
       self.dataDirLabel.setText(self.inputDataDir)
       self.checkAndSetLUT()
       self.onUpdateStudyTable()
+
+  def setupInformationFrame(self):
+    self.informationGroupBox = qt.QGroupBox()
+    self.informationGroupBox.setStyleSheet('background-color: rgb(230,230,230)')
+    self.informationViewBoxLayout = qt.QGridLayout()
+    self.informationGroupBox.setLayout(self.informationViewBoxLayout)
+
+    self.catPatientIDLabel = qt.QLabel('Patient ID: ')
+    self.patientIDLabel = qt.QLabel()
+    self.catDataDirLabel = qt.QLabel('Current Data Dir: ')
+    self.dataDirLabel = qt.QLabel()
+
+    self.informationViewBoxLayout.addWidget(self.catPatientIDLabel, 0, 0, 1, 1)
+    self.informationViewBoxLayout.addWidget(self.patientIDLabel, 0, 1, 1, 3)
+    self.informationViewBoxLayout.addWidget(self.catDataDirLabel, 1, 0, 1, 1)
+    self.informationViewBoxLayout.addWidget(self.dataDirLabel, 1, 1, 1, 3)
+    self.layout.addWidget(self.informationGroupBox)
+
+  def setupDataAndStudySelectionUI(self):
+    self.dataDirButton = ctk.ctkDirectoryButton()
+    self.dataDirButton.directory = self.inputDataDir
+    self.studySelectionGroupBoxLayout.addWidget(qt.QLabel("Data directory:"), 0, 0, 1, 1)
+    self.studySelectionGroupBoxLayout.addWidget(self.dataDirButton, 0, 1, 1, 2)
+
+    self.customLUTInfoIcon = qt.QLabel()
+    self.customLUTInfoIcon.setPixmap(qt.QPixmap(os.path.join(self.resourcesPath, 'Icons', 'icon-infoBox.png')))
+    self.customLUTLabel = qt.QLabel()
+    infoGroupBox = self.createHLayout([self.customLUTInfoIcon, self.customLUTLabel], margin=0)
+    self.studySelectionGroupBoxLayout.addWidget(infoGroupBox, 0, 3, 1, 1)
+    self.setupStudySelectionView()
+
+  def setupStudySelectionView(self):
+    self.studySelectionGroupBoxLayout.addWidget(qt.QLabel("Studies found:"), 2, 0, 1, 4)
+    self.studiesView, self.studiesModel = self._createListView('StudiesTable', ['Study ID'])
+    self.studySelectionGroupBoxLayout.addWidget(self.studiesView, 3, 0, 1, 4)
+
+  def setupSeriesSelectionUI(self):
+    self.seriesView, self.seriesModel = self._createListView('SeriesTable', ['Series ID'])
+    self.seriesView.setSelectionMode(qt.QAbstractItemView.ExtendedSelection)
+    self.seriesSelectionGroupBoxLayout.addWidget(self.seriesView)
+
+  def setupSegmentationToolsUI(self):
+    self.refSelector = qt.QComboBox()
+    self.segmentationGroupBoxLayout.addWidget(self.createHLayout([qt.QLabel("Reference image: "),
+                                                                  self.refSelector]), 0, 0)
+    self.setupMultiVolumeExplorerUI()
+    self.setupLabelMapEditorUI()
+    self.setupAdvancedSegmentationSettingsUI()
+    self.setupFiducialsUI()
+    # keep here names of the views created by CompareVolumes logic
+    self.viewNames = []
+
+  def setupMultiVolumeExplorerUI(self):
+    self.multiVolumeExplorerArea = ctk.ctkCollapsibleButton()
+    self.multiVolumeExplorerArea.text = "MultiVolumeExplorer"
+    self.multiVolumeExplorerArea.collapsed = True
+    self.multiVolumeExplorer = mpReviewMultiVolumeExplorer(qt.QFormLayout(self.multiVolumeExplorerArea))
+    self.multiVolumeExplorer.setup()
+    self.segmentationGroupBoxLayout.addWidget(self.multiVolumeExplorerArea)
+
+  def setupLabelMapEditorUI(self):
+    self.setupEditorWidget()
+
+    self.structuresView = slicer.util.findChildren(self.editorWidget.volumes, 'StructuresView')[0]
+
+    self.editorParameterNode = EditorLib.EditUtil.EditUtil.getParameterNode()
+    self.editorParameterNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onEditorWidgetParameterNodeChanged)
+
+    self.addCustomEditorButtons()
+    self.editorWidget.toolsColor.colorSpin.setEnabled(False)
+    self.editorWidget.toolsColor.colorPatch.setEnabled(False)
+
+    self.editorParameterNode = self.editUtil.getParameterNode()
+    self.editorParameterNode.SetParameter('propagationMode', str(slicer.vtkMRMLApplicationLogic.LabelLayer))
+    self.modelsVisibility = True
+
+    self.buildModelsButton = qt.QPushButton('Make')
+    self.modelsVisibilityButton = self.createButton('Hide', checkable=True)
+    self.labelMapOutlineButton = self.createButton('Outline', checkable=True)
+    self.enableJumpToROI = qt.QCheckBox("Jump to ROI")
+
+    modelsFrame = self.createHLayout([qt.QLabel('Structure Models: '), self.buildModelsButton,
+                                      self.modelsVisibilityButton, self.labelMapOutlineButton, self.enableJumpToROI])
+
+    perStructureFrame = slicer.util.findChildren(self.editorWidget.volumes, 'PerStructureVolumesFrame')[0]
+    perStructureFrame.collapsed = False
+    perStructureFrame.layout().addWidget(modelsFrame)
+
+  def setupEditorWidget(self):
+    editorWidgetParent = slicer.qMRMLWidget()
+    editorWidgetParent.setLayout(qt.QVBoxLayout())
+    editorWidgetParent.setMRMLScene(slicer.mrmlScene)
+    self.editorWidget = EditorWidget(parent=editorWidgetParent)
+    self.editorWidget.setup()
+    self.segmentationGroupBoxLayout.addWidget(editorWidgetParent)
+    self.hideUnwantedEditorUIElements()
+    self.configureEditorEffectsUI()
+
+  def hideUnwantedEditorUIElements(self):
+    for widgetName in ['AllButtonsFrameButton', 'ReplaceModelsCheckBox', 'MasterVolumeFrame', 'MergeVolumeFrame',
+                       'SplitStructureButton']:
+      widget = slicer.util.findChildren(self.editorWidget.volumes, widgetName)[0]
+      widget.hide()
+
+  def configureEditorEffectsUI(self):
+    editBoxFrame = self.editorWidget.editBoxFrame
+    effectButtonFrame = slicer.util.findChildren(editBoxFrame, "RowFrame1")[0].layout()
+    effectButtonFrame.addWidget(slicer.util.findChildren(editBoxFrame, 'WindowLevelEffectToolButton')[0])
+    slicer.util.findChildren(editBoxFrame, "RowFrame2")[0].hide()
+
+  def addCustomEditorButtons(self):
+    volumesFrame = self.editorWidget.volumes
+    buttonsFrameLayout = slicer.util.findChildren(volumesFrame, 'ButtonsFrame')[0].layout()
+
+    redWidget = self.layoutManager.sliceWidget('Red')
+    controller = redWidget.sliceController()
+    moreButton = slicer.util.findChildren(controller, 'MoreButton')[0]
+    moreButton.toggle()
+
+    self.deleteStructureButton = qt.QPushButton('Delete Structure')
+    self.propagateButton = qt.QPushButton('Propagate Structure')
+    self.createFiducialsButton = qt.QPushButton('Create Fiducials')
+
+    buttonsFrameLayout.addWidget(self.deleteStructureButton)
+    buttonsFrameLayout.addWidget(self.propagateButton)
+    buttonsFrameLayout.addWidget(self.createFiducialsButton)
+
+  def setupAdvancedSegmentationSettingsUI(self):
+    self.advancedSettingsArea = ctk.ctkCollapsibleButton()
+    self.advancedSettingsArea.text = "Advanced Settings"
+    self.advancedSettingsArea.collapsed = True
+
+    self.setupSingleMultiViewSettingsUI()
+    self.setupViewerOrientationSettingsUI()
+    self.setupLabelTranslationSettingsUI()
+
+    self.ignoreTranslate = False
+
+    # Create a transform node
+    self.transformNode = slicer.vtkMRMLLinearTransformNode()
+    self.transformNode.SetName('mpReview-transform')
+    slicer.mrmlScene.AddNode(self.transformNode)
+
+    advancedSettingsLayout = qt.QFormLayout(self.advancedSettingsArea)
+    advancedSettingsLayout.addRow("Show series: ", self.groupWidget)
+    advancedSettingsLayout.addRow('View orientation: ', self.orientationBox)
+    advancedSettingsLayout.addRow(self.translateArea)
+    self.segmentationGroupBoxLayout.addWidget(self.advancedSettingsArea)
+
+  def setupSingleMultiViewSettingsUI(self):
+    self.multiView = qt.QRadioButton('All')
+    self.singleView = qt.QRadioButton('Reference only')
+    self.multiView.setChecked(True)
+    self.groupWidget = qt.QGroupBox()
+    self.groupLayout = qt.QFormLayout(self.groupWidget)
+    self.groupLayout.addRow(self.multiView, self.singleView)
+    self.viewButtonGroup = qt.QButtonGroup()
+    self.viewButtonGroup.addButton(self.multiView, 1)
+    self.viewButtonGroup.addButton(self.singleView, 2)
+
+  def setupViewerOrientationSettingsUI(self):
+    self.orientationBox = qt.QGroupBox()
+    orientationBoxLayout = qt.QFormLayout()
+    self.orientationBox.setLayout(orientationBoxLayout)
+    self.orientationButtons = {}
+    self.orientations = ("Axial", "Sagittal", "Coronal")
+    for orientation in self.orientations:
+      self.orientationButtons[orientation] = self.createRadioButton(orientation, checked=orientation=="Axial")
+      orientationBoxLayout.addWidget(self.orientationButtons[orientation])
+    self.currentOrientation = 'Axial'
+
+  def setupLabelTranslationSettingsUI(self):
+    self.translateArea = ctk.ctkCollapsibleButton()
+    self.translateArea.text = "Translate Selected Label Map"
+    translateAreaLayout = qt.QFormLayout(self.translateArea)
+
+    self.translateLR = self.createSliderWidget(minimum=-200, maximum=200)
+    self.translatePA = self.createSliderWidget(minimum=-200, maximum=200)
+    self.translateIS = self.createSliderWidget(minimum=-200, maximum=200)
+
+    translateAreaLayout.addRow("Translate LR: ", self.translateLR)
+    translateAreaLayout.addRow("Translate PA: ", self.translatePA)
+    translateAreaLayout.addRow("Translate IS: ", self.translateIS)
+
+    self.hardenTransformButton = self.createButton("Harden Transform", enabled=False)
+    translateAreaLayout.addRow(self.hardenTransformButton)
+    self.translateArea.collapsed = 1
+
+  def setupFiducialsUI(self):
+    self.fiducialsArea = ctk.ctkCollapsibleButton()
+    self.fiducialsArea.text = "Fiducials"
+    self.fiducialsArea.collapsed = True
+    fiducialsWidgetLayout = qt.QFormLayout(self.fiducialsArea)
+
+    self.fiducialsWidget = mpReviewFiducialTable(fiducialsWidgetLayout)
+    self.segmentationGroupBoxLayout.addWidget(self.fiducialsArea)
+
+  def setupCompletionUI(self):
+    self.qaButton = qt.QPushButton("PI-RADS v2 review form")
+    self.completionGroupBoxLayout.addWidget(self.qaButton)
+    self.saveButton = qt.QPushButton("Save")
+    self.completionGroupBoxLayout.addWidget(self.saveButton)
+    '''
+      self.piradsButton = qt.QPushButton("PI-RADS review")
+      self.layout.addWidget(self.piradsButton)
+      # self.piradsButton.connect('clicked()',self.onPiradsClicked)
+      '''
+
+  def setupConnections(self):
+
+    def setupButtonConnections():
+      self.dataDirButton.directoryChanged.connect(self.onInputDirSelected)
+      self.deleteStructureButton.connect('clicked()', self.onDeleteStructure)
+      self.propagateButton.connect('clicked()', self.onPropagateROI)
+      self.createFiducialsButton.connect('clicked()', self.onCreateFiducialsButtonClicked)
+      self.hardenTransformButton.connect('clicked(bool)', self.onHardenTransform)
+      self.buildModelsButton.connect("clicked()", self.onBuildModels)
+      self.modelsVisibilityButton.connect("toggled(bool)", self.onModelsVisibilityButton)
+      self.labelMapOutlineButton.connect('toggled(bool)', self.setLabelOutline)
+      self.qaButton.connect('clicked()', self.onQAFormClicked)
+      self.saveButton.connect('clicked()', self.onSaveClicked)
+      for orientation in self.orientations:
+        self.orientationButtons[orientation].connect("clicked()", lambda o=orientation: self.setOrientation(o))
+      self.viewButtonGroup.connect('buttonClicked(int)', self.onViewUpdateRequested)
+
+    def setupSliderConnections():
+      self.translateLR.connect('valueChanged(double)', self.onTranslate)
+      self.translatePA.connect('valueChanged(double)', self.onTranslate)
+      self.translateIS.connect('valueChanged(double)', self.onTranslate)
+      self.multiVolumeExplorer.frameSlider.connect('valueChanged(double)', self.onSliderChanged)
+
+    def setupViewConnections():
+      self.studiesView.connect('clicked(QModelIndex)', self.onStudySelected)
+      self.seriesView.connect('clicked(QModelIndex)', self.onSeriesSelected)
+      self.structuresView.connect("activated(QModelIndex)", self.onStructureClicked)
+
+    def setupOtherConnections():
+      self.refSelector.connect('currentIndexChanged(int)', self.onReferenceChanged)
+
+    setupButtonConnections()
+    setupSliderConnections()
+    setupViewConnections()
+    setupOtherConnections()
 
   def onEditorWidgetParameterNodeChanged(self, caller, event=-1):
     effectName = caller.GetParameter("effect")
@@ -632,8 +528,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
       self.editorWidget.helper.structureListWidget.merge = None
     except AttributeError:
       pass
-      
-
 
     # setup the color table, make sure mpReview LUT is a singleton
     allColorTableNodes = slicer.util.getNodes('vtkMRMLColorTableNode*').values()
@@ -699,7 +593,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
       # If view ref only
       layoutNode.SetViewArrangement(layoutNode.SlicerLayoutOneUpRedSliceView)
 
-  def studySelected(self, modelIndex):
+  def onStudySelected(self, modelIndex):
     logging.debug('Row selected: '+self.studiesModel.item(modelIndex.row(),0).text())
     selectionModel = self.studiesView.selectionModel()
     logging.debug('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
@@ -708,7 +602,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
     self.patientIDLabel.setText(self.selectedStudyName.split("_")[0])
     self.setTabsEnabled([1], True)
 
-  def seriesSelected(self, modelIndex):
+  def onSeriesSelected(self, modelIndex):
     logging.debug('Row selected: '+self.seriesModel.item(modelIndex.row(),0).text())
     selectionModel = self.seriesView.selectionModel()
     logging.debug('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
@@ -765,13 +659,11 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
     '''
 
     savedMessage += "\n " + self.saveTargets(username, timestamp)
-    self.infoPopup(savedMessage)
+    self.notificationDialog(savedMessage)
 
   def saveSegmentations(self, timestamp, username):
-    segmentationsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'Segmentations')
     wlSettingsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'WindowLevelSettings')
-    self.createDirectory(segmentationsDir)
-    self.createDirectory(wlSettingsDir)
+    self.logic.createDirectory(wlSettingsDir)
     # save all label nodes (there should be only one per volume!)
     labelNodes = slicer.util.getNodes('*-label*')
     logging.debug('All label nodes found: ' + str(labelNodes))
@@ -785,7 +677,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
       # Segmentations/Reconstructions/OncoQuant -> files
       segmentationsDir = os.path.join(self.inputDataDir, self.selectedStudyName,
                                       'RESOURCES', labelSeries, 'Segmentations')
-      self.createDirectory(segmentationsDir)
+      self.logic.createDirectory(segmentationsDir)
 
       structureName = labelName[labelName[:-6].rfind("-") + 1:-6]
       # Only save labels with known structure names
@@ -811,7 +703,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
     fiducialsNode = self.fiducialsWidget.currentNode
     if fiducialsNode:
       targetsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'Targets')
-      self.createDirectory(targetsDir)
+      self.logic.createDirectory(targetsDir)
       targetFileName = username+'-'+timestamp+'.fcsv'
       path = os.path.join(targetsDir, targetFileName)
       if slicer.util.saveNode(fiducialsNode, path):
@@ -897,7 +789,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
 
           try:
             modelMaker = slicer.modules.modelmaker
-            self.CLINode = slicer.cli.runmpReview(modelMaker, self.CLINode,
+            self.CLINode = slicer.cli.run(modelMaker, self.CLINode,
                            parameters, wait_for_completion=True)
           except AttributeError:
             qt.QMessageBox.critical(slicer.util.mainWindow(),'Editor', 'The ModelMaker module is not available<p>Perhaps it was disabled in the application settings or did not load correctly.')
@@ -916,7 +808,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
             displayNode.SetSliceIntersectionVisibility(1)
             displayNode.SetSliceIntersectionThickness(2)
           self.modelsVisibilityButton.checked = False
-          self.updateViewRenderers()
+          self.updateViewRenderer()
 
   def removeAllModels(self):
     modelHierarchyNodes = []
@@ -973,7 +865,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
             else:
               displayNode.SetSliceIntersectionVisibility(1)
               self.modelsVisibilityButton.setText('Hide')
-          self.updateViewRenderers()
+          self.updateViewRenderer()
 
   def findElement(self, dom, name):
     els = dom.getElementsByTagName('element')
@@ -1035,7 +927,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
 
   def setTabsEnabled(self, indexes, enabled):
     for index in indexes:
-      self.tabBar.setTabEnabled(index, enabled)
+      self.tabWidget.childAt(1, 1).setTabEnabled(index, enabled)
 
   def checkStep3or4Leave(self):
     if self.currentStep == 3 or self.currentStep == 4:
@@ -1421,7 +1313,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
     self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[self.rows,self.cols],viewNames=self.sliceNames,orientation=self.currentOrientation)
 
     # Make sure redslice has the ref image (the others were set with viewerPerVolume)
-    redSliceWidget = self.getLayoutManager().sliceWidget('Red')
+    redSliceWidget = self.layoutManager.sliceWidget('Red')
     redSliceNode = redSliceWidget.mrmlSliceNode()
     redSliceNode.SetOrientation(self.currentOrientation)
     compositeNode = redSliceWidget.mrmlSliceCompositeNode()
@@ -1431,7 +1323,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
     self.setOpacityOnAllSliceWidgets(1.0)
     self.editUtil.setLabelOutline(self.labelMapOutlineButton.checked)
 
-    self.onViewUpdateRequested(self.viewGroup.checkedId())
+    self.onViewUpdateRequested(self.viewButtonGroup.checkedId())
 
     logging.debug('Setting master node for the Editor to '+self.volumeNodes[0].GetID())
 
@@ -1487,7 +1379,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
       # create backup directory if necessary
       backupSegmentationsDir = os.path.join(self.inputDataDir, self.selectedStudyName,
                                             'RESOURCES', self.refSeriesNumber, 'Backup')
-      self.createDirectory(backupSegmentationsDir)
+      self.logic.createDirectory(backupSegmentationsDir)
       # move relevant nrrd files
       globPath = os.path.join(self.resourcesDir,self.refSeriesNumber,"Segmentations",
                               self.getSetting('UserName')+'-'+selectedModelVol+'-[0-9]*.nrrd')
@@ -1574,7 +1466,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
       return
 
     self.createFiducialsPrompt = qt.QDialog()
-    self.createFiducialsPrompt.setWindowFlags(PythonQt.QtCore.Qt.WindowStaysOnTopHint)
+    self.createFiducialsPrompt.setWindowFlags(qt.Qt.WindowStaysOnTopHint)
     fiducialsPromptLayout = qt.QVBoxLayout()
     self.createFiducialsPrompt.setLayout(fiducialsPromptLayout)
 
@@ -1620,9 +1512,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
           logging.debug("Creating fiducial at position %f, %f, %f" % tuple(centroid))
           addedFiducialIds.append(fiducialNode.AddFiducialFromArray(centroid, label.GetName()))
         except:
-          self.infoPopup("No label object with label %s. \n You might have forgotten to print a label."
-                         "To prevent the duplication of fiducials, all fiducials of the current "
-                         "creation step will be deleted." % label.GetName())
+          self.notificationDialog("No label object with label %s. \n You might have forgotten to print a label."
+                                  "To prevent the duplication of fiducials, all fiducials of the current "
+                                  "creation step will be deleted." % label.GetName())
           self.removeFiducialIDsFromNode(fiducialNode, addedFiducialIds)
           return
 
@@ -1714,7 +1606,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
       for vol in existingStructures:
         msg += vol + '\n'
       msg += '\nCannot propagate on top of existing structures.  Delete the existing structures and try again.\n'
-      self.infoPopup(msg)
+      self.notificationDialog(msg)
       return
 
     # Create identity transform
@@ -1749,7 +1641,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
       parameters["numberOfThreads"] = -1
 
       self.__cliNode = None
-      self.__cliNode = slicer.cli.runmpReview(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
+      self.__cliNode = slicer.cli.run(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
 
       # Check to make sure we actually got something in the dstLabel volume
       dstLabelAddress = sitkUtils.GetSlicerITKReadWriteAddress(dstLabel.GetName())
@@ -1911,7 +1803,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
     parameters["numberOfThreads"] = -1
 
     self.__cliNode = None
-    self.__cliNode = slicer.cli.runmpReview(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
+    self.__cliNode = slicer.cli.run(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
 
     # get the image data and get rid of the temp
     labelNode.SetAndObserveImageData(resampledLabelNode.GetImageData())
@@ -1956,9 +1848,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
   def restoreForeground(self):
     # This relies on slice view names and also (apparently) trashes zoom levels
     # Is there a better way to do this?
-    layoutManager = self.getLayoutManager()
-    for view in layoutManager.sliceViewNames():
-      widget = layoutManager.sliceWidget(view)
+    for view in self.layoutManager.sliceViewNames():
+      widget = self.layoutManager.sliceWidget(view)
       compositeNode = widget.mrmlSliceCompositeNode()
       try:
         compositeNode.SetForegroundVolumeID(self.seriesMap[view]['Volume'].GetID())
@@ -1975,7 +1866,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
     self.updateEditorAvailability()
 
   def onJumpToROI(self, selectedLabelID, selectedLabelVol):
-    redSliceWidget = self.getLayoutManager().sliceWidget('Red')
+    redSliceWidget = self.layoutManager.sliceWidget('Red')
     redSliceNode = redSliceWidget.mrmlSliceNode()
     redSliceOffset = redSliceNode.GetSliceOffset()
 
@@ -2041,7 +1932,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget):
         self.setOffsetOnAllSliceWidgets(sagittal_offset)
 
       # snap to IJK to try and avoid rounding errors
-      sliceLogics = self.getLayoutManager().mrmlSliceLogics()
+      sliceLogics = self.layoutManager.mrmlSliceLogics()
       numLogics = sliceLogics.GetNumberOfItems()
       for n in range(numLogics):
         l = sliceLogics.GetItemAsObject(n)
@@ -2063,6 +1954,15 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
   this class and make use of the functionality without
   requiring an instance of the Widget
   """
+
+  @staticmethod
+  def createDirectory(directory, message=None):
+    if message:
+      logging.debug(message)
+    try:
+      os.makedirs(directory)
+    except OSError:
+      logging.debug('Failed to create the following directory: ' + directory)
 
   @staticmethod
   def cleanupDir(d):
