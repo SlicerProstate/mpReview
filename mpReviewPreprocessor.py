@@ -2,6 +2,7 @@ import os
 import DICOMLib
 from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
+from Util.mixins import ModuleWidgetMixin
 import argparse
 import sys, shutil
 #
@@ -32,14 +33,14 @@ class mpReviewPreprocessor(ScriptedLoadableModule):
     slicer.selfTests['mpReviewPreprocessor'] = self.runTest
 
   def runTest(self):
-    tester = mpReviewPreprocessorTest()
-    tester.runTest()
+    return
 
 #
 # mpReviewPreprocessorWidget
 #
 
-class mpReviewPreprocessorWidget(ScriptedLoadableModuleWidget):
+class mpReviewPreprocessorWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
+
   def setup(self):
     self.developerMode = True
     ScriptedLoadableModuleWidget.setup(self)
@@ -67,8 +68,20 @@ class mpReviewPreprocessorWidget(ScriptedLoadableModuleWidget):
 
   def onRunClicked(self):
     logic = mpReviewPreprocessorLogic()
+    self.progress = self.makeProgressIndicator()
+    self.progress.canceled.connect(lambda : logic.cancelProcess())
     logic.Convert(self.inputDirButton.directory, self.outputDirButton.directory,
-        copyDICOM=self.copyDICOMButton.checked)
+                  copyDICOM=self.copyDICOMButton.checked, progressCallback=self.updateProgressBar)
+    self.progress.canceled.disconnect(lambda : logic.cancelProcess())
+    self.progress.close()
+
+  def updateProgressBar(self, **kwargs):
+    if self.progress:
+      for key, value in kwargs.iteritems():
+        if hasattr(self.progress, key):
+          setattr(self.progress, key, value)
+        else:
+          print "key %s not found" % key
 
 #
 # mpReviewPreprocessorLogic
@@ -82,17 +95,6 @@ class mpReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
   requiring an instance of the Widget
   """
 
-  @staticmethod
-  def makeProgressIndicator(maxVal):
-    progressIndicator = qt.QProgressDialog()
-    progressIndicator.minimumDuration = 0
-    progressIndicator.modal = True
-    progressIndicator.setMaximum(maxVal)
-    progressIndicator.setValue(0)
-    progressIndicator.setWindowTitle("Processing...")
-    progressIndicator.show()
-    return progressIndicator
-
   def __init__(self):
     ScriptedLoadableModuleLogic.__init__(self)
 
@@ -104,33 +106,43 @@ class mpReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
 
     self.dicomDatabaseDir = os.path.join(self.dataDir, "CtkDicomDatabase")
 
-  def Convert(self, inputDir, outputDir, copyDICOM):
-    # inputDir = '/Users/fedorov/ImageData/QIICR/QIN PROSTATE/QIN-PROSTATE-01-0001/1.3.6.1.4.1.14519.5.2.1.3671.7001.133687106572018334063091507027'
+    self.indexer = None
+
+  def updateProgress(self, progress):
+    if self.progressCallback:
+      self.progressCallback(windowTitle='DICOMIndexer', labelText='Processing files', value=progress)
+
+  def cancelProcess(self):
+    # print('Indexing canceled')
+    self.indexer.cancel()
+    self.canceled = True
+
+  def Convert(self, inputDir, outputDir, copyDICOM, progressCallback=None):
+    self.progressCallback = progressCallback
+    self.canceled = False
     print('Database location: '+self.dicomDatabaseDir)
     print('FIXME: revert back to the original DB location when done!')
-    self.OpenDatabase()
-    print('Input directory: '+inputDir)
-    self.ImportStudy(inputDir)
-
+    self.openDatabase()
+    print('Input directory: ' + inputDir)
+    self.importStudy(inputDir)
     print('Import completed, total '+str(len(slicer.dicomDatabase.patients()))+' patients imported')
 
     for patient in slicer.dicomDatabase.patients():
       #print patient
       for study in slicer.dicomDatabase.studiesForPatient(patient):
         #print slicer.dicomDatabase.seriesForStudy(study)
-        for series in [l for l in slicer.dicomDatabase.seriesForStudy(study)]:
-          #print 'Series:',series
-          #print seriesUIDs
-          files = slicer.dicomDatabase.filesForSeries(series)
-
-          pluginNames = ['MultiVolumeImporterPlugin','DICOMScalarVolumePlugin']
+        if self.progressCallback:
+          self.progressCallback(windowTitle="Processing %s" % study)
+        series = slicer.dicomDatabase.seriesForStudy(study)
+        for seriesIndex, currentSeries in enumerate(series, start=1):
+          if self.canceled:
+            return
+          # print 'Series:',series
+          files = slicer.dicomDatabase.filesForSeries(currentSeries)
 
           loadable = None
-          node = None
-          dcmFile = None
-
-          for pn in pluginNames:
-            plugin = slicer.modules.dicomPlugins[pn]()
+          for pluginName in ['MultiVolumeImporterPlugin','DICOMScalarVolumePlugin']:
+            plugin = slicer.modules.dicomPlugins[pluginName]()
             loadables = plugin.examine([files])
             if len(loadables) == 0:
               continue
@@ -145,37 +157,42 @@ class mpReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
             patientID = slicer.dicomDatabase.fileValue(dcmFile, "0010,0020")
             studyDate = slicer.dicomDatabase.fileValue(dcmFile, "0008,0020")
             studyTime = slicer.dicomDatabase.fileValue(dcmFile, "0008,0030")[0:4]
+            seriesDescription = slicer.dicomDatabase.fileValue(dcmFile, '0008,103E')
 
-          if node:
-            storageNode = node.CreateDefaultStorageNode()
-            studyID = patientID+'_'+studyDate+'_'+studyTime
-            dirName = os.path.join(outputDir, studyID, "RESOURCES", seriesNumber, "Reconstructions")
-            xmlName = os.path.join(dirName, seriesNumber+'.xml')
-            try:
-              os.makedirs(dirName)
-            except:
-              pass
-            DICOMLib.DICOMCommand("dcm2xml", [dcmFile, xmlName]).start()
-            nrrdName = os.path.join(dirName, seriesNumber + ".nrrd")
-            #print(nrrdName)
-            storageNode.SetFileName(nrrdName)
-            storageNode.WriteData(node)
+            if self.progressCallback:
+              self.progressCallback(value=seriesIndex, maximum=len(series),
+                                    labelText="Processing: {0}".format(seriesDescription))
 
-            # copy original DICOMs
-            if copyDICOM:
-              fileCount = 0
-              dirName = os.path.join(outputDir, studyID, "RESOURCES", seriesNumber, "DICOM")
+            if node:
+              storageNode = node.CreateDefaultStorageNode()
+              studyID = patientID+'_'+studyDate+'_'+studyTime
+              dirName = os.path.join(outputDir, studyID, "RESOURCES", seriesNumber, "Reconstructions")
+              xmlName = os.path.join(dirName, seriesNumber+'.xml')
               try:
                 os.makedirs(dirName)
               except:
                 pass
-              for dcm in loadable.files:
-                shutil.copy(dcm, dirName+'/'+ "%06d.dcm" % fileCount)
-                fileCount = fileCount+1
+              DICOMLib.DICOMCommand("dcm2xml", [dcmFile, xmlName]).start()
+              nrrdName = os.path.join(dirName, seriesNumber + ".nrrd")
+              #print(nrrdName)
+              storageNode.SetFileName(nrrdName)
+              storageNode.WriteData(node)
+
+              # copy original DICOMs
+              if copyDICOM:
+                fileCount = 0
+                dirName = os.path.join(outputDir, studyID, "RESOURCES", seriesNumber, "DICOM")
+                try:
+                  os.makedirs(dirName)
+                except:
+                  pass
+                for dcm in loadable.files:
+                  shutil.copy(dcm, dirName+'/'+ "%06d.dcm" % fileCount)
+                  fileCount = fileCount+1
           else:
             print 'No node!'
 
-  def OpenDatabase(self):
+  def openDatabase(self):
     # Open test database and empty it
     if not os.access(self.dicomDatabaseDir, os.F_OK):
       os.mkdir(self.dicomDatabaseDir)
@@ -185,12 +202,11 @@ class mpReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
 
     slicer.dicomDatabase.initializeDatabase()
 
-  def ImportStudy(self,dicomDataDir):
-    indexer = ctk.ctkDICOMIndexer()
-
-    # Import study to database
-    indexer.addDirectory( slicer.dicomDatabase, dicomDataDir )
-    indexer.waitForImportFinished()
+  def importStudy(self, dicomDataDir):
+    if not self.indexer:
+      self.indexer = ctk.ctkDICOMIndexer()
+      self.indexer.connect("progress(int)", self.updateProgress)
+    self.indexer.addDirectory( slicer.dicomDatabase, dicomDataDir )
 
 def main(argv):
   try:
