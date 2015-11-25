@@ -12,7 +12,7 @@ class ModuleWidgetMixin(object):
     return slicer.dicomDatabase
 
   @staticmethod
-  def makeProgressIndicator(maxVal, initialValue=0):
+  def makeProgressIndicator(maxVal=100, initialValue=0):
     progressIndicator = qt.QProgressDialog()
     progressIndicator.minimumDuration = 0
     progressIndicator.modal = True
