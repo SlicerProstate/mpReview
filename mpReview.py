@@ -789,7 +789,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
           try:
             modelMaker = slicer.modules.modelmaker
-            self.CLINode = slicer.cli.runmpReview(modelMaker, self.CLINode,
+            self.CLINode = slicer.cli.run(modelMaker, self.CLINode,
                            parameters, wait_for_completion=True)
           except AttributeError:
             qt.QMessageBox.critical(slicer.util.mainWindow(),'Editor', 'The ModelMaker module is not available<p>Perhaps it was disabled in the application settings or did not load correctly.')
@@ -1641,7 +1641,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       parameters["numberOfThreads"] = -1
 
       self.__cliNode = None
-      self.__cliNode = slicer.cli.runmpReview(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
+      self.__cliNode = slicer.cli.run(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
 
       # Check to make sure we actually got something in the dstLabel volume
       dstLabelAddress = sitkUtils.GetSlicerITKReadWriteAddress(dstLabel.GetName())
@@ -1803,7 +1803,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     parameters["numberOfThreads"] = -1
 
     self.__cliNode = None
-    self.__cliNode = slicer.cli.runmpReview(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
+    self.__cliNode = slicer.cli.run(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
 
     # get the image data and get rid of the temp
     labelNode.SetAndObserveImageData(resampledLabelNode.GetImageData())
