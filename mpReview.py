@@ -251,6 +251,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.modelsVisibilityButton = self.createButton('Hide', checkable=True)
     self.labelMapOutlineButton = self.createButton('Outline', checkable=True)
     self.enableJumpToROI = qt.QCheckBox("Jump to ROI")
+    self.enableJumpToROI.checked = True
 
     modelsFrame = self.createHLayout([qt.QLabel('Structure Models: '), self.buildModelsButton,
                                       self.modelsVisibilityButton, self.labelMapOutlineButton, self.enableJumpToROI])
