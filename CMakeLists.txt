@@ -19,6 +19,8 @@ set(MODULE_NAME mpReview)
 
 #-----------------------------------------------------------------------------
 set(MODULE_PYTHON_SCRIPTS
+  Util/__init__.py
+  Util/mixins.py
   ${MODULE_NAME}.py
   )
 
