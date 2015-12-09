@@ -896,6 +896,12 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     for segmentation in previousSegmentations:
         actualFileName = os.path.split(segmentation)[1]
         structureName = actualFileName.split("-")[1] # expectation: username-structure-timestamp.nrrd
+        # this is to support legacy segmentations that did not use this
+        # specific LUT, and where labels are specified by numbers
+        # Use the structure name as defined by the corresponding label ID in
+        # the selected LUT
+        if structureName not in self.structureNames and int(structureName)<len(self.structureNames):
+          structureName = self.structureNames[int(structureName)]
         timeStamp = int(actualFileName.split("-")[2][:-5])
         if structureName not in latestSegmentations.keys():
           latestSegmentations[structureName] = segmentation
@@ -911,8 +917,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         return False,None
       logging.debug('Setting loaded label name to '+volumeName)
       actualFileName = os.path.split(fileName)[1]
-      structureID = actualFileName.split("-")[1] # expectation: username-structure-timestamp.nrrd
-      label.SetName(volumeName+'-'+structureID+'-label')
+      label.SetName(volumeName+'-'+structure+'-label')
       label.RemoveAllDisplayNodeIDs()
 
       dNode = slicer.vtkMRMLLabelMapVolumeDisplayNode()
@@ -1889,7 +1894,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       logging.debug('i_center = '+str(i_center))
       logging.debug('j_center = '+str(j_center))
       logging.debug('k_center = '+str(k_center))
-
 
       # Now figure out which slice to go to in RAS space based on the i,j,k coords
       # This *works* but I think its either not right or too complicated or both...
