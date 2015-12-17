@@ -168,7 +168,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.selectedStudyName = None
 
     if os.path.exists(self.inputDataDir):
-      self.dataDirLabel.setText(self.inputDataDir)
+      self.dataDirLabel.setText(os.path.split(self.inputDataDir)[1])
       self.checkAndSetLUT()
       self.onUpdateStudyTable()
 
@@ -178,13 +178,13 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.informationViewBoxLayout = qt.QGridLayout()
     self.informationGroupBox.setLayout(self.informationViewBoxLayout)
 
-    self.catPatientIDLabel = qt.QLabel('Patient ID: ')
-    self.patientIDLabel = qt.QLabel()
+    self.catStudyIDLabel = qt.QLabel('Study ID: ')
+    self.studyIDLabel = qt.QLabel()
     self.catDataDirLabel = qt.QLabel('Current Data Dir: ')
     self.dataDirLabel = qt.QLabel()
 
-    self.informationViewBoxLayout.addWidget(self.catPatientIDLabel, 0, 0, 1, 1)
-    self.informationViewBoxLayout.addWidget(self.patientIDLabel, 0, 1, 1, 3)
+    self.informationViewBoxLayout.addWidget(self.catStudyIDLabel, 0, 0, 1, 1)
+    self.informationViewBoxLayout.addWidget(self.studyIDLabel, 0, 1, 1, 3)
     self.informationViewBoxLayout.addWidget(self.catDataDirLabel, 1, 0, 1, 1)
     self.informationViewBoxLayout.addWidget(self.dataDirLabel, 1, 1, 1, 3)
     self.layout.addWidget(self.informationGroupBox)
@@ -600,7 +600,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     logging.debug('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
     logging.debug('Row number: '+str(modelIndex.row()))
     self.selectedStudyName = self.studiesModel.item(modelIndex.row(),0).text()
-    self.patientIDLabel.setText(self.selectedStudyName.split("_")[0])
+    self.studyIDLabel.setText(self.selectedStudyName)
     self.setTabsEnabled([1], True)
 
   def onSeriesSelected(self, modelIndex):
@@ -720,7 +720,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       logging.debug('Directory selected:')
       logging.debug(self.inputDataDir)
       logging.debug(self.getSetting('InputLocation'))
-      self.dataDirLabel.setText(self.inputDataDir)
+      self.dataDirLabel.setText(os.path.split(self.inputDataDir)[1])
       self.checkAndSetLUT()
       self.onUpdateStudyTable()
 
