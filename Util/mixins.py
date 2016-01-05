@@ -53,7 +53,10 @@ class ModuleWidgetMixin(object):
 
   def getSetting(self, setting):
     settings = qt.QSettings()
-    return str(settings.value(self.moduleName + '/' + setting))
+    setting = settings.value(self.moduleName + '/' + setting)
+    if setting:
+      return str(setting)
+    return None
 
   def setSetting(self, setting, value):
     settings = qt.QSettings()
