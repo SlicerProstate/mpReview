@@ -153,3 +153,12 @@ class ModuleWidgetMixin(object):
         logging.error("qMRMLNodeComboBox does not have attribute %s" % key)
     combobox.setMRMLScene(slicer.mrmlScene)
     return combobox
+
+  def showMainAppToolbars(show=True):
+    w = slicer.util.mainWindow()
+    for c in w.children():
+      if str(type(c)).find('ToolBar')>0:
+        if show:
+          c.show()
+        else:
+          c.hide()
