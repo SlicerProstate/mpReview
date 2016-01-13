@@ -62,6 +62,15 @@ class ModuleWidgetMixin(object):
     settings = qt.QSettings()
     settings.setValue(self.moduleName + '/' + setting, value)
 
+  def updateProgressBar(self, **kwargs):
+    progress = kwargs.pop('progress', None)
+    assert progress, "Keyword argument progress (instance of QProgressDialog) is missing"
+    for key, value in kwargs.iteritems():
+      if hasattr(progress, key):
+        setattr(progress, key, value)
+      else:
+        print "key %s not found" % key
+
   def createHLayout(self, elements, **kwargs):
     return self._createLayout(qt.QHBoxLayout, elements, **kwargs)
 

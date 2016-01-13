@@ -70,18 +70,14 @@ class mpReviewPreprocessorWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin
     logic = mpReviewPreprocessorLogic()
     self.progress = self.makeProgressIndicator()
     self.progress.canceled.connect(lambda : logic.cancelProcess())
-    logic.Convert(self.inputDirButton.directory, self.outputDirButton.directory,
-                  copyDICOM=self.copyDICOMButton.checked, progressCallback=self.updateProgressBar)
+    logic.importStudy(self.inputDirButton.directory, progressCallback=self.updateProgressBar)
+    logic.convertData(self.outputDirButton.directory, copyDICOM=self.copyDICOMButton.checked,
+                      progressCallback=self.updateProgressBar)
     self.progress.canceled.disconnect(lambda : logic.cancelProcess())
     self.progress.close()
 
   def updateProgressBar(self, **kwargs):
-    if self.progress:
-      for key, value in kwargs.iteritems():
-        if hasattr(self.progress, key):
-          setattr(self.progress, key, value)
-        else:
-          print "key %s not found" % key
+    ModuleWidgetMixin.updateProgressBar(self, progress=self.progress, **kwargs)
 
 #
 # mpReviewPreprocessorLogic
@@ -105,29 +101,39 @@ class mpReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
     os.mkdir(self.dataDir)
 
     self.dicomDatabaseDir = os.path.join(self.dataDir, "CtkDicomDatabase")
-
     self.indexer = None
+    self.patients = []
+
+  def patientFound(self):
+    return len(self.patients) > 0
 
   def updateProgress(self, progress):
     if self.progressCallback:
       self.progressCallback(windowTitle='DICOMIndexer', labelText='Processing files', value=progress)
 
   def cancelProcess(self):
-    # print('Indexing canceled')
     self.indexer.cancel()
     self.canceled = True
 
-  def Convert(self, inputDir, outputDir, copyDICOM, progressCallback=None):
+  def importStudy(self, inputDir, progressCallback=None):
     self.progressCallback = progressCallback
     self.canceled = False
     print('Database location: '+self.dicomDatabaseDir)
     print('FIXME: revert back to the original DB location when done!')
     self.openDatabase()
     print('Input directory: ' + inputDir)
-    self.importStudy(inputDir)
+    if not self.indexer:
+      self.indexer = ctk.ctkDICOMIndexer()
+      self.indexer.connect("progress(int)", self.updateProgress)
+    self.indexer.addDirectory(slicer.dicomDatabase, inputDir)
+    self.patients = slicer.dicomDatabase.patients()
     print('Import completed, total '+str(len(slicer.dicomDatabase.patients()))+' patients imported')
 
-    for patient in slicer.dicomDatabase.patients():
+  def convertData(self, outputDir, copyDICOM, progressCallback=None):
+    self.progressCallback = progressCallback
+    if self.canceled:
+      return
+    for patient in self.patients:
       #print patient
       for study in slicer.dicomDatabase.studiesForPatient(patient):
         #print slicer.dicomDatabase.seriesForStudy(study)
@@ -189,8 +195,8 @@ class mpReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
                 for dcm in loadable.files:
                   shutil.copy(dcm, dirName+'/'+ "%06d.dcm" % fileCount)
                   fileCount = fileCount+1
-          else:
-            print 'No node!'
+            else:
+              print 'No node!'
 
   def openDatabase(self):
     # Open test database and empty it
@@ -201,12 +207,6 @@ class mpReviewPreprocessorLogic(ScriptedLoadableModuleLogic):
     dicomWidget.onDatabaseDirectoryChanged(self.dicomDatabaseDir)
 
     slicer.dicomDatabase.initializeDatabase()
-
-  def importStudy(self, dicomDataDir):
-    if not self.indexer:
-      self.indexer = ctk.ctkDICOMIndexer()
-      self.indexer.connect("progress(int)", self.updateProgress)
-    self.indexer.addDirectory( slicer.dicomDatabase, dicomDataDir )
 
 def main(argv):
   try:
@@ -227,7 +227,8 @@ def main(argv):
       print('Current directory is selected as output folder (default). To change it, please specify --output-folder')
 
     logic = mpReviewPreprocessorLogic()
-    logic.Convert(args.input_folder,args.output_folder,copyDICOM=args.copyDICOM)
+    logic.importStudy(args.input_folder)
+    logic.convertData(args.output_folder, copyDICOM=args.copyDICOM)
 
   except Exception, e:
     print e

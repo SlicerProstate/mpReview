@@ -7,8 +7,10 @@ from Editor import EditorWidget
 from EditorLib import EditorLib
 import SimpleITK as sitk
 import sitkUtils
+import datetime
 from slicer.ScriptedLoadableModule import *
 from Util.mixins import ModuleWidgetMixin
+from mpReviewPreprocessor import mpReviewPreprocessorLogic
 from qSlicerMultiVolumeExplorerModuleWidget import qSlicerMultiVolumeExplorerSimplifiedModuleWidget
 from qSlicerMultiVolumeExplorerModuleHelper import qSlicerMultiVolumeExplorerModuleHelper as MVHelper
 
@@ -44,13 +46,26 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   VIEWFORM_URL = 'https://docs.google.com/forms/d/1Xwhvjn_HjRJAtgV5VruLCDJ_eyj1C-txi8HWn8VyXa4/viewform'
 
+  @property
+  def inputDataDir(self):
+    return self.dataDirButton.directory
+
+  @inputDataDir.setter
+  def inputDataDir(self, directory):
+    logging.debug('Directory selected: %s' % directory)
+    if not os.path.exists(directory):
+      directory = None
+    self.dataDirButton.text = directory
+    self.dataDirLabel.setText(directory)
+    if directory:
+      self.setSetting('InputLocation', directory)
+      self.checkAndSetLUT()
+      self.updateStudyTable()
+    self.setTabsEnabled([1,2,3], False)
+
   def __init__(self, parent = None):
     ScriptedLoadableModuleWidget.__init__(self, parent)
     self.resourcesPath = os.path.join(slicer.modules.mpreview.path.replace(self.moduleName+".py",""), 'Resources')
-
-    inputDataDir = self.getSetting('InputLocation')
-    self.inputDataDir = inputDataDir if inputDataDir is not None else ''
-
     self.webFormURL = ''
 
     # TODO: figure out why module/class hierarchy is different
@@ -167,10 +182,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.refSelectorIgnoreUpdates = False
     self.selectedStudyName = None
 
-    if os.path.exists(self.inputDataDir):
-      self.dataDirLabel.setText(os.path.split(self.inputDataDir)[1])
-      self.checkAndSetLUT()
-      self.onUpdateStudyTable()
+    self.dataDirButton.directory = self.getSetting('InputLocation')
 
   def setupInformationFrame(self):
     self.informationGroupBox = qt.QGroupBox()
@@ -191,7 +203,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   def setupDataAndStudySelectionUI(self):
     self.dataDirButton = ctk.ctkDirectoryButton()
-    self.dataDirButton.directory = self.inputDataDir
     self.studySelectionGroupBoxLayout.addWidget(qt.QLabel("Data directory:"), 0, 0, 1, 1)
     self.studySelectionGroupBoxLayout.addWidget(self.dataDirButton, 0, 1, 1, 2)
 
@@ -279,6 +290,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def configureEditorEffectsUI(self):
     editBoxFrame = self.editorWidget.editBoxFrame
     effectButtonFrame = slicer.util.findChildren(editBoxFrame, "RowFrame1")[0].layout()
+    effectButtonFrame.addWidget(slicer.util.findChildren(editBoxFrame, 'DilateEffectToolButton')[0])
     effectButtonFrame.addWidget(slicer.util.findChildren(editBoxFrame, 'WindowLevelEffectToolButton')[0])
     slicer.util.findChildren(editBoxFrame, "RowFrame2")[0].hide()
 
@@ -383,7 +395,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def setupConnections(self):
 
     def setupButtonConnections():
-      self.dataDirButton.directoryChanged.connect(self.onInputDirSelected)
+      self.dataDirButton.directorySelected.connect(lambda: setattr(self, "inputDataDir", self.dataDirButton.directory))
       self.deleteStructureButton.connect('clicked()', self.onDeleteStructure)
       self.propagateButton.connect('clicked()', self.onPropagateROI)
       self.createFiducialsButton.connect('clicked()', self.onCreateFiducialsButtonClicked)
@@ -513,13 +525,12 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.customLUTLabel.setText('Using Default LUT')
 
     # Check for custom LUT
-    if os.path.exists(self.inputDataDir):
-      lookupTableLoc = os.path.join(self.inputDataDir, 'SETTINGS', self.inputDataDir.split(os.sep)[-1] + '-LUT.csv')
-      logging.debug('Checking for lookup table at : ' + lookupTableLoc)
-      if os.path.isfile(lookupTableLoc):
-        # use custom color table
-        self.colorFile = lookupTableLoc
-        self.customLUTLabel.setText('Project-Specific LUT Found')
+    lookupTableLoc = os.path.join(self.inputDataDir, 'SETTINGS', self.inputDataDir.split(os.sep)[-1] + '-LUT.csv')
+    logging.debug('Checking for lookup table at : ' + lookupTableLoc)
+    if os.path.isfile(lookupTableLoc):
+      # use custom color table
+      self.colorFile = lookupTableLoc
+      self.customLUTLabel.setText('Project-Specific LUT Found')
 
     # Set merge volume in structureListWidget to None so Editor doesn't get confused by missing node
     # This may be the first time we get here, in which case editorWidget is not
@@ -640,7 +651,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         then subdirectory for each scan that was analyzed
     """
 
-    import datetime
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     username = self.getSetting('UserName')
 
@@ -710,19 +720,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       if slicer.util.saveNode(fiducialsNode, path):
         savedMessage = 'Fiducials were saved'
     return savedMessage
-
-  def onInputDirSelected(self):
-    self.inputDataDir = self.dataDirButton.directory
-
-    if self.inputDataDir != "":
-      self.dataDirButton.text = self.inputDataDir
-      self.setSetting('InputLocation', self.inputDataDir)
-      logging.debug('Directory selected:')
-      logging.debug(self.inputDataDir)
-      logging.debug(self.getSetting('InputLocation'))
-      self.dataDirLabel.setText(os.path.split(self.inputDataDir)[1])
-      self.checkAndSetLUT()
-      self.onUpdateStudyTable()
 
   def onBuildModels(self):
     """make models of the structure label nodesvolume"""
@@ -954,34 +951,74 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.setTabsEnabled([0],True)
     self.setTabsEnabled([1,2,3], False)
 
-  def onUpdateStudyTable(self):
-    studyDirs = []
-    # get list of studies
-    if not os.path.exists(self.inputDataDir):
-      return
-
-    dirs = os.listdir(self.inputDataDir)
-
-    progress = self.makeProgressIndicator(len(dirs))
-    nLoaded = 0
-
-    for studyName in dirs:
-      if os.path.isdir(os.path.join(self.inputDataDir, studyName)) and studyName != 'SETTINGS':
-        studyDirs.append(studyName)
-        logging.debug('Appending '+studyName)
-        progress.setValue(nLoaded)
-        nLoaded += 1
-
+  def updateStudyTable(self):
     self.studiesModel.clear()
-    self.studyItems = []
-    for s in studyDirs:
-      sItem = qt.QStandardItem(s)
-      self.studyItems.append(sItem)
-      self.studiesModel.appendRow(sItem)
-      logging.debug('Appended to model study '+s)
-    # TODO: unload all volume nodes that are already loaded
+    if self.logic.wasmpReviewPreprocessed(self.inputDataDir):
+      self.fillStudyTable()
+    else:
+      self.notifyUserAboutMissingEligibleData()
 
-    progress.delete()
+  def notifyUserAboutMissingEligibleData(self):
+    outputDirectory = os.path.abspath(self.inputDataDir) + "_" + datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+    mbox = qt.QMessageBox()
+    mbox.icon = qt.QMessageBox.Question
+    mbox.text = "The selected directory is not eligible for using with mpReview.\n\n" \
+                "Do you want to parse the directory and preprocess found DICOM data?\n\n" \
+                "Output directory (browse to change): \n\n%s\n\n" \
+                "NOTE: The original DICOM data will not be modified." % outputDirectory
+    okButton = mbox.addButton(qt.QMessageBox.Ok)
+    browseButton = self.createButton("Browse", icon=ctk.ctkDirectoryButton().icon)
+    mbox.addButton(browseButton, qt.QMessageBox.ActionRole)
+    mbox.addButton(qt.QMessageBox.Cancel)
+    mbox.exec_()
+    selectedButton = mbox.clickedButton()
+    if selectedButton in [browseButton, okButton]:
+      if selectedButton is browseButton:
+        selectedDir = qt.QFileDialog.getExistingDirectory(None, self.inputDataDir)
+        if selectedDir and selectedDir != self.inputDataDir:
+          outputDirectory = selectedDir
+        else:
+          if selectedDir == self.inputDataDir:
+            self.warningDialog("The output directory cannot be the input data directory Please choose another "
+                               "directory.")
+          return self.updateStudyTable()
+      success = self.invokePreProcessing(outputDirectory)
+      if success:
+        self.dataDirButton.directory = outputDirectory
+      else:
+        self.notificationDialog("No DICOM data could be processed. Please select another directory.")
+
+  def fillStudyTable(self):
+    self.studyItems = []
+    dirs = self.logic.getStudyNames(self.inputDataDir)
+    progress = self.makeProgressIndicator(len(dirs))
+    for studyIndex, studyName in enumerate(dirs, start=1):
+      if os.path.isdir(os.path.join(self.inputDataDir, studyName)) and studyName != 'SETTINGS':
+        sItem = qt.QStandardItem(studyName)
+        self.studyItems.append(sItem)
+        self.studiesModel.appendRow(sItem)
+        logging.debug('Appended to model study ' + studyName)
+        progress.setValue(studyIndex)
+    # TODO: unload all volume nodes that are already loaded
+    progress.close()
+
+  def invokePreProcessing(self, outputDirectory):
+    self.mpReviewPreprocessorLogic = mpReviewPreprocessorLogic()
+    self.progress = self.makeProgressIndicator()
+    self.progress.canceled.connect(lambda : self.mpReviewPreprocessorLogic.cancelProcess())
+    self.mpReviewPreprocessorLogic.importStudy(self.inputDataDir, progressCallback=self.updateProgressBar)
+    success = False
+    if self.mpReviewPreprocessorLogic.patientFound():
+      success = True
+      self.logic.createDirectory(outputDirectory)
+      self.mpReviewPreprocessorLogic.convertData(outputDir=outputDirectory, copyDICOM=True,
+                                                 progressCallback=self.updateProgressBar)
+    self.progress.canceled.disconnect(lambda : self.mpReviewPreprocessorLogic.cancelProcess())
+    self.progress.close()
+    return success
+
+  def updateProgressBar(self, **kwargs):
+    ModuleWidgetMixin.updateProgressBar(self, progress=self.progress, **kwargs)
 
   def onStep2Selected(self):
     if self.checkStep3or4Leave() is True:
@@ -1018,7 +1055,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     self.parameters['StudyName'] = self.selectedStudyName
 
-    self.resourcesDir = os.path.join(self.inputDataDir,self.selectedStudyName,'RESOURCES')
+    self.resourcesDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'RESOURCES')
 
     # Loading progress indicator
     progress = self.makeProgressIndicator(len(os.listdir(self.resourcesDir)))
@@ -1027,7 +1064,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     # expect one directory for each processed series, with the name
     # corresponding to the series number
     self.seriesMap = {}
-    for root,subdirs,files in os.walk(self.resourcesDir):
+    for root, subdirs, files in os.walk(self.resourcesDir):
       logging.debug('Root: '+root+', files: '+str(files))
       resourceType = os.path.split(root)[1]
       logging.debug('Resource: '+resourceType)
@@ -2021,6 +2058,16 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
 
   def __init__(self, parent=None):
     ScriptedLoadableModuleLogic.__init__(self, parent)
+
+  def wasmpReviewPreprocessed(self, directory):
+    return len(self.getStudyNames(directory)) > 0
+
+  def getStudyNames(self, directory):
+    return [d for d in self.getSubDirectories(directory)
+            if "RESOURCES" in self.getSubDirectories(os.path.join(directory, d))]
+
+  def getSubDirectories(self, directory):
+    return [d for d in os.listdir(directory) if os.path.isdir(os.path.join(directory, d))]
 
   def hasImageData(self,volumeNode):
     """This is a dummy logic method that
