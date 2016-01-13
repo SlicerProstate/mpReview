@@ -290,6 +290,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def configureEditorEffectsUI(self):
     editBoxFrame = self.editorWidget.editBoxFrame
     effectButtonFrame = slicer.util.findChildren(editBoxFrame, "RowFrame1")[0].layout()
+    effectButtonFrame.addWidget(slicer.util.findChildren(editBoxFrame, 'DilateEffectToolButton')[0])
     effectButtonFrame.addWidget(slicer.util.findChildren(editBoxFrame, 'WindowLevelEffectToolButton')[0])
     slicer.util.findChildren(editBoxFrame, "RowFrame2")[0].hide()
 
