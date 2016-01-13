@@ -955,14 +955,37 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     if self.logic.wasmpReviewPreprocessed(self.inputDataDir):
       self.fillStudyTable()
     else:
-      if self.confirmDialog("The selected directory is not eligible for using with mpReview.\n\n"
-                            "Do you want to parse the directory and preprocess found DICOM data?\n\n"
-                            "NOTE: The original DICOM data is not modified."):
-        outputDirectory = self.invokePreProcessing(self.inputDataDir)
-        if outputDirectory:
-          self.dataDirButton.directory = outputDirectory
+      self.notifyUserAboutMissingEligibleData()
+
+  def notifyUserAboutMissingEligibleData(self):
+    outputDirectory = os.path.abspath(self.inputDataDir) + "_" + datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+    mbox = qt.QMessageBox()
+    mbox.icon = qt.QMessageBox.Question
+    mbox.text = "The selected directory is not eligible for using with mpReview.\n\n" \
+                "Do you want to parse the directory and preprocess found DICOM data?\n\n" \
+                "Output directory (browse to change): \n\n%s\n\n" \
+                "NOTE: The original DICOM data will not be modified." % outputDirectory
+    okButton = mbox.addButton(qt.QMessageBox.Ok)
+    browseButton = self.createButton("Browse", icon=ctk.ctkDirectoryButton().icon)
+    mbox.addButton(browseButton, qt.QMessageBox.ActionRole)
+    mbox.addButton(qt.QMessageBox.Cancel)
+    mbox.exec_()
+    selectedButton = mbox.clickedButton()
+    if selectedButton in [browseButton, okButton]:
+      if selectedButton is browseButton:
+        selectedDir = qt.QFileDialog.getExistingDirectory(None, self.inputDataDir)
+        if selectedDir and selectedDir != self.inputDataDir:
+          outputDirectory = selectedDir
         else:
-          self.notificationDialog("No DICOM data could be processed. Please select another directory.")
+          if selectedDir == self.inputDataDir:
+            self.warningDialog("The output directory cannot be the input data directory Please choose another "
+                               "directory.")
+          return self.updateStudyTable()
+      success = self.invokePreProcessing(outputDirectory)
+      if success:
+        self.dataDirButton.directory = outputDirectory
+      else:
+        self.notificationDialog("No DICOM data could be processed. Please select another directory.")
 
   def fillStudyTable(self):
     self.studyItems = []
@@ -978,20 +1001,20 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     # TODO: unload all volume nodes that are already loaded
     progress.close()
 
-  def invokePreProcessing(self, inputDir):
+  def invokePreProcessing(self, outputDirectory):
     self.mpReviewPreprocessorLogic = mpReviewPreprocessorLogic()
     self.progress = self.makeProgressIndicator()
     self.progress.canceled.connect(lambda : self.mpReviewPreprocessorLogic.cancelProcess())
     self.mpReviewPreprocessorLogic.importStudy(self.inputDataDir, progressCallback=self.updateProgressBar)
-    outputDirectory = None
+    success = False
     if self.mpReviewPreprocessorLogic.patientFound():
-      outputDirectory = os.path.abspath(inputDir) + "_" + datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+      success = True
       self.logic.createDirectory(outputDirectory)
       self.mpReviewPreprocessorLogic.convertData(outputDir=outputDirectory, copyDICOM=True,
                                                  progressCallback=self.updateProgressBar)
     self.progress.canceled.disconnect(lambda : self.mpReviewPreprocessorLogic.cancelProcess())
     self.progress.close()
-    return outputDirectory
+    return success
 
   def updateProgressBar(self, **kwargs):
     ModuleWidgetMixin.updateProgressBar(self, progress=self.progress, **kwargs)
