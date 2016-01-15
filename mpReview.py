@@ -24,7 +24,7 @@ class mpReview(ScriptedLoadableModule):
     parent.dependencies = ["WindowLevelEffect"]
     parent.contributors = ["Andrey Fedorov (SPL), Robin Weiss (U. of Chicago), Alireza Mehrtash (SPL), Christian Herz (SPL)"]
     parent.helpText = """
-    Multiparametric Image Review (mpReview) module is intended to support review and annotation of multiparametric image data. The driving use case for the development of this module was review and segmentation of the regions of interest in prostate cancer multiparametric MRI. 
+    Multiparametric Image Review (mpReview) module is intended to support review and annotation of multiparametric image data. The driving use case for the development of this module was review and segmentation of the regions of interest in prostate cancer multiparametric MRI.
     """
     parent.acknowledgementText = """
     Supported by NIH U24 CA180918 (PIs Fedorov & Kikinis) and U01CA151261 (PI Fennessy)
@@ -44,7 +44,8 @@ class mpReview(ScriptedLoadableModule):
 
 class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
-  VIEWFORM_URL = 'https://docs.google.com/forms/d/1Xwhvjn_HjRJAtgV5VruLCDJ_eyj1C-txi8HWn8VyXa4/viewform'
+  PIRADS_VIEWFORM_URL = 'https://docs.google.com/forms/d/1Xwhvjn_HjRJAtgV5VruLCDJ_eyj1C-txi8HWn8VyXa4/viewform'
+  QA_VIEWFORM_URL = 'https://docs.google.com/forms/d/18Ni2rcooi60fev5mWshJA0yaCzHYvmXPhcG2-jMF-uw/viewform'
 
   @property
   def inputDataDir(self):
@@ -66,7 +67,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def __init__(self, parent = None):
     ScriptedLoadableModuleWidget.__init__(self, parent)
     self.resourcesPath = os.path.join(slicer.modules.mpreview.path.replace(self.moduleName+".py",""), 'Resources')
-    self.webFormURL = ''
+    self.qaFormURL = ''
+    self.piradsFormURL = ''
 
     # TODO: figure out why module/class hierarchy is different
     # between developer builds ans packages
@@ -382,8 +384,12 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.segmentationGroupBoxLayout.addWidget(self.fiducialsArea)
 
   def setupCompletionUI(self):
-    self.qaButton = qt.QPushButton("PI-RADS v2 review form")
+    self.piradsButton = qt.QPushButton("PI-RADS v2 review form")
+    self.completionGroupBoxLayout.addWidget(self.piradsButton)
+
+    self.qaButton = qt.QPushButton("Quality Assurance form")
     self.completionGroupBoxLayout.addWidget(self.qaButton)
+
     self.saveButton = qt.QPushButton("Save")
     self.completionGroupBoxLayout.addWidget(self.saveButton)
     '''
@@ -403,6 +409,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.buildModelsButton.connect("clicked()", self.onBuildModels)
       self.modelsVisibilityButton.connect("toggled(bool)", self.onModelsVisibilityButton)
       self.labelMapOutlineButton.connect('toggled(bool)', self.setLabelOutline)
+      self.piradsButton.connect('clicked()', self.onPIRADSFormClicked)
       self.qaButton.connect('clicked()', self.onQAFormClicked)
       self.saveButton.connect('clicked()', self.onSaveClicked)
       for orientation in self.orientations:
@@ -445,7 +452,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   def enter(self):
     userName = self.getSetting('UserName')
-    self.webFormURL = self.getSetting('webFormURL')
+    self.piradsFormURL = self.getSetting('piradsFormURL')
+    self.qaFormURL = self.getSetting('qaFormURL')
 
     if userName is None or userName == '':
       # prompt the user for ID (last name)
@@ -464,7 +472,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     else:
       self.parameters['UserName'] = userName
 
-    if self.webFormURL is None or self.webFormURL == '':
+    if self.piradsFormURL is None or self.piradsFormURL == '':
       # prompt the user for the review form
       # Note: it is expected that the module uses the form of the structure as
       # in http://goo.gl/nT1z4L. The known structure of the form is used to
@@ -473,15 +481,34 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.URLPrompt = qt.QDialog()
       self.URLPromptLayout = qt.QVBoxLayout()
       self.URLPrompt.setLayout(self.URLPromptLayout)
-      self.URLLabel = qt.QLabel('Enter review form URL:', self.URLPrompt)
+      self.URLLabel = qt.QLabel('Enter PI-RADS review form URL:', self.URLPrompt)
       # replace this if you are using a different form
-      self.URLText = qt.QLineEdit(self.VIEWFORM_URL)
+      self.URLText = qt.QLineEdit(self.PIRADS_VIEWFORM_URL)
       self.URLButton = qt.QPushButton('OK', self.URLPrompt)
-      self.URLButton.connect('clicked()', self.onURLEntered)
+      self.URLButton.connect('clicked()', self.onPIRADSURLEntered)
       self.URLPromptLayout.addWidget(self.URLLabel)
       self.URLPromptLayout.addWidget(self.URLText)
       self.URLPromptLayout.addWidget(self.URLButton)
       self.URLPrompt.exec_()
+
+      if self.qaFormURL is None or self.qaFormURL == '':
+        # prompt the user for the review form
+        # Note: it is expected that the module uses the form of the structure as
+        # in http://goo.gl/nT1z4L. The known structure of the form is used to
+        # pre-populate the fields corresponding to readerName, studyName and
+        # lesionID.
+        self.URLPrompt = qt.QDialog()
+        self.URLPromptLayout = qt.QVBoxLayout()
+        self.URLPrompt.setLayout(self.URLPromptLayout)
+        self.URLLabel = qt.QLabel('Enter QA review form URL:', self.URLPrompt)
+        # replace this if you are using a different form
+        self.URLText = qt.QLineEdit(self.QA_VIEWFORM_URL)
+        self.URLButton = qt.QPushButton('OK', self.URLPrompt)
+        self.URLButton.connect('clicked()', self.onQAURLEntered)
+        self.URLPromptLayout.addWidget(self.URLLabel)
+        self.URLPromptLayout.addWidget(self.URLText)
+        self.URLPromptLayout.addWidget(self.URLButton)
+        self.URLPrompt.exec_()
 
     '''
     # ask where is the input
@@ -575,12 +602,19 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.namePrompt.close()
       self.parameters['UserName'] = name
 
-  def onURLEntered(self):
+  def onQAURLEntered(self):
     url = self.URLText.text
     if len(url)>0:
-      self.setSetting('webFormURL',url)
+      self.setSetting('qaFormURL',url)
       self.URLPrompt.close()
-      self.webFormURL = url
+      self.qaFormURL = url
+
+  def onPIRADSURLEntered(self):
+    url = self.URLText.text
+    if len(url)>0:
+      self.setSetting('piradsFormURL',url)
+      self.URLPrompt.close()
+      self.piradsFormURL = url
 
   # def onResultsDirEntered(self):
   #   path = self.dirButton.directory
@@ -621,15 +655,28 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     logging.debug('Row number: '+str(modelIndex.row()))
     self.setTabsEnabled([2], True)
 
+  def onPIRADSFormClicked(self):
+    self.webView = qt.QWebView()
+    self.webView.settings().setAttribute(qt.QWebSettings.DeveloperExtrasEnabled, True)
+    self.webView.connect('loadFinished(bool)', self.webViewFormLoadedCallback)
+    self.webView.show()
+    preFilledURL = self.piradsFormURL
+    preFilledURL += '?entry.1455103354='+self.getSetting('UserName')
+    preFilledURL += '&entry.347120626='+self.selectedStudyName
+    preFilledURL += '&entry.1734306468='+str(self.editorWidget.toolsColor.colorSpin.value)
+    u = qt.QUrl(preFilledURL)
+    self.webView.setUrl(u)
+
+  # https://docs.google.com/forms/d/18Ni2rcooi60fev5mWshJA0yaCzHYvmXPhcG2-jMF-uw/viewform?entry.1920755914=READER&entry.204001910=STUDY
   def onQAFormClicked(self):
     self.webView = qt.QWebView()
     self.webView.settings().setAttribute(qt.QWebSettings.DeveloperExtrasEnabled, True)
     self.webView.connect('loadFinished(bool)', self.webViewFormLoadedCallback)
     self.webView.show()
-    preFilledURL = self.webFormURL
-    preFilledURL += '?entry.1455103354='+self.getSetting('UserName')
-    preFilledURL += '&entry.347120626='+self.selectedStudyName
-    preFilledURL += '&entry.1734306468='+str(self.editorWidget.toolsColor.colorSpin.value)
+    preFilledURL = self.qaFormURL
+    preFilledURL += '?entry.1920755914='+self.getSetting('UserName')
+    preFilledURL += '&entry.204001910='+self.selectedStudyName
+    print('Pre-filled URL:'+preFilledURL)
     u = qt.QUrl(preFilledURL)
     self.webView.setUrl(u)
 
