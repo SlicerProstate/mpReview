@@ -2068,7 +2068,7 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
     discardThose = ['SAG','COR','PURE','mapping','DWI',
                     'breath','3D DCE','loc','Expo','Map',
                     'MAP','POST','ThreeParameter','AutoAIF',
-                    'BAT','-Slope','PkRsqr']
+                    'BAT','-Slope','PkRsqr','Loc','Cal','Body']
     for d in discardThose:
       if string.find(desc,d)>=0:
         return False
