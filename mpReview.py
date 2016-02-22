@@ -224,6 +224,11 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.seriesView, self.seriesModel = self._createListView('SeriesTable', ['Series ID'])
     self.seriesView.setSelectionMode(qt.QAbstractItemView.ExtendedSelection)
     self.seriesSelectionGroupBoxLayout.addWidget(self.seriesView)
+    self.selectAllSeriesButton = self.createButton('Select All')
+    self.deselectAllSeriesButton = self.createButton('Deselect All')
+    seriesSelectionButtonBox = self.createHLayout([self.selectAllSeriesButton, self.deselectAllSeriesButton])
+    self.seriesSelectionGroupBoxLayout.addWidget(seriesSelectionButtonBox)
+    
 
   def setupSegmentationToolsUI(self):
     self.refSelector = qt.QComboBox()
@@ -402,6 +407,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     def setupButtonConnections():
       self.dataDirButton.directorySelected.connect(lambda: setattr(self, "inputDataDir", self.dataDirButton.directory))
+      self.selectAllSeriesButton.connect('clicked()', self.selectAllSeries)
+      self.deselectAllSeriesButton.connect('clicked()', self.deselectAllSeries)
       self.deleteStructureButton.connect('clicked()', self.onDeleteStructure)
       self.propagateButton.connect('clicked()', self.onPropagateROI)
       self.createFiducialsButton.connect('clicked()', self.onCreateFiducialsButtonClicked)
@@ -1812,6 +1819,14 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     # Re-select the structure in the list
     self.editorWidget.helper.structureListWidget.selectStructure(rowIdx)
+
+  def selectAllSeries(self):
+    for item in self.seriesItems:
+      item.setCheckState(2)
+
+  def deselectAllSeries(self):
+    for item in self.seriesItems:
+      item.setCheckState(0)
 
   def onTranslate(self):
     if self.ignoreTranslate:
