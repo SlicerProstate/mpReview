@@ -661,7 +661,11 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     selectionModel = self.seriesView.selectionModel()
     logging.debug('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
     logging.debug('Row number: '+str(modelIndex.row()))
-    self.setTabsEnabled([2], True)
+    numCheckedItems = len([item for item in self.seriesItems if item.checkState()])
+    if numCheckedItems == 0:
+      self.setTabsEnabled([2], False)
+    else:
+      self.setTabsEnabled([2], True)
 
   def onPIRADSFormClicked(self):
     self.webView = qt.QWebView()
