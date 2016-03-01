@@ -57,8 +57,11 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     logging.debug('Directory selected: %s' % directory)
     if not os.path.exists(directory):
       directory = None
-    self.dataDirButton.text = directory
-    self.dataDirLabel.setText(directory)
+    truncatedPath = self.truncatePath(directory)
+    self.dataDirButton.text = truncatedPath
+    self.dataDirButton.caption = directory
+    self.dataDirLabel.text = truncatedPath
+    self.dataDirLabel.toolTip = directory
     if directory:
       self.setSetting('InputLocation', directory)
       self.checkAndSetLUT()
@@ -207,14 +210,19 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def setupDataAndStudySelectionUI(self):
     self.dataDirButton = ctk.ctkDirectoryButton()
     self.studySelectionGroupBoxLayout.addWidget(qt.QLabel("Data directory:"), 0, 0, 1, 1)
-    self.studySelectionGroupBoxLayout.addWidget(self.dataDirButton, 0, 1, 1, 2)
+    self.studySelectionGroupBoxLayout.addWidget(self.dataDirButton, 0, 1, 1, qt.QSizePolicy.ExpandFlag)
 
-    self.customLUTInfoIcon = qt.QLabel()
-    self.customLUTInfoIcon.setPixmap(qt.QPixmap(os.path.join(self.resourcesPath, 'Icons', 'icon-infoBox.png')))
-    self.customLUTLabel = qt.QLabel()
-    infoGroupBox = self.createHLayout([self.customLUTInfoIcon, self.customLUTLabel], margin=0)
-    self.studySelectionGroupBoxLayout.addWidget(infoGroupBox, 0, 3, 1, 1)
+    self.customLUTInfoIcon = self.createHelperLabel()
+    self.studySelectionGroupBoxLayout.addWidget(self.customLUTInfoIcon, 0, 2, 1, 1, qt.Qt.AlignRight)
+    self.customLUTInfoIcon.hide()
     self.setupStudySelectionView()
+
+  def createHelperLabel(self, toolTipText=""):
+    helperPixmap = qt.QPixmap(os.path.join(self.resourcesPath, 'Icons', 'icon-infoBox.png'))
+    helperPixmap = helperPixmap.scaled(qt.QSize(23, 20))
+    label = self.createLabel("", pixmap=helperPixmap, toolTip=toolTipText)
+    label.setCursor(qt.Qt.PointingHandCursor)
+    return label
 
   def setupStudySelectionView(self):
     self.studySelectionGroupBoxLayout.addWidget(qt.QLabel("Studies found:"), 2, 0, 1, 4)
@@ -229,7 +237,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.deselectAllSeriesButton = self.createButton('Deselect All')
     seriesSelectionButtonBox = self.createHLayout([self.selectAllSeriesButton, self.deselectAllSeriesButton])
     self.seriesSelectionGroupBoxLayout.addWidget(seriesSelectionButtonBox)
-    
 
   def setupSegmentationToolsUI(self):
     self.refSelector = qt.QComboBox()
@@ -274,6 +281,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     modelsFrame = self.createHLayout([qt.QLabel('Structure Models: '), self.buildModelsButton,
                                       self.modelsVisibilityButton, self.labelMapOutlineButton, self.enableJumpToROI])
+    self.buildModelsButton.hide()
+    self.modelsVisibilityButton.hide()
 
     perStructureFrame = slicer.util.findChildren(self.editorWidget.volumes, 'PerStructureVolumesFrame')[0]
     perStructureFrame.collapsed = False
@@ -291,33 +300,39 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   def hideUnwantedEditorUIElements(self):
     for widgetName in ['AllButtonsFrameButton', 'ReplaceModelsCheckBox', 'MasterVolumeFrame', 'MergeVolumeFrame',
-                       'SplitStructureButton']:
+                       'SplitStructureButton', 'ExportDICOMButton']:
       widget = slicer.util.findChildren(self.editorWidget.volumes, widgetName)[0]
       widget.hide()
 
   def configureEditorEffectsUI(self):
     editBoxFrame = self.editorWidget.editBoxFrame
-    effectButtonFrame = slicer.util.findChildren(editBoxFrame, "RowFrame1")[0].layout()
-    effectButtonFrame.addWidget(slicer.util.findChildren(editBoxFrame, 'DilateEffectToolButton')[0])
-    effectButtonFrame.addWidget(slicer.util.findChildren(editBoxFrame, 'WindowLevelEffectToolButton')[0])
-    slicer.util.findChildren(editBoxFrame, "RowFrame2")[0].hide()
+    effectButtonFrameLayout = slicer.util.findChildren(editBoxFrame, 'RowFrame1')[0].layout()
+    for objectName in ['WandEffectToolButton', 'LevelTracingEffectToolButton', 'RectangleEffectToolButton',
+                       'IdentifyIslandsEffectToolButton', 'ChangeIslandEffectToolButton', 'RemoveIslandsEffectToolButton',
+                       'SaveIslandEffectToolButton', 'RowFrame2']:
+      slicer.util.findChildren(editBoxFrame, objectName)[0].hide()
+    effectButtonFrameLayout.addWidget(slicer.util.findChildren(editBoxFrame, 'DilateEffectToolButton')[0])
+    effectButtonFrameLayout.addWidget(slicer.util.findChildren(editBoxFrame, 'WindowLevelEffectToolButton')[0])
 
   def addCustomEditorButtons(self):
     volumesFrame = self.editorWidget.volumes
-    buttonsFrameLayout = slicer.util.findChildren(volumesFrame, 'ButtonsFrame')[0].layout()
+    buttonsFrame = slicer.util.findChildren(volumesFrame, 'ButtonsFrame')[0]
+
+    buttonsFrameLayout = buttonsFrame.layout()
 
     redWidget = self.layoutManager.sliceWidget('Red')
     controller = redWidget.sliceController()
     moreButton = slicer.util.findChildren(controller, 'MoreButton')[0]
     moreButton.toggle()
 
-    self.deleteStructureButton = qt.QPushButton('Delete Structure')
-    self.propagateButton = qt.QPushButton('Propagate Structure')
+    self.deleteStructureButton = qt.QPushButton('Delete')
+    self.propagateButton = qt.QPushButton('Propagate')
     self.createFiducialsButton = qt.QPushButton('Create Fiducials')
 
     buttonsFrameLayout.addWidget(self.deleteStructureButton)
     buttonsFrameLayout.addWidget(self.propagateButton)
     buttonsFrameLayout.addWidget(self.createFiducialsButton)
+    self.propagateButton.hide()
 
   def setupAdvancedSegmentationSettingsUI(self):
     self.advancedSettingsArea = ctk.ctkCollapsibleButton()
@@ -446,8 +461,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def onEditorWidgetParameterNodeChanged(self, caller, event=-1):
     effectName = caller.GetParameter("effect")
     toolbox = self.editorWidget.toolsBox
-    if effectName in ["PaintEffect", "DrawEffect", "WandEffect", "LevelTracingEffect", "RectangleEffect",
-                      "IdentifyIslandsEffect", "ChangeIslandEffect", "RemoveIslandsEffect", "SaveIslandEffect"]:
+    if effectName in ["PaintEffect", "DrawEffect"]:
       toolOption = toolbox.currentOption
       attributes = ["radius", "paintOver", "thresholdPaint", "sphere", "smudge", "pixelMode"]
       for attr in attributes:
@@ -557,7 +571,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def checkAndSetLUT(self):
     # Default to module color table
     self.colorFile = os.path.join(self.resourcesPath, "Colors/mpReviewColors.csv")
-    self.customLUTLabel.setText('Using Default LUT')
+    self.customLUTInfoIcon.show()
+    self.customLUTInfoIcon.toolTip = 'Using Default LUT'
 
     # Check for custom LUT
     lookupTableLoc = os.path.join(self.inputDataDir, 'SETTINGS', self.inputDataDir.split(os.sep)[-1] + '-LUT.csv')
@@ -565,7 +580,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     if os.path.isfile(lookupTableLoc):
       # use custom color table
       self.colorFile = lookupTableLoc
-      self.customLUTLabel.setText('Project-Specific LUT Found')
+      self.customLUTInfoIcon.toolTip = 'Project-Specific LUT Found'
 
     # Set merge volume in structureListWidget to None so Editor doesn't get confused by missing node
     # This may be the first time we get here, in which case editorWidget is not
@@ -648,6 +663,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       layoutNode.SetViewArrangement(layoutNode.SlicerLayoutOneUpRedSliceView)
 
   def onStudySelected(self, modelIndex):
+    # TODO: instead of activating tab, the series selection widget should be moved to the first tab
     logging.debug('Row selected: '+self.studiesModel.item(modelIndex.row(),0).text())
     selectionModel = self.studiesView.selectionModel()
     logging.debug('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
