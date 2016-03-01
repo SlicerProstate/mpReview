@@ -42,6 +42,7 @@ class mpReview(ScriptedLoadableModule):
   def runTest(self):
     return
 
+
 class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   PIRADS_VIEWFORM_URL = 'https://docs.google.com/forms/d/1Xwhvjn_HjRJAtgV5VruLCDJ_eyj1C-txi8HWn8VyXa4/viewform'
@@ -660,7 +661,11 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     selectionModel = self.seriesView.selectionModel()
     logging.debug('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
     logging.debug('Row number: '+str(modelIndex.row()))
-    self.setTabsEnabled([2], True)
+    numCheckedItems = len([item for item in self.seriesItems if item.checkState()])
+    if numCheckedItems == 0:
+      self.setTabsEnabled([2], False)
+    else:
+      self.setTabsEnabled([2], True)
 
   def onPIRADSFormClicked(self):
     self.webView = qt.QWebView()
@@ -1823,10 +1828,12 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def selectAllSeries(self):
     for item in self.seriesItems:
       item.setCheckState(2)
+    self.setTabsEnabled([2], True)
 
   def deselectAllSeries(self):
     for item in self.seriesItems:
       item.setCheckState(0)
+    self.setTabsEnabled([2], False)
 
   def onTranslate(self):
     if self.ignoreTranslate:
