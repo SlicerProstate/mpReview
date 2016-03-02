@@ -11,6 +11,7 @@ import datetime
 from slicer.ScriptedLoadableModule import *
 from Util.mixins import ModuleWidgetMixin
 from mpReviewPreprocessor import mpReviewPreprocessorLogic
+from collections import OrderedDict
 from qSlicerMultiVolumeExplorerModuleWidget import qSlicerMultiVolumeExplorerSimplifiedModuleWidget
 from qSlicerMultiVolumeExplorerModuleHelper import qSlicerMultiVolumeExplorerModuleHelper as MVHelper
 
@@ -60,8 +61,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     truncatedPath = self.truncatePath(directory)
     self.dataDirButton.text = truncatedPath
     self.dataDirButton.caption = directory
-    self.dataDirLabel.text = truncatedPath
-    self.dataDirLabel.toolTip = directory
+    self.informationWatchBox.setInformation("CurrentDataDir", truncatedPath, toolTip=directory)
     if directory:
       self.setSetting('InputLocation', directory)
       self.checkAndSetLUT()
@@ -188,35 +188,14 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.currentTabIndex = 0
 
   def setupInformationFrame(self):
-    self.informationGroupBox, self.informationViewBoxLayout = self._createWatchBox(maximumHeight=100)
 
-    self.studyIDLabel = qt.QLabel()
-    self.dataDirLabel = qt.QLabel()
-    self.patientIDLabel = qt.QLabel()
-    self.patientBirthDatLabel = qt.QLabel()
-    self.studyDateLabel = qt.QLabel()
+    watchBoxInformation = OrderedDict([('Study ID: ', "StudyID"), ('Study Date: ', "StudyDate"),
+                                       ('Patient ID: ', "PatientID"), ('Patient Birthdate: ', "PatientBirthDate"),
+                                       ('Current Data Dir: ', "CurrentDataDir")])
 
-    self.informationViewBoxLayout.addWidget(qt.QLabel('Patient ID: '), 0, 0, 1, 1, qt.Qt.AlignLeft)
-    self.informationViewBoxLayout.addWidget(self.patientIDLabel, 0, 2, 1, 2)
-    self.informationViewBoxLayout.addWidget(qt.QLabel('Patient Birthdate: '), 1, 0, 1, 1, qt.Qt.AlignLeft)
-    self.informationViewBoxLayout.addWidget(self.patientBirthDatLabel, 1, 2, 1, 2)
-    self.informationViewBoxLayout.addWidget(qt.QLabel('Study ID: '), 2, 0, 1, 1, qt.Qt.AlignLeft)
-    self.informationViewBoxLayout.addWidget(self.studyIDLabel, 2, 2, 1, 2)
-    self.informationViewBoxLayout.addWidget(qt.QLabel('Study Date: '), 3, 0, 1, 1, qt.Qt.AlignLeft)
-    self.informationViewBoxLayout.addWidget(self.studyDateLabel, 3, 2, 1, 2)
-    self.informationViewBoxLayout.addWidget(qt.QLabel('Current Data Dir: '), 4, 0, 1, 1, qt.Qt.AlignLeft)
-    self.informationViewBoxLayout.addWidget(self.dataDirLabel, 4, 2, 1, 2)
+    self.informationWatchBox = InformationWatchBox(watchBoxInformation)
 
-    self.layout.addWidget(self.informationGroupBox)
-
-  def _createWatchBox(self, maximumHeight):
-    watchBox = qt.QGroupBox()
-    watchBox.maximumHeight = maximumHeight
-    watchBox.setStyleSheet('background-color: rgb(230,230,230)')
-    watchBoxLayout = qt.QGridLayout()
-    watchBox.setLayout(watchBoxLayout)
-    self.layout.addWidget(watchBox)
-    return watchBox, watchBoxLayout
+    self.layout.addWidget(self.informationWatchBox)
 
   def setupDataAndStudySelectionUI(self):
     self.dataDirButton = ctk.ctkDirectoryButton()
@@ -1113,13 +1092,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def updateProgressBar(self, **kwargs):
     ModuleWidgetMixin.updateProgressBar(self, progress=self.progress, **kwargs)
 
-  def updateInformationFrame(self, metaFile):
-    dom = xml.dom.minidom.parse(metaFile)
-    self.patientIDLabel.text = self.findElement(dom, 'PatientID')
-    self.patientBirthDatLabel.text = self.logic.formatDate(self.findElement(dom, 'PatientBirthDate'))
-    self.studyIDLabel.text = self.selectedStudyName
-    self.studyDateLabel.text = self.logic.formatDate(self.findElement(dom, 'StudyDate'))
-
   def onStudySelected(self, modelIndex):
     self.studiesGroupBox.collapsed = True
     logging.debug('Row selected: '+self.studiesModel.item(modelIndex.row(),0).text())
@@ -1178,9 +1150,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
             logging.debug('Ends with xml: '+metaFile)
             try:
               (seriesNumber,seriesName) = self.getSeriesInfoFromXML(metaFile)
-              if loadFurtherInformation:
-                self.updateInformationFrame(metaFile)
-                loadFurtherInformation = False
               logging.debug(str(seriesNumber)+' '+seriesName)
             except:
               logging.debug('Failed to get from XML')
@@ -1193,7 +1162,10 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
             volumePath = os.path.join(root,seriesNumber+'.nrrd')
             self.seriesMap[seriesNumber] = {'MetaInfo':None, 'NRRDLocation':volumePath,'LongName':seriesName}
             self.seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+seriesName
-            # self.helper.abbreviateName(self.seriesMap[seriesNumber]['MetaInfo'])
+            if loadFurtherInformation is True:
+              self.informationWatchBox.sourceFile = metaFile
+              self.informationWatchBox.setInformation("StudyID", self.selectedStudyName)
+              loadFurtherInformation = False
 
       # ignore the PK maps for the purposes of segmentation
       if resourceType == 'OncoQuant' and False:
@@ -2353,3 +2325,63 @@ class mpReviewFiducialTable(object):
     if not node:
       node = self.fiducialListSelector.addNode()
     return node
+
+
+class InformationWatchBox(qt.QGroupBox):
+
+  DEFAULT_STYLE = 'background-color: rgb(230,230,230)'
+  DEFAULT_ATTRIBUTE_PREFIX = "_attribute"
+
+  @property
+  def sourceFile(self):
+    return self._sourceFile
+
+  @sourceFile.setter
+  def sourceFile(self, filePath):
+    assert os.path.exists(filePath)
+    assert filePath.endswith('.xml')
+    self._sourceFile = filePath
+    self.updateInformation()
+
+  def __init__(self, labelsAttributeNames, sourceFile=None, parent=None, **kwargs):
+    super(InformationWatchBox, self).__init__(parent)
+    self.labelsAttributeNames = labelsAttributeNames
+    self.setup()
+    if sourceFile:
+      self.sourceFile = sourceFile
+
+  def setup(self):
+    self.setStyleSheet(self.DEFAULT_STYLE)
+    layout = qt.QGridLayout()
+    self.setLayout(layout)
+
+    for index, (label, tagValue) in enumerate(self.labelsAttributeNames.iteritems()):
+      setattr(self, self.DEFAULT_ATTRIBUTE_PREFIX+tagValue, qt.QLabel())
+      layout.addWidget(qt.QLabel(label), index, 0, 1, 1, qt.Qt.AlignLeft)
+      layout.addWidget(getattr(self, self.DEFAULT_ATTRIBUTE_PREFIX+tagValue), index, 1, 1, 2)
+
+  def updateInformation(self):
+    # TODO: implement for DICOM
+    dom = xml.dom.minidom.parse(self._sourceFile)
+    for tagValue in self.labelsAttributeNames.values():
+      label = getattr(self, self.DEFAULT_ATTRIBUTE_PREFIX+tagValue)
+      value = self.findElement(dom, tagValue)
+      if label and value:
+        label.text = value
+        label.toolTip = value
+
+  def setInformation(self, tagName, value, toolTip=None):
+    label = getattr(self, self.DEFAULT_ATTRIBUTE_PREFIX+tagName)
+    if label:
+      label.text = value
+      if toolTip:
+        label.toolTip = toolTip
+
+  def findElement(self, dom, name):
+    els = dom.getElementsByTagName('element')
+    for e in els:
+      if e.getAttribute('name') == name:
+        try:
+          return e.childNodes[0].nodeValue
+        except IndexError:
+          return ""
