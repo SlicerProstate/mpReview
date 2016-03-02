@@ -219,8 +219,17 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.studiesGroupBox.title = "Studies"
     studiesGroupBoxLayout = qt.QGridLayout()
     self.studiesGroupBox.setLayout(studiesGroupBoxLayout)
-    self.studiesView, self.studiesModel = self._createListView('StudiesTable', ['Study ID'])
-    self.studiesView.setSizePolicy(qt.QSizePolicy.Expanding, qt.QSizePolicy.Expanding)
+    self.studiesView = qt.QTableView()
+    self.studiesView.setObjectName("StudiesTable")
+    self.studiesModel = qt.QStandardItemModel()
+    self.studiesModel.setHorizontalHeaderLabels(["Study ID", "Status"])
+    self.studiesView.setModel(self.studiesModel)
+    self.studiesView.setEditTriggers(qt.QAbstractItemView.NoEditTriggers)
+    self.studiesView.verticalHeader().setDefaultSectionSize(20)
+    self.studiesView.setSelectionBehavior(qt.QTableView.SelectRows)
+    self.studiesView.setShowGrid(False)
+    self.studiesView.horizontalHeader().hide()
+    self.studiesView.verticalHeader().hide()
     studiesGroupBoxLayout.addWidget(self.studiesView)
     self.studyAndSeriesSelectionWidgetLayout.addWidget(self.studiesGroupBox, 2, 0, 1, 3)
 
@@ -1012,6 +1021,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     if self.checkStep2or3Leave() is True:
       return False
 
+    self.updateStudyStatus()
+
     if len(self.studiesView.selectedIndexes()) > 0:
       self.onStudySelected(self.studiesView.selectedIndexes()[0])
     self.updateSegmentationTabAvailability()
@@ -1056,23 +1067,42 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         self.notificationDialog("No DICOM data could be processed. Please select another directory.")
 
   def fillStudyTable(self):
-    self.studyItems = []
+    studyItems = []
     self.seriesModel.clear()
     dirs = self.logic.getStudyNames(self.inputDataDir)
     progress = self.makeProgressIndicator(len(dirs))
     for studyIndex, studyName in enumerate(dirs, start=1):
-      if os.path.isdir(os.path.join(self.inputDataDir, studyName)) and studyName != 'SETTINGS':
-        sItem = qt.QStandardItem(studyName)
-        self.studyItems.append(sItem)
-        self.studiesModel.appendRow(sItem)
+      studyDirectory = os.path.join(self.inputDataDir, studyName)
+      if os.path.isdir(studyDirectory) and studyName != 'SETTINGS':
+        studyItem = qt.QStandardItem(studyName)
+        studyItems.append(studyItem)
+        studyStatus = qt.QStandardItem("Not processed" if not self.hasStudyBeenProcessed(studyDirectory) else "Processed")
+        self.studiesModel.appendRow([studyItem, studyStatus])
         logging.debug('Appended to model study ' + studyName)
         progress.setValue(studyIndex)
     # TODO: unload all volume nodes that are already loaded
     progress.close()
-    if len(self.studyItems) == 1:
+    self.studiesView.horizontalHeader().setResizeMode(0, qt.QHeaderView.Stretch)
+    if len(studyItems) == 1:
       modelIndex = self.studiesModel.index(0,0)
       self.studiesView.selectionModel().setCurrentIndex(modelIndex, self.studiesView.selectionModel().Select)
       self.studiesView.selectionModel().select(modelIndex, self.studiesView.selectionModel().Select)
+
+  def hasStudyBeenProcessed(self, directory):
+    resourcesDir = os.path.join(directory,'RESOURCES')
+    for series in os.listdir(resourcesDir):
+      segmentationsDir = os.path.join(resourcesDir, series, 'Segmentations')
+      if os.path.exists(segmentationsDir) and len([f for f in os.listdir(segmentationsDir) if ".DS_Store" not in f]) > 0:
+        return True
+    return False
+
+  def updateStudyStatus(self):
+    for rowIndex in range(self.studiesModel.rowCount()):
+      studyName = self.studiesModel.item(rowIndex,0).text()
+      studyDirectory = os.path.join(self.inputDataDir, studyName)
+      self.studiesModel.setItem(rowIndex, 1, qt.QStandardItem("Not processed"
+                                                              if not self.hasStudyBeenProcessed(studyDirectory)
+                                                              else "Processed"))
 
   def invokePreProcessing(self, outputDirectory):
     self.mpReviewPreprocessorLogic = mpReviewPreprocessorLogic()
