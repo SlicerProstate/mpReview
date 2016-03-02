@@ -121,7 +121,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   def setupIcons(self):
     self.studySelectionIcon = self.createIcon('icon-studyselection_fit.png')
-    self.seriesSelectionIcon = self.createIcon('icon-seriesselection_fit.png')
     self.segmentationIcon = self.createIcon('icon-segmentation_fit.png')
     self.completionIcon = self.createIcon('icon-completion_fit.png')
 
@@ -129,30 +128,26 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.tabWidget = qt.QTabWidget()
     self.layout.addWidget(self.tabWidget)
 
-    studySelectionGroupBox = qt.QGroupBox()
-    seriesSelectionGroupBox = qt.QGroupBox()
-    segmentationGroupBox = qt.QGroupBox()
-    completionGroupBox = qt.QGroupBox()
+    self.studyAndSeriesSelectionWidget = qt.QWidget()
+    self.segmentationWidget = qt.QWidget()
+    self.completionWidget = qt.QWidget()
 
-    self.studySelectionGroupBoxLayout = qt.QGridLayout()
-    self.seriesSelectionGroupBoxLayout = qt.QGridLayout()
-    self.segmentationGroupBoxLayout = qt.QGridLayout()
-    self.completionGroupBoxLayout = qt.QFormLayout()
+    self.studyAndSeriesSelectionWidgetLayout = qt.QGridLayout()
+    self.segmentationWidgetLayout = qt.QGridLayout()
+    self.completionWidgetLayout = qt.QFormLayout()
 
-    studySelectionGroupBox.setLayout(self.studySelectionGroupBoxLayout)
-    seriesSelectionGroupBox.setLayout(self.seriesSelectionGroupBoxLayout)
-    segmentationGroupBox.setLayout(self.segmentationGroupBoxLayout)
-    completionGroupBox.setLayout(self.completionGroupBoxLayout)
+    self.studyAndSeriesSelectionWidget.setLayout(self.studyAndSeriesSelectionWidgetLayout)
+    self.segmentationWidget.setLayout(self.segmentationWidgetLayout)
+    self.completionWidget.setLayout(self.completionWidgetLayout)
 
     self.tabWidget.setIconSize(qt.QSize(85, 30))
 
-    self.tabWidget.addTab(studySelectionGroupBox, self.studySelectionIcon, '')
-    self.tabWidget.addTab(seriesSelectionGroupBox, self.seriesSelectionIcon, '')
-    self.tabWidget.addTab(segmentationGroupBox, self.segmentationIcon, '')
-    self.tabWidget.addTab(completionGroupBox, self.completionIcon, '')
+    self.tabWidget.addTab(self.studyAndSeriesSelectionWidget, self.studySelectionIcon, '')
+    self.tabWidget.addTab(self.segmentationWidget, self.segmentationIcon, '')
+    self.tabWidget.addTab(self.completionWidget, self.completionIcon, '')
     self.tabWidget.connect('currentChanged(int)',self.onTabWidgetClicked)
 
-    self.setTabsEnabled([1,2,3,4], False)
+    self.setTabsEnabled([1,2], False)
 
   def onTabWidgetClicked(self, currentIndex):
     if currentIndex == 0:
@@ -161,8 +156,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.onStep2Selected()
     if currentIndex == 2:
       self.onStep3Selected()
-    if currentIndex == 3:
-      self.onStep4Selected()
 
   def setup(self):
     ScriptedLoadableModuleWidget.setup(self)
@@ -174,11 +167,11 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.parameters = {}
 
     self.setupDataAndStudySelectionUI()
-    self.setupSeriesSelectionUI()
+    self.setupSeriesSelectionView()
     self.setupSegmentationToolsUI()
     self.setupCompletionUI()
     self.setupConnections()
-    self.layout.addStretch(1)
+    # self.layout.addStretch(1)
 
     self.volumesLogic = slicer.modules.volumes.logic()
 
@@ -209,11 +202,11 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   def setupDataAndStudySelectionUI(self):
     self.dataDirButton = ctk.ctkDirectoryButton()
-    self.studySelectionGroupBoxLayout.addWidget(qt.QLabel("Data directory:"), 0, 0, 1, 1)
-    self.studySelectionGroupBoxLayout.addWidget(self.dataDirButton, 0, 1, 1, qt.QSizePolicy.ExpandFlag)
+    self.studyAndSeriesSelectionWidgetLayout.addWidget(qt.QLabel("Data directory:"), 0, 0, 1, 1)
+    self.studyAndSeriesSelectionWidgetLayout.addWidget(self.dataDirButton, 0, 1, 1, 2)
 
     self.customLUTInfoIcon = self.createHelperLabel()
-    self.studySelectionGroupBoxLayout.addWidget(self.customLUTInfoIcon, 0, 2, 1, 1, qt.Qt.AlignRight)
+    self.studyAndSeriesSelectionWidgetLayout.addWidget(self.customLUTInfoIcon, 0, 2, 1, 1, qt.Qt.AlignRight)
     self.customLUTInfoIcon.hide()
     self.setupStudySelectionView()
 
@@ -225,23 +218,32 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     return label
 
   def setupStudySelectionView(self):
-    self.studySelectionGroupBoxLayout.addWidget(qt.QLabel("Studies found:"), 2, 0, 1, 4)
+    self.studiesGroupBox = ctk.ctkCollapsibleGroupBox()
+    self.studiesGroupBox.title = "Studies"
+    studiesGroupBoxLayout = qt.QFormLayout()
+    self.studiesGroupBox.setLayout(studiesGroupBoxLayout)
     self.studiesView, self.studiesModel = self._createListView('StudiesTable', ['Study ID'])
-    self.studySelectionGroupBoxLayout.addWidget(self.studiesView, 3, 0, 1, 4)
+    self.studiesView.setSizePolicy(qt.QSizePolicy.Expanding, qt.QSizePolicy.Expanding)
+    studiesGroupBoxLayout.addWidget(self.studiesView)
+    self.studyAndSeriesSelectionWidgetLayout.addWidget(self.studiesGroupBox, 2, 0, 1, 3)
 
-  def setupSeriesSelectionUI(self):
+  def setupSeriesSelectionView(self):
+    self.seriesGroupBox = qt.QGroupBox("Series")
+    seriesGroupBoxLayout = qt.QGridLayout()
+    self.seriesGroupBox.setLayout(seriesGroupBoxLayout)
     self.seriesView, self.seriesModel = self._createListView('SeriesTable', ['Series ID'])
     self.seriesView.setSelectionMode(qt.QAbstractItemView.ExtendedSelection)
-    self.seriesSelectionGroupBoxLayout.addWidget(self.seriesView)
     self.selectAllSeriesButton = self.createButton('Select All')
     self.deselectAllSeriesButton = self.createButton('Deselect All')
-    seriesSelectionButtonBox = self.createHLayout([self.selectAllSeriesButton, self.deselectAllSeriesButton])
-    self.seriesSelectionGroupBoxLayout.addWidget(seriesSelectionButtonBox)
+    seriesGroupBoxLayout.addWidget(self.seriesView, 0, 0, 1, 2)
+    seriesGroupBoxLayout.addWidget(self.createHLayout([self.selectAllSeriesButton,  self.deselectAllSeriesButton]),
+                                   1, 0, 1, 2)
+    self.studyAndSeriesSelectionWidgetLayout.addWidget(self.seriesGroupBox, 3, 0, 1, 3)
 
   def setupSegmentationToolsUI(self):
     self.refSelector = qt.QComboBox()
-    self.segmentationGroupBoxLayout.addWidget(self.createHLayout([qt.QLabel("Reference image: "),
-                                                                  self.refSelector]), 0, 0)
+    self.segmentationWidgetLayout.addWidget(self.createHLayout([qt.QLabel("Reference image: "),
+                                                                self.refSelector]), 0, 0)
     self.setupMultiVolumeExplorerUI()
     self.setupLabelMapEditorUI()
     self.setupAdvancedSegmentationSettingsUI()
@@ -255,7 +257,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.multiVolumeExplorerArea.collapsed = True
     self.multiVolumeExplorer = mpReviewMultiVolumeExplorer(qt.QFormLayout(self.multiVolumeExplorerArea))
     self.multiVolumeExplorer.setup()
-    self.segmentationGroupBoxLayout.addWidget(self.multiVolumeExplorerArea)
+    self.segmentationWidgetLayout.addWidget(self.multiVolumeExplorerArea)
 
   def setupLabelMapEditorUI(self):
     self.setupEditorWidget()
@@ -294,7 +296,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     editorWidgetParent.setMRMLScene(slicer.mrmlScene)
     self.editorWidget = EditorWidget(parent=editorWidgetParent)
     self.editorWidget.setup()
-    self.segmentationGroupBoxLayout.addWidget(editorWidgetParent)
+    self.segmentationWidgetLayout.addWidget(editorWidgetParent)
     self.hideUnwantedEditorUIElements()
     self.configureEditorEffectsUI()
 
@@ -354,7 +356,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     advancedSettingsLayout.addRow("Show series: ", self.groupWidget)
     advancedSettingsLayout.addRow('View orientation: ', self.orientationBox)
     advancedSettingsLayout.addRow(self.translateArea)
-    self.segmentationGroupBoxLayout.addWidget(self.advancedSettingsArea)
+    self.segmentationWidgetLayout.addWidget(self.advancedSettingsArea)
 
   def setupSingleMultiViewSettingsUI(self):
     self.multiView = qt.QRadioButton('All')
@@ -402,17 +404,17 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     fiducialsWidgetLayout = qt.QFormLayout(self.fiducialsArea)
 
     self.fiducialsWidget = mpReviewFiducialTable(fiducialsWidgetLayout)
-    self.segmentationGroupBoxLayout.addWidget(self.fiducialsArea)
+    self.segmentationWidgetLayout.addWidget(self.fiducialsArea)
 
   def setupCompletionUI(self):
     self.piradsButton = qt.QPushButton("PI-RADS v2 review form")
-    self.completionGroupBoxLayout.addWidget(self.piradsButton)
+    self.completionWidgetLayout.addWidget(self.piradsButton)
 
     self.qaButton = qt.QPushButton("Quality Assurance form")
-    self.completionGroupBoxLayout.addWidget(self.qaButton)
+    self.completionWidgetLayout.addWidget(self.qaButton)
 
     self.saveButton = qt.QPushButton("Save")
-    self.completionGroupBoxLayout.addWidget(self.saveButton)
+    self.completionWidgetLayout.addWidget(self.saveButton)
     '''
       self.piradsButton = qt.QPushButton("PI-RADS review")
       self.layout.addWidget(self.piradsButton)
@@ -423,8 +425,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     def setupButtonConnections():
       self.dataDirButton.directorySelected.connect(lambda: setattr(self, "inputDataDir", self.dataDirButton.directory))
-      self.selectAllSeriesButton.connect('clicked()', self.selectAllSeries)
-      self.deselectAllSeriesButton.connect('clicked()', self.deselectAllSeries)
+      self.selectAllSeriesButton.connect('clicked()', lambda: self.selectAllSeries(True))
+      self.deselectAllSeriesButton.connect('clicked()', lambda: self.selectAllSeries(False))
       self.deleteStructureButton.connect('clicked()', self.onDeleteStructure)
       self.propagateButton.connect('clicked()', self.onPropagateROI)
       self.createFiducialsButton.connect('clicked()', self.onCreateFiducialsButtonClicked)
@@ -446,7 +448,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.multiVolumeExplorer.frameSlider.connect('valueChanged(double)', self.onSliderChanged)
 
     def setupViewConnections():
-      self.studiesView.connect('clicked(QModelIndex)', self.onStudySelected)
+      self.studiesView.selectionModel().connect('currentChanged(QModelIndex, QModelIndex)', self.onStudySelected)
       self.seriesView.connect('clicked(QModelIndex)', self.onSeriesSelected)
       self.structuresView.connect("activated(QModelIndex)", self.onStructureClicked)
 
@@ -662,26 +664,19 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       # If view ref only
       layoutNode.SetViewArrangement(layoutNode.SlicerLayoutOneUpRedSliceView)
 
-  def onStudySelected(self, modelIndex):
-    # TODO: instead of activating tab, the series selection widget should be moved to the first tab
-    logging.debug('Row selected: '+self.studiesModel.item(modelIndex.row(),0).text())
-    selectionModel = self.studiesView.selectionModel()
-    logging.debug('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
-    logging.debug('Row number: '+str(modelIndex.row()))
-    self.selectedStudyName = self.studiesModel.item(modelIndex.row(),0).text()
-    self.studyIDLabel.setText(self.selectedStudyName)
-    self.setTabsEnabled([1], True)
-
   def onSeriesSelected(self, modelIndex):
     logging.debug('Row selected: '+self.seriesModel.item(modelIndex.row(),0).text())
     selectionModel = self.seriesView.selectionModel()
     logging.debug('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
     logging.debug('Row number: '+str(modelIndex.row()))
+    self.updateSegmentationTabAvailability()
+
+  def updateSegmentationTabAvailability(self):
     numCheckedItems = len([item for item in self.seriesItems if item.checkState()])
     if numCheckedItems == 0:
-      self.setTabsEnabled([2], False)
+      self.setTabsEnabled([1], False)
     else:
-      self.setTabsEnabled([2], True)
+      self.setTabsEnabled([1], True)
 
   def onPIRADSFormClicked(self):
     self.webView = qt.QWebView()
@@ -1007,8 +1002,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     for index in indexes:
       self.tabWidget.childAt(1, 1).setTabEnabled(index, enabled)
 
-  def checkStep3or4Leave(self):
-    if self.currentStep == 3 or self.currentStep == 4:
+  def checkStep2or3Leave(self):
+    if self.currentStep == 2 or self.currentStep == 3:
       continueCurrentStep = self.showExitStep3Or4Warning()
       if continueCurrentStep:
         self.tabWidget.setCurrentIndex(self.currentStep-1)
@@ -1018,13 +1013,16 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     return False
 
   def onStep1Selected(self):
-    if self.checkStep3or4Leave() is True:
+    if self.checkStep2or3Leave() is True:
       return
     if self.currentStep == 1:
       return
     self.currentStep = 1
-    self.setTabsEnabled([0],True)
-    self.setTabsEnabled([1,2,3], False)
+
+    if len(self.studiesView.selectedIndexes()) > 0:
+      self.onStudySelected(self.studiesView.selectedIndexes()[0])
+    self.updateSegmentationTabAvailability()
+    self.setTabsEnabled([2], False)
 
   def updateStudyTable(self):
     self.studiesModel.clear()
@@ -1065,6 +1063,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   def fillStudyTable(self):
     self.studyItems = []
+    self.seriesModel.clear()
     dirs = self.logic.getStudyNames(self.inputDataDir)
     progress = self.makeProgressIndicator(len(dirs))
     for studyIndex, studyName in enumerate(dirs, start=1):
@@ -1076,6 +1075,10 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         progress.setValue(studyIndex)
     # TODO: unload all volume nodes that are already loaded
     progress.close()
+    if len(self.studyItems) == 1:
+      modelIndex = self.studiesModel.index(0,0)
+      self.studiesView.selectionModel().setCurrentIndex(modelIndex, self.studiesView.selectionModel().Select)
+      self.studiesView.selectionModel().select(modelIndex, self.studiesView.selectionModel().Select)
 
   def invokePreProcessing(self, outputDirectory):
     self.mpReviewPreprocessorLogic = mpReviewPreprocessorLogic()
@@ -1095,17 +1098,16 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def updateProgressBar(self, **kwargs):
     ModuleWidgetMixin.updateProgressBar(self, progress=self.progress, **kwargs)
 
-  def onStep2Selected(self):
-    if self.checkStep3or4Leave() is True:
-      return
-    if self.currentStep == 2 or not self.selectedStudyName:
-      return
+  def onStudySelected(self, modelIndex):
+    self.studiesGroupBox.collapsed = True
+    logging.debug('Row selected: '+self.studiesModel.item(modelIndex.row(),0).text())
+    selectionModel = self.studiesView.selectionModel()
+    logging.debug('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
+    logging.debug('Row number: '+str(modelIndex.row()))
+    self.selectedStudyName = self.studiesModel.item(modelIndex.row(),0).text()
+    self.studyIDLabel.setText(self.selectedStudyName)
 
-    self.currentStep = 2
-
-    self.setTabsEnabled([1,2],True)
-    self.setTabsEnabled([3], False)
-    logging.debug('Entering step 2')
+    self.setTabsEnabled([2], False)
 
     self.logic.cleanupDir(self.tempDir)
 
@@ -1206,30 +1208,23 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         sItem.setCheckState(2)
 
     progress.delete()
-    self.setTabsEnabled([2], True)
+    self.setTabsEnabled([1], True)
 
-  def onStep3Selected(self):
+  def onStep2Selected(self):
     # set up editor
+    if self.currentStep == 2:
+      return
     if self.currentStep == 3:
+      self.currentStep = 2
       return
-    if self.currentStep == 4:
-      self.currentStep = 3
-      return
-    self.currentStep = 3
-    self.setTabsEnabled([2,3],True)
+    self.currentStep = 2
+    self.setTabsEnabled([2],True)
 
     self.editorWidget.enter()
 
     self.resetTranslate()
 
     checkedItems = [x for x in self.seriesItems if x.checkState()]
-
-    # item.CheckState() != 0
-
-    # if no series selected, go to the previous step
-    if len(checkedItems) == 0:
-      self.onStep2Selected()
-      return
 
     self.volumeNodes = {}
     self.labelNodes = {}
@@ -1363,8 +1358,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         multiVolumes.append(val['MultiVolume'])
     return multiVolumes
 
-  def onStep4Selected(self):
-    self.currentStep = 4
+  def onStep3Selected(self):
+    self.currentStep = 3
 
   def showExitStep3Or4Warning(self):
     result = self.confirmOrSaveDialog('Unsaved contours will be lost!\n\nDo you still want to exit?')
@@ -1841,15 +1836,10 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     # Re-select the structure in the list
     self.editorWidget.helper.structureListWidget.selectStructure(rowIdx)
 
-  def selectAllSeries(self):
+  def selectAllSeries(self, selected=False):
     for item in self.seriesItems:
-      item.setCheckState(2)
-    self.setTabsEnabled([2], True)
-
-  def deselectAllSeries(self):
-    for item in self.seriesItems:
-      item.setCheckState(0)
-    self.setTabsEnabled([2], False)
+      item.setCheckState(2 if selected else 0)
+    self.setTabsEnabled([1], selected)
 
   def onTranslate(self):
     if self.ignoreTranslate:
