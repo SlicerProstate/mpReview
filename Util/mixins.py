@@ -12,6 +12,15 @@ class ModuleWidgetMixin(object):
     return slicer.dicomDatabase
 
   @staticmethod
+  def truncatePath(path):
+    try:
+      split = path.split('/')
+      path = '.../' + split[-2] + '/' + split[-1]
+    except IndexError:
+      pass
+    return path
+
+  @staticmethod
   def makeProgressIndicator(maxVal=100, initialValue=0):
     progressIndicator = qt.QProgressDialog()
     progressIndicator.minimumDuration = 0
