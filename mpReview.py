@@ -84,7 +84,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.editUtil = EditorLib.EditUtil()
     # mrml node for invoking command line modules
     self.CLINode = None
-    self.currentStep = 1
     self.logic = mpReviewLogic()
     self.multiVolumeExplorer = None
 
@@ -133,7 +132,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.completionWidget = qt.QWidget()
 
     self.studyAndSeriesSelectionWidgetLayout = qt.QGridLayout()
-    self.segmentationWidgetLayout = qt.QGridLayout()
+    self.segmentationWidgetLayout = qt.QVBoxLayout()
     self.completionWidgetLayout = qt.QFormLayout()
 
     self.studyAndSeriesSelectionWidget.setLayout(self.studyAndSeriesSelectionWidgetLayout)
@@ -145,17 +144,21 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.tabWidget.addTab(self.studyAndSeriesSelectionWidget, self.studySelectionIcon, '')
     self.tabWidget.addTab(self.segmentationWidget, self.segmentationIcon, '')
     self.tabWidget.addTab(self.completionWidget, self.completionIcon, '')
-    self.tabWidget.connect('currentChanged(int)',self.onTabWidgetClicked)
 
     self.setTabsEnabled([1,2], False)
 
   def onTabWidgetClicked(self, currentIndex):
+    if self.currentTabIndex == currentIndex:
+      return
+    setNewIndex = False
     if currentIndex == 0:
-      self.onStep1Selected()
+      setNewIndex = self.onStep1Selected()
     if currentIndex == 1:
-      self.onStep2Selected()
+      setNewIndex = self.onStep2Selected()
     if currentIndex == 2:
-      self.onStep3Selected()
+      setNewIndex = True
+    if setNewIndex:
+      self.currentTabIndex = currentIndex
 
   def setup(self):
     ScriptedLoadableModuleWidget.setup(self)
@@ -182,6 +185,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.selectedStudyName = None
 
     self.dataDirButton.directory = self.getSetting('InputLocation')
+    self.currentTabIndex = 0
 
   def setupInformationFrame(self):
     self.informationGroupBox = qt.QGroupBox()
@@ -220,7 +224,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def setupStudySelectionView(self):
     self.studiesGroupBox = ctk.ctkCollapsibleGroupBox()
     self.studiesGroupBox.title = "Studies"
-    studiesGroupBoxLayout = qt.QFormLayout()
+    studiesGroupBoxLayout = qt.QGridLayout()
     self.studiesGroupBox.setLayout(studiesGroupBoxLayout)
     self.studiesView, self.studiesModel = self._createListView('StudiesTable', ['Study ID'])
     self.studiesView.setSizePolicy(qt.QSizePolicy.Expanding, qt.QSizePolicy.Expanding)
@@ -242,14 +246,14 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   def setupSegmentationToolsUI(self):
     self.refSelector = qt.QComboBox()
-    self.segmentationWidgetLayout.addWidget(self.createHLayout([qt.QLabel("Reference image: "),
-                                                                self.refSelector]), 0, 0)
+    self.segmentationWidgetLayout.addWidget(self.createHLayout([qt.QLabel("Reference image: "), self.refSelector]))
     self.setupMultiVolumeExplorerUI()
     self.setupLabelMapEditorUI()
     self.setupAdvancedSegmentationSettingsUI()
     self.setupFiducialsUI()
     # keep here names of the views created by CompareVolumes logic
     self.viewNames = []
+    self.segmentationWidgetLayout.addStretch(1)
 
   def setupMultiVolumeExplorerUI(self):
     self.multiVolumeExplorerArea = ctk.ctkCollapsibleButton()
@@ -454,6 +458,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     def setupOtherConnections():
       self.refSelector.connect('currentIndexChanged(int)', self.onReferenceChanged)
+      self.tabWidget.connect('currentChanged(int)',self.onTabWidgetClicked)
 
     setupButtonConnections()
     setupSliderConnections()
@@ -567,8 +572,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     else:
       self.parameters['ResultsLocation'] = resultsLocation
     '''
-
-    self.currentStep = 1
 
   def checkAndSetLUT(self):
     # Default to module color table
@@ -1003,10 +1006,10 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.tabWidget.childAt(1, 1).setTabEnabled(index, enabled)
 
   def checkStep2or3Leave(self):
-    if self.currentStep == 2 or self.currentStep == 3:
+    if self.currentTabIndex in [1,2]:
       continueCurrentStep = self.showExitStep3Or4Warning()
       if continueCurrentStep:
-        self.tabWidget.setCurrentIndex(self.currentStep-1)
+        self.tabWidget.setCurrentIndex(self.currentTabIndex)
         return True
       else:
         self.removeAllModels()
@@ -1014,15 +1017,13 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   def onStep1Selected(self):
     if self.checkStep2or3Leave() is True:
-      return
-    if self.currentStep == 1:
-      return
-    self.currentStep = 1
+      return False
 
     if len(self.studiesView.selectedIndexes()) > 0:
       self.onStudySelected(self.studiesView.selectedIndexes()[0])
     self.updateSegmentationTabAvailability()
     self.setTabsEnabled([2], False)
+    return True
 
   def updateStudyTable(self):
     self.studiesModel.clear()
@@ -1125,7 +1126,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     # then remove all of them from the scene
     allVolumeNodes = slicer.util.getNodes('vtkMRML*VolumeNode*')
     for node in allVolumeNodes.values():
-        slicer.mrmlScene.RemoveNode(node)
+      slicer.mrmlScene.RemoveNode(node)
 
     self.editorWidget.helper.masterSelector.blockSignals(False)
     self.editorWidget.helper.mergeSelector.blockSignals(False)
@@ -1211,13 +1212,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.setTabsEnabled([1], True)
 
   def onStep2Selected(self):
-    # set up editor
-    if self.currentStep == 2:
-      return
-    if self.currentStep == 3:
-      self.currentStep = 2
-      return
-    self.currentStep = 2
+    if self.currentTabIndex == 2:
+      return True
     self.setTabsEnabled([2],True)
 
     self.editorWidget.enter()
@@ -1280,7 +1276,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
           self.seriesMap[seriesNumber]['Volume'] = scalarVolumeNode
       else:
         logging.debug('Failed to load image volume!')
-        return
+        return True
       self.checkAndLoadLabel(seriesNumber, shortName)
       try:
         if self.seriesMap[seriesNumber]['MetaInfo']['ResourceType'] == 'OncoQuant':
@@ -1312,6 +1308,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     self.checkForMultiVolumes()
     self.checkForFiducials()
+    return True
 
   def checkForFiducials(self):
     self.targetsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'Targets')
@@ -1357,9 +1354,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       if 'MultiVolume' in val.keys():
         multiVolumes.append(val['MultiVolume'])
     return multiVolumes
-
-  def onStep3Selected(self):
-    self.currentStep = 3
 
   def showExitStep3Or4Warning(self):
     result = self.confirmOrSaveDialog('Unsaved contours will be lost!\n\nDo you still want to exit?')
