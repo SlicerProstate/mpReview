@@ -188,21 +188,35 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.currentTabIndex = 0
 
   def setupInformationFrame(self):
-    self.informationGroupBox = qt.QGroupBox()
-    self.informationGroupBox.setStyleSheet('background-color: rgb(230,230,230)')
-    self.informationViewBoxLayout = qt.QGridLayout()
-    self.informationGroupBox.setLayout(self.informationViewBoxLayout)
+    self.informationGroupBox, self.informationViewBoxLayout = self._createWatchBox(maximumHeight=100)
 
-    self.catStudyIDLabel = qt.QLabel('Study ID: ')
     self.studyIDLabel = qt.QLabel()
-    self.catDataDirLabel = qt.QLabel('Current Data Dir: ')
     self.dataDirLabel = qt.QLabel()
+    self.patientIDLabel = qt.QLabel()
+    self.patientBirthDatLabel = qt.QLabel()
+    self.studyDateLabel = qt.QLabel()
 
-    self.informationViewBoxLayout.addWidget(self.catStudyIDLabel, 0, 0, 1, 1)
-    self.informationViewBoxLayout.addWidget(self.studyIDLabel, 0, 1, 1, 3)
-    self.informationViewBoxLayout.addWidget(self.catDataDirLabel, 1, 0, 1, 1)
-    self.informationViewBoxLayout.addWidget(self.dataDirLabel, 1, 1, 1, 3)
+    self.informationViewBoxLayout.addWidget(qt.QLabel('Patient ID: '), 0, 0, 1, 1, qt.Qt.AlignLeft)
+    self.informationViewBoxLayout.addWidget(self.patientIDLabel, 0, 2, 1, 2)
+    self.informationViewBoxLayout.addWidget(qt.QLabel('Patient Birthdate: '), 1, 0, 1, 1, qt.Qt.AlignLeft)
+    self.informationViewBoxLayout.addWidget(self.patientBirthDatLabel, 1, 2, 1, 2)
+    self.informationViewBoxLayout.addWidget(qt.QLabel('Study ID: '), 2, 0, 1, 1, qt.Qt.AlignLeft)
+    self.informationViewBoxLayout.addWidget(self.studyIDLabel, 2, 2, 1, 2)
+    self.informationViewBoxLayout.addWidget(qt.QLabel('Study Date: '), 3, 0, 1, 1, qt.Qt.AlignLeft)
+    self.informationViewBoxLayout.addWidget(self.studyDateLabel, 3, 2, 1, 2)
+    self.informationViewBoxLayout.addWidget(qt.QLabel('Current Data Dir: '), 4, 0, 1, 1, qt.Qt.AlignLeft)
+    self.informationViewBoxLayout.addWidget(self.dataDirLabel, 4, 2, 1, 2)
+
     self.layout.addWidget(self.informationGroupBox)
+
+  def _createWatchBox(self, maximumHeight):
+    watchBox = qt.QGroupBox()
+    watchBox.maximumHeight = maximumHeight
+    watchBox.setStyleSheet('background-color: rgb(230,230,230)')
+    watchBoxLayout = qt.QGridLayout()
+    watchBox.setLayout(watchBoxLayout)
+    self.layout.addWidget(watchBox)
+    return watchBox, watchBoxLayout
 
   def setupDataAndStudySelectionUI(self):
     self.dataDirButton = ctk.ctkDirectoryButton()
@@ -1099,14 +1113,19 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def updateProgressBar(self, **kwargs):
     ModuleWidgetMixin.updateProgressBar(self, progress=self.progress, **kwargs)
 
+  def updateInformationFrame(self, metaFile):
+    dom = xml.dom.minidom.parse(metaFile)
+    self.patientIDLabel.text = self.findElement(dom, 'PatientID')
+    self.patientBirthDatLabel.text = self.logic.formatDate(self.findElement(dom, 'PatientBirthDate'))
+    self.studyIDLabel.text = self.selectedStudyName
+    self.studyDateLabel.text = self.logic.formatDate(self.findElement(dom, 'StudyDate'))
+
   def onStudySelected(self, modelIndex):
     self.studiesGroupBox.collapsed = True
     logging.debug('Row selected: '+self.studiesModel.item(modelIndex.row(),0).text())
     selectionModel = self.studiesView.selectionModel()
     logging.debug('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
     logging.debug('Row number: '+str(modelIndex.row()))
-    self.selectedStudyName = self.studiesModel.item(modelIndex.row(),0).text()
-    self.studyIDLabel.setText(self.selectedStudyName)
 
     self.setTabsEnabled([2], False)
 
@@ -1131,6 +1150,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.editorWidget.helper.masterSelector.blockSignals(False)
     self.editorWidget.helper.mergeSelector.blockSignals(False)
 
+    self.selectedStudyName = self.studiesModel.item(modelIndex.row(),0).text()
     self.parameters['StudyName'] = self.selectedStudyName
 
     self.resourcesDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'RESOURCES')
@@ -1141,6 +1161,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     # expect one directory for each processed series, with the name
     # corresponding to the series number
+
+    loadFurtherInformation = True
+
     self.seriesMap = {}
     for root, subdirs, files in os.walk(self.resourcesDir):
       logging.debug('Root: '+root+', files: '+str(files))
@@ -1155,6 +1178,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
             logging.debug('Ends with xml: '+metaFile)
             try:
               (seriesNumber,seriesName) = self.getSeriesInfoFromXML(metaFile)
+              if loadFurtherInformation:
+                self.updateInformationFrame(metaFile)
+                loadFurtherInformation = False
               logging.debug(str(seriesNumber)+' '+seriesName)
             except:
               logging.debug('Failed to get from XML')
@@ -2127,6 +2153,10 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
 
   def __init__(self, parent=None):
     ScriptedLoadableModuleLogic.__init__(self, parent)
+
+  def formatDate(self, extractedDate):
+    formatted = datetime.date(int(extractedDate[0:4]), int(extractedDate[4:6]), int(extractedDate[6:8]))
+    return formatted.strftime("%Y-%b-%d")
 
   def wasmpReviewPreprocessed(self, directory):
     return len(self.getStudyNames(directory)) > 0
