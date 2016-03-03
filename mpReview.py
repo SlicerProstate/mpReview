@@ -63,6 +63,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.dataDirButton.caption = directory
     self.informationWatchBox.setInformation("CurrentDataDir", truncatedPath, toolTip=directory)
     if directory:
+      self.studiesGroupBox.collapsed = False
       self.setSetting('InputLocation', directory)
       self.checkAndSetLUT()
       self.updateStudyTable()
@@ -1023,8 +1024,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     self.updateStudyStatus()
 
-    if len(self.studiesView.selectedIndexes()) > 0:
-      self.onStudySelected(self.studiesView.selectedIndexes()[0])
+    if self.currentSelectedStudyIndex:
+      self.selectStudyModelIndex(self.currentSelectedStudyIndex)
+      self.onStudySelected(self.currentSelectedStudyIndex)
     self.updateSegmentationTabAvailability()
     self.setTabsEnabled([2], False)
     return True
@@ -1067,6 +1069,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         self.notificationDialog("No DICOM data could be processed. Please select another directory.")
 
   def fillStudyTable(self):
+    self.currentSelectedStudyIndex = None
     studyItems = []
     self.seriesModel.clear()
     dirs = self.logic.getStudyNames(self.inputDataDir)
@@ -1085,8 +1088,11 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.studiesView.horizontalHeader().setResizeMode(0, qt.QHeaderView.Stretch)
     if len(studyItems) == 1:
       modelIndex = self.studiesModel.index(0,0)
-      self.studiesView.selectionModel().setCurrentIndex(modelIndex, self.studiesView.selectionModel().Select)
-      self.studiesView.selectionModel().select(modelIndex, self.studiesView.selectionModel().Select)
+      self.selectStudyModelIndex(modelIndex)
+
+  def selectStudyModelIndex(self, modelIndex):
+    self.studiesView.selectionModel().setCurrentIndex(modelIndex, self.studiesView.selectionModel().Select)
+    self.studiesView.selectionModel().select(modelIndex, self.studiesView.selectionModel().Select)
 
   def hasStudyBeenProcessed(self, directory):
     resourcesDir = os.path.join(directory,'RESOURCES')
@@ -1123,6 +1129,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     ModuleWidgetMixin.updateProgressBar(self, progress=self.progress, **kwargs)
 
   def onStudySelected(self, modelIndex):
+    self.currentSelectedStudyIndex = modelIndex
     self.studiesGroupBox.collapsed = True
     logging.debug('Row selected: '+self.studiesModel.item(modelIndex.row(),0).text())
     selectionModel = self.studiesView.selectionModel()
