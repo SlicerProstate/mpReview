@@ -232,6 +232,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.seriesView.setSelectionMode(qt.QAbstractItemView.ExtendedSelection)
     self.selectAllSeriesButton = self.createButton('Select All')
     self.deselectAllSeriesButton = self.createButton('Deselect All')
+    self.selectAllSeriesButton.setEnabled(False)
+    self.deselectAllSeriesButton.setEnabled(False)
     seriesGroupBoxLayout.addWidget(self.seriesView, 0, 0, 1, 2)
     seriesGroupBoxLayout.addWidget(self.createHLayout([self.selectAllSeriesButton,  self.deselectAllSeriesButton]),
                                    1, 0, 1, 2)
@@ -1206,6 +1208,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       if self.logic.isSeriesOfInterest(seriesText):
         sItem.setCheckState(2)
 
+    self.selectAllSeriesButton.setEnabled(True)
+    self.deselectAllSeriesButton.setEnabled(True)
+    
     progress.delete()
     self.setTabsEnabled([1], True)
 
