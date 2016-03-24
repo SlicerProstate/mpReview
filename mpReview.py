@@ -933,21 +933,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
               self.modelsVisibilityButton.setText('Hide')
           self.updateViewRenderer()
 
-  def findElement(self, dom, name):
-    els = dom.getElementsByTagName('element')
-    for e in els:
-      if e.getAttribute('name') == name:
-        return e.childNodes[0].nodeValue
-
-  def getSeriesInfoFromXML(self, f):
-    dom = xml.dom.minidom.parse(f)
-    number = self.findElement(dom, 'SeriesNumber')
-    name = self.findElement(dom, 'SeriesDescription')
-    name = name.replace('-','')
-    name = name.replace('(','')
-    name = name.replace(')','')
-    return number,name
-
   def checkAndLoadLabel(self, seriesNumber, volumeName):
     globPath = os.path.join(self.resourcesDir,str(seriesNumber),"Segmentations",
                             self.getSetting('UserName')+'*')
@@ -993,7 +978,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
       logging.debug('Label loaded, storage node is '+label.GetStorageNode().GetID())
 
-    #return (True,label)
     return True
 
   def setTabsEnabled(self, indexes, enabled):
@@ -1056,6 +1040,18 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         self.dataDirButton.directory = outputDirectory
       else:
         self.notificationDialog("No DICOM data could be processed. Please select another directory.")
+
+  def updateSeriesTable(self):
+    self.seriesItems = []
+    self.seriesModel.clear()
+    for s in sorted([int(x) for x in self.seriesMap.keys()]):
+      seriesText = str(s) + ':' + self.seriesMap[str(s)]['LongName']
+      sItem = qt.QStandardItem(seriesText)
+      self.seriesItems.append(sItem)
+      self.seriesModel.appendRow(sItem)
+      sItem.setCheckable(1)
+      if self.logic.isSeriesOfInterest(seriesText):
+        sItem.setCheckState(2)
 
   def fillStudyTable(self):
     self.studyItems = []
@@ -1129,89 +1125,19 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     self.resourcesDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'RESOURCES')
 
-    # Loading progress indicator
-    progress = self.makeProgressIndicator(len(os.listdir(self.resourcesDir)))
-    nLoaded = 0
+    self.progress = self.makeProgressIndicator(len(os.listdir(self.resourcesDir)))
+    self.seriesMap, metaFile = self.logic.loadMpReviewProcessedData(self.resourcesDir,
+                                                                    updateProgressCallback=self.updateProgressBar)
+    print metaFile
+    self.informationWatchBox.sourceFile = metaFile
+    self.informationWatchBox.setInformation("StudyID", self.selectedStudyName)
 
-    # expect one directory for each processed series, with the name
-    # corresponding to the series number
-
-    loadFurtherInformation = True
-
-    self.seriesMap = {}
-    for root, subdirs, files in os.walk(self.resourcesDir):
-      logging.debug('Root: '+root+', files: '+str(files))
-      resourceType = os.path.split(root)[1]
-      logging.debug('Resource: '+resourceType)
-
-      if resourceType == 'Reconstructions':
-        for f in files:
-          logging.debug('File: '+f)
-          if f.endswith('.xml'):
-            metaFile = os.path.join(root,f)
-            logging.debug('Ends with xml: '+metaFile)
-            try:
-              (seriesNumber,seriesName) = self.getSeriesInfoFromXML(metaFile)
-              logging.debug(str(seriesNumber)+' '+seriesName)
-            except:
-              logging.debug('Failed to get from XML')
-              continue
-
-            progress.labelText = seriesName
-            progress.setValue(nLoaded)
-            nLoaded += 1
-
-            volumePath = os.path.join(root,seriesNumber+'.nrrd')
-            self.seriesMap[seriesNumber] = {'MetaInfo':None, 'NRRDLocation':volumePath,'LongName':seriesName}
-            self.seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+seriesName
-            if loadFurtherInformation is True:
-              self.informationWatchBox.sourceFile = metaFile
-              self.informationWatchBox.setInformation("StudyID", self.selectedStudyName)
-              loadFurtherInformation = False
-
-      # ignore the PK maps for the purposes of segmentation
-      if resourceType == 'OncoQuant' and False:
-        for f in files:
-          if f.endswith('.json'):
-            metaFile = open(os.path.join(root,f))
-            metaInfo = json.load(metaFile)
-            logging.debug('JSON meta info: '+str(metaInfo))
-            try:
-              seriesNumber = metaInfo['SeriesNumber']
-              seriesName = metaInfo['SeriesDescription']
-            except:
-              seriesNumber = metaInfo['DerivedSeriesNumber']
-              seriesName = metaInfo['ModelType']+'-'+metaInfo['AIF']+'-'+metaInfo['Parameter']
-            volumePath = os.path.join(root,seriesNumber+'.nrrd')
-            self.seriesMap[seriesNumber] = {'MetaInfo':metaInfo, 'NRRDLocation':volumePath,'LongName':seriesName}
-            self.seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+self.logic.abbreviateName(self.seriesMap[seriesNumber]['MetaInfo'])
-
-    logging.debug('All series found: '+str(self.seriesMap.keys()))
-
-    numbers = [int(x) for x in self.seriesMap.keys()]
-    numbers.sort()
-
-    tableItems = []
-    for num in numbers:
-      desc = self.seriesMap[str(num)]['LongName']
-      tableItems.append(str(num)+':'+desc)
-
-    self.seriesModel.clear()
-    self.seriesItems = []
-
-    for s in numbers:
-      seriesText = str(s)+':'+self.seriesMap[str(s)]['LongName']
-      sItem = qt.QStandardItem(seriesText)
-      self.seriesItems.append(sItem)
-      self.seriesModel.appendRow(sItem)
-      sItem.setCheckable(1)
-      if self.logic.isSeriesOfInterest(seriesText):
-        sItem.setCheckState(2)
+    self.updateSeriesTable()
 
     self.selectAllSeriesButton.setEnabled(True)
     self.deselectAllSeriesButton.setEnabled(True)
-    
-    progress.delete()
+
+    self.progress.delete()
     self.setTabsEnabled([1], True)
 
   def onStep2Selected(self):
@@ -2130,6 +2056,76 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
 
   def __init__(self, parent=None):
     ScriptedLoadableModuleLogic.__init__(self, parent)
+
+  @staticmethod
+  def loadMpReviewProcessedData(resourcesDir, updateProgressCallback=None):
+    loadFurtherInformation = True
+
+    sourceFile = None
+
+    nLoaded = 0
+    seriesMap = {}
+    for root, dirs, files in os.walk(resourcesDir):
+      logging.debug('Root: '+root+', files: '+str(files))
+      resourceType = os.path.split(root)[1]
+      logging.debug('Resource: '+resourceType)
+
+      if resourceType == 'Reconstructions':
+        for currentXMLFile in [f for f in files if f.endswith('.xml')]:
+          metaFile = os.path.join(root, currentXMLFile)
+          logging.debug('Current XML File: ' + metaFile)
+          try:
+            (seriesNumber,seriesName) = mpReviewLogic.getSeriesInfoFromXML(metaFile)
+            logging.debug(str(seriesNumber)+' '+seriesName)
+          except:
+            logging.debug('Failed to get from XML')
+            continue
+
+          if updateProgressCallback:
+            updateProgressCallback(labelText=seriesName, value=nLoaded)
+          nLoaded += 1
+
+          volumePath = os.path.join(root,seriesNumber+'.nrrd')
+          seriesMap[seriesNumber] = {'MetaInfo':None, 'NRRDLocation':volumePath,'LongName':seriesName}
+          seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+seriesName
+          if loadFurtherInformation is True:
+            sourceFile = metaFile
+            loadFurtherInformation = False
+
+      # ignore the PK maps for the purposes of segmentation
+      if resourceType == 'OncoQuant' and False:
+        for f in files:
+          if f.endswith('.json'):
+            metaFile = open(os.path.join(root,f))
+            metaInfo = json.load(metaFile)
+            logging.debug('JSON meta info: '+str(metaInfo))
+            try:
+              seriesNumber = metaInfo['SeriesNumber']
+              seriesName = metaInfo['SeriesDescription']
+            except:
+              seriesNumber = metaInfo['DerivedSeriesNumber']
+              seriesName = metaInfo['ModelType']+'-'+metaInfo['AIF']+'-'+metaInfo['Parameter']
+            volumePath = os.path.join(root,seriesNumber+'.nrrd')
+            seriesMap[seriesNumber] = {'MetaInfo':metaInfo, 'NRRDLocation':volumePath,'LongName':seriesName}
+            seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":" + \
+                                                   mpReviewLogic.abbreviateName(seriesMap[seriesNumber]['MetaInfo'])
+
+    logging.debug('All series found: '+str(seriesMap.keys()))
+    return seriesMap, sourceFile
+
+  @staticmethod
+  def getSeriesInfoFromXML(f):
+
+    def findElement(dom, name):
+      els = dom.getElementsByTagName('element')
+      for e in els:
+        if e.getAttribute('name') == name:
+          return e.childNodes[0].nodeValue
+
+    dom = xml.dom.minidom.parse(f)
+    number = findElement(dom, 'SeriesNumber')
+    name = findElement(dom, 'SeriesDescription')
+    return number, name.replace('-','').replace('(','').replace(')','')
 
   def formatDate(self, extractedDate):
     formatted = datetime.date(int(extractedDate[0:4]), int(extractedDate[4:6]), int(extractedDate[6:8]))
