@@ -720,7 +720,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     '''
 
     savedMessage += "\n " + self.saveTargets(username, timestamp)
-    self.notificationDialog(savedMessage)
+    slicer.util.infoDisplay(savedMessage, windowTitle="mpReview")
 
   def saveSegmentations(self, timestamp, username):
     wlSettingsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'WindowLevelSettings')
@@ -832,6 +832,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
           progress.labelText = '\nMaking Model for %s' % structureName
           progress.setValue(step)
+          slicer.app.processEvents()
           if progress.wasCanceled:
             break
 
@@ -1014,14 +1015,15 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
           outputDirectory = selectedDir
         else:
           if selectedDir == self.inputDataDir:
-            self.warningDialog("The output directory cannot be the input data directory Please choose another "
-                               "directory.")
+            slicer.util.warningDisplay("The output directory cannot be the input data directory Please choose another "
+                                       "directory.", windowTitle="mpReview")
           return self.updateStudyTable()
       success = self.invokePreProcessing(outputDirectory)
       if success:
         self.dataDirButton.directory = outputDirectory
       else:
-        self.notificationDialog("No DICOM data could be processed. Please select another directory.")
+        slicer.util.infoDisplay("No DICOM data could be processed. Please select another directory.",
+                                windowTitle="mpReview")
 
   def updateSeriesTable(self):
     self.seriesItems = []
@@ -1047,6 +1049,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         self.studiesModel.appendRow(sItem)
         logging.debug('Appended to model study ' + studyName)
         progress.setValue(studyIndex)
+        slicer.app.processEvents()
     # TODO: unload all volume nodes that are already loaded
     progress.close()
     if len(self.studyItems) == 1:
@@ -1110,7 +1113,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.progress = slicer.util.createProgressDialog(maximum=len(os.listdir(self.resourcesDir)))
     self.seriesMap, metaFile = self.logic.loadMpReviewProcessedData(self.resourcesDir,
                                                                     updateProgressCallback=self.updateProgressBar)
-    print metaFile
     self.informationWatchBox.sourceFile = metaFile
     self.informationWatchBox.setInformation("StudyID", self.selectedStudyName)
 
@@ -1164,6 +1166,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
       progress.labelText = text
       progress.setValue(nLoaded)
+      slicer.app.processEvents()
       nLoaded += 1
 
       seriesNumber = text.split(':')[0]
@@ -1388,7 +1391,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       selectedModelVol = self.editorWidget.helper.structureListWidget.structures.item(selected,2).text()
 
       # Confirm with user
-      if not self.confirmDialog( "Delete \'%s\' volume?" % selectedModelVol ):
+      if not slicer.util.confirmOkCancelDisplay("Delete \'%s\' volume?" % selectedModelVol, title="mpReview"):
         return
 
       # Cleanup files
@@ -1530,9 +1533,10 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
           logging.debug("Creating fiducial at position %f, %f, %f" % tuple(centroid))
           addedFiducialIds.append(fiducialNode.AddFiducialFromArray(centroid, label.GetName()))
         except:
-          self.notificationDialog("No label object with label %s. \n You might have forgotten to print a label."
-                                  "To prevent the duplication of fiducials, all fiducials of the current "
-                                  "creation step will be deleted." % label.GetName())
+          notificationDialog = slicer.util.infoDisplay
+          notificationDialog("No label object with label %s. \n You might have forgotten to print a label."
+                             "To prevent the duplication of fiducials, all fiducials of the current "
+                             "creation step will be deleted." % label.GetName(), windowTitle='mpReview')
           self.removeFiducialIDsFromNode(fiducialNode, addedFiducialIds)
           return
 
@@ -1624,7 +1628,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       for vol in existingStructures:
         msg += vol + '\n'
       msg += '\nCannot propagate on top of existing structures.  Delete the existing structures and try again.\n'
-      self.notificationDialog(msg)
+      slicer.util.infoDisplay(msg, windowTitle="mpReview")
       return
 
     # Create identity transform
@@ -1645,6 +1649,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       dstLabel.GetDisplayNode().SetAndObserveColorNodeID(self.mpReviewColorNode.GetID())
 
       progress.labelText = labelName
+      slicer.app.processEvents()
 
       # Resample srcSeries labels into the space of dstSeries, store result in tmpLabel
       parameters = {}
@@ -1675,6 +1680,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
       progress.setValue(nProcessed)
       nProcessed += 1
+      slicer.app.processEvents()
       if progress.wasCanceled:
         break
 
@@ -1690,7 +1696,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         msg += vol.GetName() + '\n'
       msg += '\nAttempt reverse-nearest-neighbor propagation?\n'
 
-      if self.yesNoDialog(msg) == 0:
+      if slicer.util.confirmYesNoDisplay(msg, windowTitle="mpReview") == 0:
         # User doesn't want to try RNN, remove the empty label node
         for dstLabel in emptyDstLabel:
           slicer.mrmlScene.RemoveNode(dstLabel)
@@ -1978,6 +1984,16 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
   """
 
   @staticmethod
+  def wasmpReviewPreprocessed(directory):
+    return len(mpReviewLogic.getStudyNames(directory)) > 0
+
+  @staticmethod
+  def getStudyNames(directory):
+    def getSubDirectories(currentDirectory):
+      return [d for d in os.listdir(currentDirectory) if os.path.isdir(os.path.join(currentDirectory, d))]
+    return [d for d in getSubDirectories(directory) if "RESOURCES" in getSubDirectories(os.path.join(directory, d))]
+
+  @staticmethod
   def createDirectory(directory, message=None):
     if message:
       logging.debug(message)
@@ -2010,29 +2026,20 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
   @staticmethod
   def abbreviateName(meta):
     try:
-      descr = meta['SeriesDescription']
+      description = meta['SeriesDescription']
       seriesNumber = meta['SeriesNumber']
     except:
-      descr = meta['DerivedSeriesDescription']
+      description = meta['DerivedSeriesDescription']
       seriesNumber = meta['DerivedSeriesNumber']
     abbr = 'Unknown'
-    if descr.find('Apparent Diffusion Coeff')>=0:
-      abbr = 'ADC'
-    if descr.find('T2')>=0:
-      abbr = 'T2'
-    if descr.find('T1')>=0:
-      abbr = 'T1'
-    if descr.find('Ktrans')>=0:
-      abbr = 'Ktrans'
-    if descr.find('Ve')>=0:
-      abbr = 've'
-    if descr.find('MaxSlope')>=0:
-      abbr = 'MaxSlope'
-    if descr.find('TTP')>=0:
-      abbr = 'TTP'
-    if descr.find('Auc')>=0:
-      abbr = 'AUC'
-    if re.search('[a-zA-Z]',descr) is None:
+
+    substrAbbreviation = {'Apparent Diffusion Coeff': 'ADC', 'T2':'T2', 'T1':'T1', 'Ktrans':'Ktrans', 'Ve':'ve',
+                          'MaxSlope':'MaxSlope', 'TTP':'TTp', 'Auc':'AUC', }
+
+    for substring, abbreviation in substrAbbreviation.iteritems():
+      if substring in description:
+        abbr = abbreviation
+    if re.search('[a-zA-Z]',description) is None:
       abbr = 'Subtract'
     return seriesNumber+'-'+abbr
 
@@ -2134,16 +2141,6 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
   def formatDate(self, extractedDate):
     formatted = datetime.date(int(extractedDate[0:4]), int(extractedDate[4:6]), int(extractedDate[6:8]))
     return formatted.strftime("%Y-%b-%d")
-
-  def wasmpReviewPreprocessed(self, directory):
-    return len(self.getStudyNames(directory)) > 0
-
-  def getStudyNames(self, directory):
-    return [d for d in self.getSubDirectories(directory)
-            if "RESOURCES" in self.getSubDirectories(os.path.join(directory, d))]
-
-  def getSubDirectories(self, directory):
-    return [d for d in os.listdir(directory) if os.path.isdir(os.path.join(directory, d))]
 
   def hasImageData(self,volumeNode):
     """This is a dummy logic method that
@@ -2313,8 +2310,8 @@ class mpReviewFiducialTable(object):
     self.connectedButtons.append(button)
 
   def handleDeleteButtonClicked(self, idx):
-    if mpReviewWidget.yesNoDialog("Do you really want to delete fiducial %s?"
-            % self.currentNode.GetNthFiducialLabel(idx)):
+    if slicer.util.confirmYesNoDisplay("Do you really want to delete fiducial %s?"
+                                               % self.currentNode.GetNthFiducialLabel(idx), windowTitle="mpReview"):
       self.currentNode.RemoveMarkup(idx)
 
   def onFiducialsUpdated(self, caller, event):
