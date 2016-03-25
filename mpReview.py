@@ -598,25 +598,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         slicer.mrmlScene.RemoveNode(ctn)
         break
 
-    self.mpReviewColorNode = slicer.vtkMRMLColorTableNode()
-    colorNode = self.mpReviewColorNode
-    colorNode.SetName('mpReview')
-    slicer.mrmlScene.AddNode(colorNode)
-    colorNode.SetTypeToUser()
-    with open(self.colorFile) as f:
-      n = sum(1 for line in f)
-    colorNode.SetNumberOfColors(n-1)
-    colorNode.NamesInitialisedOn()
-    import csv
-    self.structureNames = []
-    with open(self.colorFile, 'rb') as csvfile:
-      reader = csv.DictReader(csvfile, delimiter=',')
-      for index,row in enumerate(reader):
-        success = colorNode.SetColor(index ,row['Label'],float(row['R'])/255,
-                float(row['G'])/255,float(row['B'])/255,float(row['A']))
-        if not success:
-          print "color %s could not be set" % row['Label']
-        self.structureNames.append(row['Label'])
+    self.mpReviewColorNode, self.structureNames = self.logic.loadColorTable(self.colorFile)
 
   def onNameEntered(self):
     name = self.nameText.text
@@ -822,7 +804,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         outHierarchy.SetName( 'mpReview-'+refLongName )
         slicer.mrmlScene.AddNode( outHierarchy )
 
-      progress = self.makeProgressIndicator(len(labelNodes))
+      progress = slicer.util.createProgressDialog(maximum=len(labelNodes))
       step = 0
       for label in labelNodes.values():
         labelName =  label.GetName().split(':')[1]
@@ -1057,7 +1039,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.studyItems = []
     self.seriesModel.clear()
     dirs = self.logic.getStudyNames(self.inputDataDir)
-    progress = self.makeProgressIndicator(len(dirs))
+    progress = slicer.util.createProgressDialog(maximum=len(dirs))
     for studyIndex, studyName in enumerate(dirs, start=1):
       if os.path.isdir(os.path.join(self.inputDataDir, studyName)) and studyName != 'SETTINGS':
         sItem = qt.QStandardItem(studyName)
@@ -1074,7 +1056,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   def invokePreProcessing(self, outputDirectory):
     self.mpReviewPreprocessorLogic = mpReviewPreprocessorLogic()
-    self.progress = self.makeProgressIndicator()
+    self.progress = slicer.util.createProgressDialog()
     self.progress.canceled.connect(lambda : self.mpReviewPreprocessorLogic.cancelProcess())
     self.mpReviewPreprocessorLogic.importStudy(self.inputDataDir, progressCallback=self.updateProgressBar)
     success = False
@@ -1125,7 +1107,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     self.resourcesDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'RESOURCES')
 
-    self.progress = self.makeProgressIndicator(len(os.listdir(self.resourcesDir)))
+    self.progress = slicer.util.createProgressDialog(maximum=len(os.listdir(self.resourcesDir)))
     self.seriesMap, metaFile = self.logic.loadMpReviewProcessedData(self.resourcesDir,
                                                                     updateProgressCallback=self.updateProgressBar)
     print metaFile
@@ -1172,7 +1154,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.refSelectorIgnoreUpdates = True
 
     # Loading progress indicator
-    progress = self.makeProgressIndicator(len(checkedItems))
+    progress = slicer.util.createProgressDialog(maximum=len(checkedItems))
     nLoaded = 0
 
     # iterate over all selected items and add them to the reference selector
@@ -1653,7 +1635,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     emptyDstLabel = []
 
     # Do the resamples
-    progress = self.makeProgressIndicator(len(propagateInto))
+    progress = slicer.util.createProgressDialog(maximum=len(propagateInto))
     nProcessed = 0
     for dstSeries in propagateInto:
       labelName = self.seriesMap[dstSeries]['ShortName']+'-'+selectedStructure+'-label'
@@ -2056,6 +2038,28 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
 
   def __init__(self, parent=None):
     ScriptedLoadableModuleLogic.__init__(self, parent)
+
+  @staticmethod
+  def loadColorTable(colorFile):
+    colorNode = slicer.vtkMRMLColorTableNode()
+    colorNode.SetName('mpReview')
+    slicer.mrmlScene.AddNode(colorNode)
+    colorNode.SetTypeToUser()
+    with open(colorFile) as f:
+      n = sum(1 for line in f)
+    colorNode.SetNumberOfColors(n - 1)
+    colorNode.NamesInitialisedOn()
+    import csv
+    structureNames = []
+    with open(colorFile, 'rb') as csvfile:
+      reader = csv.DictReader(csvfile, delimiter=',')
+      for index, row in enumerate(reader):
+        success = colorNode.SetColor(index, row['Label'], float(row['R']) / 255,
+                                     float(row['G']) / 255, float(row['B']) / 255, float(row['A']))
+        if not success:
+          print "color %s could not be set" % row['Label']
+        structureNames.append(row['Label'])
+    return colorNode, structureNames
 
   @staticmethod
   def loadMpReviewProcessedData(resourcesDir, updateProgressCallback=None):

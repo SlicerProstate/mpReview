@@ -21,18 +21,6 @@ class ModuleWidgetMixin(object):
     return path
 
   @staticmethod
-  def makeProgressIndicator(maxVal=100, initialValue=0):
-    progressIndicator = qt.QProgressDialog()
-    progressIndicator.minimumDuration = 0
-    progressIndicator.modal = True
-    progressIndicator.setMaximum(maxVal)
-    progressIndicator.setValue(initialValue)
-    progressIndicator.setWindowTitle("Processing...")
-    progressIndicator.show()
-    progressIndicator.autoClose = False
-    return progressIndicator
-
-  @staticmethod
   def confirmOrSaveDialog(message, title='mpReview'):
     box = qt.QMessageBox(qt.QMessageBox.Question, title, message)
     box.addButton("Exit, discard changes", qt.QMessageBox.AcceptRole)
