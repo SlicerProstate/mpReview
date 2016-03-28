@@ -16,21 +16,9 @@ class ModuleWidgetMixin(object):
     try:
       split = path.split('/')
       path = '.../' + split[-2] + '/' + split[-1]
-    except IndexError:
+    except (IndexError, AttributeError):
       pass
     return path
-
-  @staticmethod
-  def makeProgressIndicator(maxVal=100, initialValue=0):
-    progressIndicator = qt.QProgressDialog()
-    progressIndicator.minimumDuration = 0
-    progressIndicator.modal = True
-    progressIndicator.setMaximum(maxVal)
-    progressIndicator.setValue(initialValue)
-    progressIndicator.setWindowTitle("Processing...")
-    progressIndicator.show()
-    progressIndicator.autoClose = False
-    return progressIndicator
 
   @staticmethod
   def confirmOrSaveDialog(message, title='mpReview'):
@@ -39,26 +27,6 @@ class ModuleWidgetMixin(object):
     box.addButton("Save changes", qt.QMessageBox.ActionRole)
     box.addButton("Cancel", qt.QMessageBox.RejectRole)
     return box.exec_()
-
-  @staticmethod
-  def confirmDialog(message, title='mpReview'):
-    result = qt.QMessageBox.question(slicer.util.mainWindow(), title, message,
-                                     qt.QMessageBox.Ok | qt.QMessageBox.Cancel)
-    return result == qt.QMessageBox.Ok
-
-  @staticmethod
-  def notificationDialog(message, title='mpReview'):
-    return qt.QMessageBox.information(slicer.util.mainWindow(), title, message)
-
-  @staticmethod
-  def yesNoDialog(message, title='mpReview'):
-    result = qt.QMessageBox.question(slicer.util.mainWindow(), title, message,
-                                     qt.QMessageBox.Yes | qt.QMessageBox.No)
-    return result == qt.QMessageBox.Yes
-
-  @staticmethod
-  def warningDialog(message, title='mpReview'):
-    return qt.QMessageBox.warning(slicer.util.mainWindow(), title, message)
 
   def getSetting(self, setting):
     settings = qt.QSettings()
@@ -79,6 +47,7 @@ class ModuleWidgetMixin(object):
         setattr(progress, key, value)
       else:
         print "key %s not found" % key
+    slicer.app.processEvents()
 
   def createHLayout(self, elements, **kwargs):
     return self._createLayout(qt.QHBoxLayout, elements, **kwargs)

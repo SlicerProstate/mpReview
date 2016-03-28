@@ -58,14 +58,16 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     logging.debug('Directory selected: %s' % directory)
     if not os.path.exists(directory):
       directory = None
-    truncatedPath = self.truncatePath(directory)
-    self.dataDirButton.text = truncatedPath
-    self.dataDirButton.caption = directory
-    self.informationWatchBox.setInformation("CurrentDataDir", truncatedPath, toolTip=directory)
-    if directory:
+      self.dataDirButton.text = "Choose data directory"
+      truncatedPath = None
+    else:
+      truncatedPath = self.truncatePath(directory)
+      self.dataDirButton.text = truncatedPath
+      self.dataDirButton.caption = directory
       self.setSetting('InputLocation', directory)
       self.checkAndSetLUT()
       self.updateStudyTable()
+    self.informationWatchBox.setInformation("CurrentDataDir", truncatedPath, toolTip=directory)
     self.setTabsEnabled([1,2,3], False)
 
   def __init__(self, parent = None):
@@ -598,25 +600,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         slicer.mrmlScene.RemoveNode(ctn)
         break
 
-    self.mpReviewColorNode = slicer.vtkMRMLColorTableNode()
-    colorNode = self.mpReviewColorNode
-    colorNode.SetName('mpReview')
-    slicer.mrmlScene.AddNode(colorNode)
-    colorNode.SetTypeToUser()
-    with open(self.colorFile) as f:
-      n = sum(1 for line in f)
-    colorNode.SetNumberOfColors(n-1)
-    colorNode.NamesInitialisedOn()
-    import csv
-    self.structureNames = []
-    with open(self.colorFile, 'rb') as csvfile:
-      reader = csv.DictReader(csvfile, delimiter=',')
-      for index,row in enumerate(reader):
-        success = colorNode.SetColor(index ,row['Label'],float(row['R'])/255,
-                float(row['G'])/255,float(row['B'])/255,float(row['A']))
-        if not success:
-          print "color %s could not be set" % row['Label']
-        self.structureNames.append(row['Label'])
+    self.mpReviewColorNode, self.structureNames = self.logic.loadColorTable(self.colorFile)
 
   def onNameEntered(self):
     name = self.nameText.text
@@ -738,7 +722,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     '''
 
     savedMessage += "\n " + self.saveTargets(username, timestamp)
-    self.notificationDialog(savedMessage)
+    slicer.util.infoDisplay(savedMessage, windowTitle="mpReview")
 
   def saveSegmentations(self, timestamp, username):
     wlSettingsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'WindowLevelSettings')
@@ -822,7 +806,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         outHierarchy.SetName( 'mpReview-'+refLongName )
         slicer.mrmlScene.AddNode( outHierarchy )
 
-      progress = self.makeProgressIndicator(len(labelNodes))
+      progress = slicer.util.createProgressDialog(maximum=len(labelNodes))
       step = 0
       for label in labelNodes.values():
         labelName =  label.GetName().split(':')[1]
@@ -850,6 +834,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
           progress.labelText = '\nMaking Model for %s' % structureName
           progress.setValue(step)
+          slicer.app.processEvents()
           if progress.wasCanceled:
             break
 
@@ -933,21 +918,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
               self.modelsVisibilityButton.setText('Hide')
           self.updateViewRenderer()
 
-  def findElement(self, dom, name):
-    els = dom.getElementsByTagName('element')
-    for e in els:
-      if e.getAttribute('name') == name:
-        return e.childNodes[0].nodeValue
-
-  def getSeriesInfoFromXML(self, f):
-    dom = xml.dom.minidom.parse(f)
-    number = self.findElement(dom, 'SeriesNumber')
-    name = self.findElement(dom, 'SeriesDescription')
-    name = name.replace('-','')
-    name = name.replace('(','')
-    name = name.replace(')','')
-    return number,name
-
   def checkAndLoadLabel(self, seriesNumber, volumeName):
     globPath = os.path.join(self.resourcesDir,str(seriesNumber),"Segmentations",
                             self.getSetting('UserName')+'*')
@@ -993,7 +963,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
       logging.debug('Label loaded, storage node is '+label.GetStorageNode().GetID())
 
-    #return (True,label)
     return True
 
   def setTabsEnabled(self, indexes, enabled):
@@ -1048,20 +1017,33 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
           outputDirectory = selectedDir
         else:
           if selectedDir == self.inputDataDir:
-            self.warningDialog("The output directory cannot be the input data directory Please choose another "
-                               "directory.")
+            slicer.util.warningDisplay("The output directory cannot be the input data directory Please choose another "
+                                       "directory.", windowTitle="mpReview")
           return self.updateStudyTable()
       success = self.invokePreProcessing(outputDirectory)
       if success:
         self.dataDirButton.directory = outputDirectory
       else:
-        self.notificationDialog("No DICOM data could be processed. Please select another directory.")
+        slicer.util.infoDisplay("No DICOM data could be processed. Please select another directory.",
+                                windowTitle="mpReview")
+
+  def updateSeriesTable(self):
+    self.seriesItems = []
+    self.seriesModel.clear()
+    for s in sorted([int(x) for x in self.seriesMap.keys()]):
+      seriesText = str(s) + ':' + self.seriesMap[str(s)]['LongName']
+      sItem = qt.QStandardItem(seriesText)
+      self.seriesItems.append(sItem)
+      self.seriesModel.appendRow(sItem)
+      sItem.setCheckable(1)
+      if self.logic.isSeriesOfInterest(seriesText):
+        sItem.setCheckState(2)
 
   def fillStudyTable(self):
     self.studyItems = []
     self.seriesModel.clear()
     dirs = self.logic.getStudyNames(self.inputDataDir)
-    progress = self.makeProgressIndicator(len(dirs))
+    progress = slicer.util.createProgressDialog(maximum=len(dirs))
     for studyIndex, studyName in enumerate(dirs, start=1):
       if os.path.isdir(os.path.join(self.inputDataDir, studyName)) and studyName != 'SETTINGS':
         sItem = qt.QStandardItem(studyName)
@@ -1069,6 +1051,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         self.studiesModel.appendRow(sItem)
         logging.debug('Appended to model study ' + studyName)
         progress.setValue(studyIndex)
+        slicer.app.processEvents()
     # TODO: unload all volume nodes that are already loaded
     progress.close()
     if len(self.studyItems) == 1:
@@ -1078,7 +1061,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   def invokePreProcessing(self, outputDirectory):
     self.mpReviewPreprocessorLogic = mpReviewPreprocessorLogic()
-    self.progress = self.makeProgressIndicator()
+    self.progress = slicer.util.createProgressDialog()
     self.progress.canceled.connect(lambda : self.mpReviewPreprocessorLogic.cancelProcess())
     self.mpReviewPreprocessorLogic.importStudy(self.inputDataDir, progressCallback=self.updateProgressBar)
     success = False
@@ -1129,89 +1112,18 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     self.resourcesDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'RESOURCES')
 
-    # Loading progress indicator
-    progress = self.makeProgressIndicator(len(os.listdir(self.resourcesDir)))
-    nLoaded = 0
+    self.progress = slicer.util.createProgressDialog(maximum=len(os.listdir(self.resourcesDir)))
+    self.seriesMap, metaFile = self.logic.loadMpReviewProcessedData(self.resourcesDir,
+                                                                    updateProgressCallback=self.updateProgressBar)
+    self.informationWatchBox.sourceFile = metaFile
+    self.informationWatchBox.setInformation("StudyID", self.selectedStudyName)
 
-    # expect one directory for each processed series, with the name
-    # corresponding to the series number
-
-    loadFurtherInformation = True
-
-    self.seriesMap = {}
-    for root, subdirs, files in os.walk(self.resourcesDir):
-      logging.debug('Root: '+root+', files: '+str(files))
-      resourceType = os.path.split(root)[1]
-      logging.debug('Resource: '+resourceType)
-
-      if resourceType == 'Reconstructions':
-        for f in files:
-          logging.debug('File: '+f)
-          if f.endswith('.xml'):
-            metaFile = os.path.join(root,f)
-            logging.debug('Ends with xml: '+metaFile)
-            try:
-              (seriesNumber,seriesName) = self.getSeriesInfoFromXML(metaFile)
-              logging.debug(str(seriesNumber)+' '+seriesName)
-            except:
-              logging.debug('Failed to get from XML')
-              continue
-
-            progress.labelText = seriesName
-            progress.setValue(nLoaded)
-            nLoaded += 1
-
-            volumePath = os.path.join(root,seriesNumber+'.nrrd')
-            self.seriesMap[seriesNumber] = {'MetaInfo':None, 'NRRDLocation':volumePath,'LongName':seriesName}
-            self.seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+seriesName
-            if loadFurtherInformation is True:
-              self.informationWatchBox.sourceFile = metaFile
-              self.informationWatchBox.setInformation("StudyID", self.selectedStudyName)
-              loadFurtherInformation = False
-
-      # ignore the PK maps for the purposes of segmentation
-      if resourceType == 'OncoQuant' and False:
-        for f in files:
-          if f.endswith('.json'):
-            metaFile = open(os.path.join(root,f))
-            metaInfo = json.load(metaFile)
-            logging.debug('JSON meta info: '+str(metaInfo))
-            try:
-              seriesNumber = metaInfo['SeriesNumber']
-              seriesName = metaInfo['SeriesDescription']
-            except:
-              seriesNumber = metaInfo['DerivedSeriesNumber']
-              seriesName = metaInfo['ModelType']+'-'+metaInfo['AIF']+'-'+metaInfo['Parameter']
-            volumePath = os.path.join(root,seriesNumber+'.nrrd')
-            self.seriesMap[seriesNumber] = {'MetaInfo':metaInfo, 'NRRDLocation':volumePath,'LongName':seriesName}
-            self.seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+self.logic.abbreviateName(self.seriesMap[seriesNumber]['MetaInfo'])
-
-    logging.debug('All series found: '+str(self.seriesMap.keys()))
-
-    numbers = [int(x) for x in self.seriesMap.keys()]
-    numbers.sort()
-
-    tableItems = []
-    for num in numbers:
-      desc = self.seriesMap[str(num)]['LongName']
-      tableItems.append(str(num)+':'+desc)
-
-    self.seriesModel.clear()
-    self.seriesItems = []
-
-    for s in numbers:
-      seriesText = str(s)+':'+self.seriesMap[str(s)]['LongName']
-      sItem = qt.QStandardItem(seriesText)
-      self.seriesItems.append(sItem)
-      self.seriesModel.appendRow(sItem)
-      sItem.setCheckable(1)
-      if self.logic.isSeriesOfInterest(seriesText):
-        sItem.setCheckState(2)
+    self.updateSeriesTable()
 
     self.selectAllSeriesButton.setEnabled(True)
     self.deselectAllSeriesButton.setEnabled(True)
-    
-    progress.delete()
+
+    self.progress.delete()
     self.setTabsEnabled([1], True)
 
   def onStep2Selected(self):
@@ -1246,7 +1158,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.refSelectorIgnoreUpdates = True
 
     # Loading progress indicator
-    progress = self.makeProgressIndicator(len(checkedItems))
+    progress = slicer.util.createProgressDialog(maximum=len(checkedItems))
     nLoaded = 0
 
     # iterate over all selected items and add them to the reference selector
@@ -1256,6 +1168,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
       progress.labelText = text
       progress.setValue(nLoaded)
+      slicer.app.processEvents()
       nLoaded += 1
 
       seriesNumber = text.split(':')[0]
@@ -1480,7 +1393,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       selectedModelVol = self.editorWidget.helper.structureListWidget.structures.item(selected,2).text()
 
       # Confirm with user
-      if not self.confirmDialog( "Delete \'%s\' volume?" % selectedModelVol ):
+      if not slicer.util.confirmOkCancelDisplay("Delete \'%s\' volume?" % selectedModelVol, title="mpReview"):
         return
 
       # Cleanup files
@@ -1622,9 +1535,10 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
           logging.debug("Creating fiducial at position %f, %f, %f" % tuple(centroid))
           addedFiducialIds.append(fiducialNode.AddFiducialFromArray(centroid, label.GetName()))
         except:
-          self.notificationDialog("No label object with label %s. \n You might have forgotten to print a label."
-                                  "To prevent the duplication of fiducials, all fiducials of the current "
-                                  "creation step will be deleted." % label.GetName())
+          notificationDialog = slicer.util.infoDisplay
+          notificationDialog("No label object with label %s. \n You might have forgotten to print a label."
+                             "To prevent the duplication of fiducials, all fiducials of the current "
+                             "creation step will be deleted." % label.GetName(), windowTitle='mpReview')
           self.removeFiducialIDsFromNode(fiducialNode, addedFiducialIds)
           return
 
@@ -1716,7 +1630,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       for vol in existingStructures:
         msg += vol + '\n'
       msg += '\nCannot propagate on top of existing structures.  Delete the existing structures and try again.\n'
-      self.notificationDialog(msg)
+      slicer.util.infoDisplay(msg, windowTitle="mpReview")
       return
 
     # Create identity transform
@@ -1727,7 +1641,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     emptyDstLabel = []
 
     # Do the resamples
-    progress = self.makeProgressIndicator(len(propagateInto))
+    progress = slicer.util.createProgressDialog(maximum=len(propagateInto))
     nProcessed = 0
     for dstSeries in propagateInto:
       labelName = self.seriesMap[dstSeries]['ShortName']+'-'+selectedStructure+'-label'
@@ -1737,6 +1651,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       dstLabel.GetDisplayNode().SetAndObserveColorNodeID(self.mpReviewColorNode.GetID())
 
       progress.labelText = labelName
+      slicer.app.processEvents()
 
       # Resample srcSeries labels into the space of dstSeries, store result in tmpLabel
       parameters = {}
@@ -1767,6 +1682,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
       progress.setValue(nProcessed)
       nProcessed += 1
+      slicer.app.processEvents()
       if progress.wasCanceled:
         break
 
@@ -1782,7 +1698,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         msg += vol.GetName() + '\n'
       msg += '\nAttempt reverse-nearest-neighbor propagation?\n'
 
-      if self.yesNoDialog(msg) == 0:
+      if slicer.util.confirmYesNoDisplay(msg, windowTitle="mpReview") == 0:
         # User doesn't want to try RNN, remove the empty label node
         for dstLabel in emptyDstLabel:
           slicer.mrmlScene.RemoveNode(dstLabel)
@@ -2070,6 +1986,16 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
   """
 
   @staticmethod
+  def wasmpReviewPreprocessed(directory):
+    return len(mpReviewLogic.getStudyNames(directory)) > 0
+
+  @staticmethod
+  def getStudyNames(directory):
+    def getSubDirectories(currentDirectory):
+      return [d for d in os.listdir(currentDirectory) if os.path.isdir(os.path.join(currentDirectory, d))]
+    return [d for d in getSubDirectories(directory) if "RESOURCES" in getSubDirectories(os.path.join(directory, d))]
+
+  @staticmethod
   def createDirectory(directory, message=None):
     if message:
       logging.debug(message)
@@ -2102,48 +2028,121 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
   @staticmethod
   def abbreviateName(meta):
     try:
-      descr = meta['SeriesDescription']
+      description = meta['SeriesDescription']
       seriesNumber = meta['SeriesNumber']
     except:
-      descr = meta['DerivedSeriesDescription']
+      description = meta['DerivedSeriesDescription']
       seriesNumber = meta['DerivedSeriesNumber']
     abbr = 'Unknown'
-    if descr.find('Apparent Diffusion Coeff')>=0:
-      abbr = 'ADC'
-    if descr.find('T2')>=0:
-      abbr = 'T2'
-    if descr.find('T1')>=0:
-      abbr = 'T1'
-    if descr.find('Ktrans')>=0:
-      abbr = 'Ktrans'
-    if descr.find('Ve')>=0:
-      abbr = 've'
-    if descr.find('MaxSlope')>=0:
-      abbr = 'MaxSlope'
-    if descr.find('TTP')>=0:
-      abbr = 'TTP'
-    if descr.find('Auc')>=0:
-      abbr = 'AUC'
-    if re.search('[a-zA-Z]',descr) is None:
+
+    substrAbbreviation = {'Apparent Diffusion Coeff': 'ADC', 'T2':'T2', 'T1':'T1', 'Ktrans':'Ktrans', 'Ve':'ve',
+                          'MaxSlope':'MaxSlope', 'TTP':'TTp', 'Auc':'AUC', }
+
+    for substring, abbreviation in substrAbbreviation.iteritems():
+      if substring in description:
+        abbr = abbreviation
+    if re.search('[a-zA-Z]',description) is None:
       abbr = 'Subtract'
     return seriesNumber+'-'+abbr
 
   def __init__(self, parent=None):
     ScriptedLoadableModuleLogic.__init__(self, parent)
 
+  @staticmethod
+  def loadColorTable(colorFile):
+    colorNode = slicer.vtkMRMLColorTableNode()
+    colorNode.SetName('mpReview')
+    slicer.mrmlScene.AddNode(colorNode)
+    colorNode.SetTypeToUser()
+    with open(colorFile) as f:
+      n = sum(1 for line in f)
+    colorNode.SetNumberOfColors(n - 1)
+    colorNode.NamesInitialisedOn()
+    import csv
+    structureNames = []
+    with open(colorFile, 'rb') as csvfile:
+      reader = csv.DictReader(csvfile, delimiter=',')
+      for index, row in enumerate(reader):
+        success = colorNode.SetColor(index, row['Label'], float(row['R']) / 255,
+                                     float(row['G']) / 255, float(row['B']) / 255, float(row['A']))
+        if not success:
+          print "color %s could not be set" % row['Label']
+        structureNames.append(row['Label'])
+    return colorNode, structureNames
+
+  @staticmethod
+  def loadMpReviewProcessedData(resourcesDir, updateProgressCallback=None):
+    loadFurtherInformation = True
+
+    sourceFile = None
+
+    nLoaded = 0
+    seriesMap = {}
+    for root, dirs, files in os.walk(resourcesDir):
+      logging.debug('Root: '+root+', files: '+str(files))
+      resourceType = os.path.split(root)[1]
+      logging.debug('Resource: '+resourceType)
+
+      if resourceType == 'Reconstructions':
+        for currentXMLFile in [f for f in files if f.endswith('.xml')]:
+          metaFile = os.path.join(root, currentXMLFile)
+          logging.debug('Current XML File: ' + metaFile)
+          try:
+            (seriesNumber,seriesName) = mpReviewLogic.getSeriesInfoFromXML(metaFile)
+            logging.debug(str(seriesNumber)+' '+seriesName)
+          except:
+            logging.debug('Failed to get from XML')
+            continue
+
+          if updateProgressCallback:
+            updateProgressCallback(labelText=seriesName, value=nLoaded)
+          nLoaded += 1
+
+          volumePath = os.path.join(root,seriesNumber+'.nrrd')
+          seriesMap[seriesNumber] = {'MetaInfo':None, 'NRRDLocation':volumePath,'LongName':seriesName}
+          seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+seriesName
+          if loadFurtherInformation is True:
+            sourceFile = metaFile
+            loadFurtherInformation = False
+
+      # ignore the PK maps for the purposes of segmentation
+      if resourceType == 'OncoQuant' and False:
+        for f in files:
+          if f.endswith('.json'):
+            metaFile = open(os.path.join(root,f))
+            metaInfo = json.load(metaFile)
+            logging.debug('JSON meta info: '+str(metaInfo))
+            try:
+              seriesNumber = metaInfo['SeriesNumber']
+              seriesName = metaInfo['SeriesDescription']
+            except:
+              seriesNumber = metaInfo['DerivedSeriesNumber']
+              seriesName = metaInfo['ModelType']+'-'+metaInfo['AIF']+'-'+metaInfo['Parameter']
+            volumePath = os.path.join(root,seriesNumber+'.nrrd')
+            seriesMap[seriesNumber] = {'MetaInfo':metaInfo, 'NRRDLocation':volumePath,'LongName':seriesName}
+            seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":" + \
+                                                   mpReviewLogic.abbreviateName(seriesMap[seriesNumber]['MetaInfo'])
+
+    logging.debug('All series found: '+str(seriesMap.keys()))
+    return seriesMap, sourceFile
+
+  @staticmethod
+  def getSeriesInfoFromXML(f):
+
+    def findElement(dom, name):
+      els = dom.getElementsByTagName('element')
+      for e in els:
+        if e.getAttribute('name') == name:
+          return e.childNodes[0].nodeValue
+
+    dom = xml.dom.minidom.parse(f)
+    number = findElement(dom, 'SeriesNumber')
+    name = findElement(dom, 'SeriesDescription')
+    return number, name.replace('-','').replace('(','').replace(')','')
+
   def formatDate(self, extractedDate):
     formatted = datetime.date(int(extractedDate[0:4]), int(extractedDate[4:6]), int(extractedDate[6:8]))
     return formatted.strftime("%Y-%b-%d")
-
-  def wasmpReviewPreprocessed(self, directory):
-    return len(self.getStudyNames(directory)) > 0
-
-  def getStudyNames(self, directory):
-    return [d for d in self.getSubDirectories(directory)
-            if "RESOURCES" in self.getSubDirectories(os.path.join(directory, d))]
-
-  def getSubDirectories(self, directory):
-    return [d for d in os.listdir(directory) if os.path.isdir(os.path.join(directory, d))]
 
   def hasImageData(self,volumeNode):
     """This is a dummy logic method that
@@ -2207,7 +2206,7 @@ class mpReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleWidg
     return
 
 
-class mpReviewFiducialTable(object):
+class mpReviewFiducialTable(ModuleWidgetMixin):
 
   HEADERS = ["Name","Delete"]
   MODIFIED_EVENT = "ModifiedEvent"
@@ -2235,15 +2234,9 @@ class mpReviewFiducialTable(object):
     self.setupConnections()
 
   def setupTargetFiducialListSelector(self):
-    self.fiducialListSelector = slicer.qMRMLNodeComboBox()
-    self.fiducialListSelector.nodeTypes = (("vtkMRMLMarkupsFiducialNode"), "")
-    self.fiducialListSelector.addEnabled = True
-    self.fiducialListSelector.removeEnabled = True
-    self.fiducialListSelector.selectNodeUponCreation = True
-    self.fiducialListSelector.noneEnabled = False
-    self.fiducialListSelector.showHidden = False
-    self.fiducialListSelector.showChildNodeTypes = False
-    self.fiducialListSelector.setMRMLScene(slicer.mrmlScene)
+    self.fiducialListSelector = self.createComboBox(nodeTypes=["vtkMRMLMarkupsFiducialNode", ""], addEnabled=True,
+                                                    removeEnabled=True, noneEnabled=False, showChildNodeTypes=False,
+                                                    selectNodeUponCreation=True, toolTip="Select fiducial list")
     hbox = qt.QHBoxLayout()
     hbox.addWidget(qt.QLabel("Fiducial List: "))
     hbox.addWidget(self.fiducialListSelector)
@@ -2259,6 +2252,7 @@ class mpReviewFiducialTable(object):
     self.parent.addRow(self.table)
 
   def resetTable(self):
+    self.cleanupButtons()
     self.table.clear()
     self.table.setHorizontalHeaderLabels(self.HEADERS)
 
@@ -2275,9 +2269,12 @@ class mpReviewFiducialTable(object):
     logging.debug("mpReviewFiducialTable:onFiducialListSelected")
     self.removeObservers()
     self._currentFiducialList = self.currentNode
-    self.addObservers()
-    self.updateTable()
-    self.markupsLogic.SetActiveListID(self.currentNode)
+    if self.fiducialListSelector.currentNode():
+      self.addObservers()
+      self.updateTable()
+      self.markupsLogic.SetActiveListID(self.currentNode)
+    else:
+      self.resetTable()
 
   def removeObservers(self):
     if self._currentFiducialList and len(self.fiducialsNodeObservers) > 0:
@@ -2291,7 +2288,6 @@ class mpReviewFiducialTable(object):
         self.fiducialsNodeObservers.append(self.currentNode.AddObserver(event, self.onFiducialsUpdated))
 
   def updateTable(self):
-    self.cleanupButtons()
     self.resetTable()
     if not self.currentNode:
       return
@@ -2313,8 +2309,8 @@ class mpReviewFiducialTable(object):
     self.connectedButtons.append(button)
 
   def handleDeleteButtonClicked(self, idx):
-    if mpReviewWidget.yesNoDialog("Do you really want to delete fiducial %s?"
-            % self.currentNode.GetNthFiducialLabel(idx)):
+    if slicer.util.confirmYesNoDisplay("Do you really want to delete fiducial %s?"
+                                               % self.currentNode.GetNthFiducialLabel(idx), windowTitle="mpReview"):
       self.currentNode.RemoveMarkup(idx)
 
   def onFiducialsUpdated(self, caller, event):
