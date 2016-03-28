@@ -2206,7 +2206,7 @@ class mpReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleWidg
     return
 
 
-class mpReviewFiducialTable(object):
+class mpReviewFiducialTable(ModuleWidgetMixin):
 
   HEADERS = ["Name","Delete"]
   MODIFIED_EVENT = "ModifiedEvent"
@@ -2234,15 +2234,9 @@ class mpReviewFiducialTable(object):
     self.setupConnections()
 
   def setupTargetFiducialListSelector(self):
-    self.fiducialListSelector = slicer.qMRMLNodeComboBox()
-    self.fiducialListSelector.nodeTypes = (("vtkMRMLMarkupsFiducialNode"), "")
-    self.fiducialListSelector.addEnabled = True
-    self.fiducialListSelector.removeEnabled = True
-    self.fiducialListSelector.selectNodeUponCreation = True
-    self.fiducialListSelector.noneEnabled = False
-    self.fiducialListSelector.showHidden = False
-    self.fiducialListSelector.showChildNodeTypes = False
-    self.fiducialListSelector.setMRMLScene(slicer.mrmlScene)
+    self.fiducialListSelector = self.createComboBox(nodeTypes=["vtkMRMLMarkupsFiducialNode", ""], addEnabled=True,
+                                                    removeEnabled=True, noneEnabled=False, showChildNodeTypes=False,
+                                                    selectNodeUponCreation=True, toolTip="Select fiducial list")
     hbox = qt.QHBoxLayout()
     hbox.addWidget(qt.QLabel("Fiducial List: "))
     hbox.addWidget(self.fiducialListSelector)
@@ -2258,6 +2252,7 @@ class mpReviewFiducialTable(object):
     self.parent.addRow(self.table)
 
   def resetTable(self):
+    self.cleanupButtons()
     self.table.clear()
     self.table.setHorizontalHeaderLabels(self.HEADERS)
 
@@ -2274,9 +2269,12 @@ class mpReviewFiducialTable(object):
     logging.debug("mpReviewFiducialTable:onFiducialListSelected")
     self.removeObservers()
     self._currentFiducialList = self.currentNode
-    self.addObservers()
-    self.updateTable()
-    self.markupsLogic.SetActiveListID(self.currentNode)
+    if self.fiducialListSelector.currentNode():
+      self.addObservers()
+      self.updateTable()
+      self.markupsLogic.SetActiveListID(self.currentNode)
+    else:
+      self.resetTable()
 
   def removeObservers(self):
     if self._currentFiducialList and len(self.fiducialsNodeObservers) > 0:
@@ -2290,7 +2288,6 @@ class mpReviewFiducialTable(object):
         self.fiducialsNodeObservers.append(self.currentNode.AddObserver(event, self.onFiducialsUpdated))
 
   def updateTable(self):
-    self.cleanupButtons()
     self.resetTable()
     if not self.currentNode:
       return
