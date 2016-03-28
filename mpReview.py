@@ -58,14 +58,16 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     logging.debug('Directory selected: %s' % directory)
     if not os.path.exists(directory):
       directory = None
-    truncatedPath = self.truncatePath(directory)
-    self.dataDirButton.text = truncatedPath
-    self.dataDirButton.caption = directory
-    self.informationWatchBox.setInformation("CurrentDataDir", truncatedPath, toolTip=directory)
-    if directory:
+      self.dataDirButton.text = "Choose data directory"
+      truncatedPath = None
+    else:
+      truncatedPath = self.truncatePath(directory)
+      self.dataDirButton.text = truncatedPath
+      self.dataDirButton.caption = directory
       self.setSetting('InputLocation', directory)
       self.checkAndSetLUT()
       self.updateStudyTable()
+    self.informationWatchBox.setInformation("CurrentDataDir", truncatedPath, toolTip=directory)
     self.setTabsEnabled([1,2,3], False)
 
   def __init__(self, parent = None):

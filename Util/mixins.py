@@ -16,7 +16,7 @@ class ModuleWidgetMixin(object):
     try:
       split = path.split('/')
       path = '.../' + split[-2] + '/' + split[-1]
-    except IndexError:
+    except (IndexError, AttributeError):
       pass
     return path
 
