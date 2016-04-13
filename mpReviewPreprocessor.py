@@ -1,10 +1,8 @@
-import os
+import argparse, sys, shutil, os
+import vtk, qt, ctk, slicer
 import DICOMLib
-from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
-from Util.mixins import ModuleWidgetMixin
-import argparse
-import sys, shutil
+from SlicerProstateUtils.mixins import ModuleWidgetMixin
 #
 # mpReviewPreprocessor
 #   Prepares the DICOM data to be compatible with mpReview module

@@ -1,6 +1,6 @@
 from __future__ import division
 import os, json, xml.dom.minidom, string, glob, re, math
-from __main__ import vtk, qt, ctk, slicer
+import vtk, qt, ctk, slicer
 import logging
 import CompareVolumes
 from Editor import EditorWidget
@@ -9,7 +9,7 @@ import SimpleITK as sitk
 import sitkUtils
 import datetime
 from slicer.ScriptedLoadableModule import *
-from Util.mixins import ModuleWidgetMixin
+from SlicerProstateUtils.mixins import ModuleWidgetMixin
 from mpReviewPreprocessor import mpReviewPreprocessorLogic
 from collections import OrderedDict
 from qSlicerMultiVolumeExplorerModuleWidget import qSlicerMultiVolumeExplorerSimplifiedModuleWidget
