@@ -158,7 +158,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     if currentIndex == 1:
       setNewIndex = self.onStep2Selected()
     if currentIndex == 2:
-      setNewIndex = True
+      setNewIndex = self.onStep3Selected()
     if setNewIndex:
       self.currentTabIndex = currentIndex
 
@@ -983,6 +983,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     if self.checkStep2or3Leave() is True:
       return False
 
+    self.editorParameterNode.SetParameter('effect', 'DefaultTool')
     if len(self.studiesView.selectedIndexes()) > 0:
       self.onStudySelected(self.studiesView.selectedIndexes()[0])
     self.updateSegmentationTabAvailability()
@@ -1224,6 +1225,10 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     self.checkForMultiVolumes()
     self.checkForFiducials()
+    return True
+
+  def onStep3Selected(self):
+    self.editorParameterNode.SetParameter('effect', 'DefaultTool')
     return True
 
   def checkForFiducials(self):
