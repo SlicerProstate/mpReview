@@ -1,10 +1,8 @@
-import os
+import argparse, sys, shutil, os
+import vtk, qt, ctk, slicer
 import DICOMLib
-from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
-from Util.mixins import ModuleWidgetMixin
-import argparse
-import sys, shutil
+from SlicerProstateUtils.mixins import ModuleWidgetMixin
 #
 # mpReviewPreprocessor
 #   Prepares the DICOM data to be compatible with mpReview module
@@ -15,7 +13,7 @@ class mpReviewPreprocessor(ScriptedLoadableModule):
     ScriptedLoadableModule.__init__(self, parent)
     parent.title = "mpReview Preprocessor"
     parent.categories = ["Informatics"]
-    parent.dependencies = []
+    parent.dependencies = ["SlicerProstateUtils"]
     parent.contributors = ["Andrey Fedorov (SPL), Robin Weiss (U. of Chicago), Christian Herz (SPL)"]
     parent.helpText = """
     This is a module for conditioning DICOM data for processing using mpReview module
