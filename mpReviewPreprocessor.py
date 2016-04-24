@@ -13,7 +13,7 @@ class mpReviewPreprocessor(ScriptedLoadableModule):
     ScriptedLoadableModule.__init__(self, parent)
     parent.title = "mpReview Preprocessor"
     parent.categories = ["Informatics"]
-    parent.dependencies = ["SlicerProstateUtils"]
+    parent.dependencies = ["SlicerProstate"]
     parent.contributors = ["Andrey Fedorov (SPL), Robin Weiss (U. of Chicago), Christian Herz (SPL)"]
     parent.helpText = """
     This is a module for conditioning DICOM data for processing using mpReview module
