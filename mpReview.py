@@ -68,7 +68,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.checkAndSetLUT()
       self.updateStudyTable()
     self.informationWatchBox.setInformation("CurrentDataDir", truncatedPath, toolTip=directory)
-    self.setTabsEnabled([1,2,3], False)
 
   def __init__(self, parent = None):
     ScriptedLoadableModuleWidget.__init__(self, parent)
@@ -654,11 +653,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.updateSegmentationTabAvailability()
 
   def updateSegmentationTabAvailability(self):
-    numCheckedItems = len([item for item in self.seriesItems if item.checkState()])
-    if numCheckedItems == 0:
-      self.setTabsEnabled([1], False)
-    else:
-      self.setTabsEnabled([1], True)
+    self.setTabsEnabled([1], any(sItem.checkState() == 2 for sItem in self.seriesItems))
 
   def onPIRADSFormClicked(self):
     self.webView = qt.QWebView()
@@ -987,7 +982,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     if len(self.studiesView.selectedIndexes()) > 0:
       self.onStudySelected(self.studiesView.selectedIndexes()[0])
     self.updateSegmentationTabAvailability()
-    self.setTabsEnabled([2], False)
     return True
 
   def updateStudyTable(self):
@@ -1039,6 +1033,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       sItem.setCheckable(1)
       if self.logic.isSeriesOfInterest(seriesText):
         sItem.setCheckState(2)
+    self.updateSegmentationTabAvailability()
 
   def fillStudyTable(self):
     self.studyItems = []
