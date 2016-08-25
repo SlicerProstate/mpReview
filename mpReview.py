@@ -170,6 +170,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     self.parameters = {}
 
+    self.crosshairNode = slicer.mrmlScene.GetNthNodeByClass(0, 'vtkMRMLCrosshairNode')
+
     self.setupDataAndStudySelectionUI()
     self.setupSeriesSelectionView()
     self.setupSegmentationToolsUI()
@@ -977,6 +979,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def onStep1Selected(self):
     if self.checkStep2or3Leave() is True:
       return False
+    self.setCrosshairEnabled(False)
 
     self.editorParameterNode.SetParameter('effect', 'DefaultTool')
     if len(self.studiesView.selectedIndexes()) > 0:
@@ -1124,6 +1127,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   def onStep2Selected(self):
     if self.currentTabIndex == 2:
+      self.setCrosshairEnabled(self.refSelector.currentText not in ["", "None"])
       return True
     self.setTabsEnabled([2],True)
 
@@ -1223,6 +1227,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     return True
 
   def onStep3Selected(self):
+    self.setCrosshairEnabled(False)
     self.editorParameterNode.SetParameter('effect', 'DefaultTool')
     return True
 
@@ -1277,14 +1282,24 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.onSaveClicked()
     return result == 2
 
+  def setCrosshairEnabled(self, enabled):
+    if enabled:
+      self.crosshairNode.SetCrosshairMode(slicer.vtkMRMLCrosshairNode.ShowSmallBasic)
+      self.crosshairNode.SetCrosshairMode(slicer.vtkMRMLCrosshairNode.ShowSmallBasic)
+    else:
+      self.crosshairNode.SetCrosshairMode(slicer.vtkMRMLCrosshairNode.NoCrosshair)
+
   def onReferenceChanged(self, id):
+    # TODO: when None is selected, viewers and editor should be resetted
     self.fiducialLabelPropagateModel = None
     self.removeAllModels()
     if self.refSelectorIgnoreUpdates:
       return
     text = self.refSelector.currentText
+    eligible = text not in ["", "None"]
+    self.setCrosshairEnabled(eligible)
     logging.debug('Current reference node: '+text)
-    if text != 'None' and text != '':
+    if eligible:
       self.refSeriesNumber = string.split(text,':')[0]
       ref = int(self.refSeriesNumber)
     else:
