@@ -170,6 +170,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     self.parameters = {}
 
+    self.crosshairNode = slicer.mrmlScene.GetNthNodeByClass(0, 'vtkMRMLCrosshairNode')
+
     self.setupDataAndStudySelectionUI()
     self.setupSeriesSelectionView()
     self.setupSegmentationToolsUI()
@@ -277,12 +279,14 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     self.buildModelsButton = qt.QPushButton('Make')
     self.modelsVisibilityButton = self.createButton('Hide', checkable=True)
+    self.labelMapVisibilityButton = self.createButton('Hide', checkable=True)
     self.labelMapOutlineButton = self.createButton('Outline', checkable=True)
     self.enableJumpToROI = qt.QCheckBox("Jump to ROI")
     self.enableJumpToROI.checked = True
 
     modelsFrame = self.createHLayout([qt.QLabel('Structure Models: '), self.buildModelsButton,
-                                      self.modelsVisibilityButton, self.labelMapOutlineButton, self.enableJumpToROI])
+                                      self.modelsVisibilityButton, self.labelMapVisibilityButton,
+                                      self.labelMapOutlineButton, self.enableJumpToROI])
     self.buildModelsButton.hide()
     self.modelsVisibilityButton.hide()
 
@@ -433,6 +437,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.hardenTransformButton.connect('clicked(bool)', self.onHardenTransform)
       self.buildModelsButton.connect("clicked()", self.onBuildModels)
       self.modelsVisibilityButton.connect("toggled(bool)", self.onModelsVisibilityButton)
+      self.labelMapVisibilityButton.connect("toggled(bool)", self.onLabelMapVisibilityButton)
       self.labelMapOutlineButton.connect('toggled(bool)', self.setLabelOutline)
       self.piradsButton.connect('clicked()', self.onPIRADSFormClicked)
       self.qaButton.connect('clicked()', self.onQAFormClicked)
@@ -905,13 +910,18 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
           for i in xrange(n):
             modelNode = collection.GetItemAsObject(i)
             displayNode = modelNode.GetDisplayNode()
-            if toggled:
-              displayNode.SetSliceIntersectionVisibility(0)
-              self.modelsVisibilityButton.setText('Show')
-            else:
-              displayNode.SetSliceIntersectionVisibility(1)
-              self.modelsVisibilityButton.setText('Hide')
+            displayNode.SetSliceIntersectionVisibility(0 if toggled else 1)
+            self.modelsVisibilityButton.setText('Show' if toggled else 'Hide')
           self.updateViewRenderer()
+
+  def onLabelMapVisibilityButton(self, toggled):
+    self.labelMapVisibilityButton.setText('Show' if toggled else 'Hide')
+    sliceLogics = self.layoutManager.mrmlSliceLogics()
+    for n in range(sliceLogics.GetNumberOfItems()):
+      sliceLogic = sliceLogics.GetItemAsObject(n)
+      widget = self.layoutManager.sliceWidget(sliceLogic.GetName())
+      redCompositeNode = widget.mrmlSliceCompositeNode()
+      redCompositeNode.SetLabelOpacity(0.0 if toggled else 1.0)
 
   def checkAndLoadLabel(self, seriesNumber, volumeName):
     globPath = os.path.join(self.resourcesDir,str(seriesNumber),"Segmentations",
@@ -977,6 +987,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def onStep1Selected(self):
     if self.checkStep2or3Leave() is True:
       return False
+    self.setCrosshairEnabled(False)
 
     self.editorParameterNode.SetParameter('effect', 'DefaultTool')
     if len(self.studiesView.selectedIndexes()) > 0:
@@ -1124,6 +1135,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   def onStep2Selected(self):
     if self.currentTabIndex == 2:
+      self.setCrosshairEnabled(self.refSelector.currentText not in ["", "None"])
       return True
     self.setTabsEnabled([2],True)
 
@@ -1223,6 +1235,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     return True
 
   def onStep3Selected(self):
+    self.setCrosshairEnabled(False)
     self.editorParameterNode.SetParameter('effect', 'DefaultTool')
     return True
 
@@ -1277,14 +1290,25 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.onSaveClicked()
     return result == 2
 
+  def setCrosshairEnabled(self, enabled):
+    if enabled:
+      self.crosshairNode.SetCrosshairMode(slicer.vtkMRMLCrosshairNode.ShowSmallBasic)
+      self.crosshairNode.SetCrosshairMode(slicer.vtkMRMLCrosshairNode.ShowSmallBasic)
+    else:
+      self.crosshairNode.SetCrosshairMode(slicer.vtkMRMLCrosshairNode.NoCrosshair)
+
   def onReferenceChanged(self, id):
+    # TODO: when None is selected, viewers and editor should be resetted
+    self.labelMapVisibilityButton.checked = False
     self.fiducialLabelPropagateModel = None
     self.removeAllModels()
     if self.refSelectorIgnoreUpdates:
       return
     text = self.refSelector.currentText
+    eligible = text not in ["", "None"]
+    self.setCrosshairEnabled(eligible)
     logging.debug('Current reference node: '+text)
-    if text != 'None' and text != '':
+    if eligible:
       self.refSeriesNumber = string.split(text,':')[0]
       ref = int(self.refSeriesNumber)
     else:
@@ -1889,6 +1913,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   # Gets triggered on a click in the structures table
   def onStructureClicked(self,index):
+    self.labelMapVisibilityButton.checked = False
     selectedLabelID = int(self.editorWidget.helper.structureListWidget.structures.item(index.row(),0).text())
     selectedLabelVol = self.editorWidget.helper.structureListWidget.structures.item(index.row(),3).text()
     if self.enableJumpToROI.checked:
