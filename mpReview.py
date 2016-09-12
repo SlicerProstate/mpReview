@@ -1800,7 +1800,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.hardenTransformButton.enabled = True
 
     # Reset transformnode
-    self.transformNode.Reset()
+    self.transformNode.Reset(None)
 
     # Get the IJKtoRAS matrix
     IJKtoRAS = vtk.vtkMatrix4x4()
