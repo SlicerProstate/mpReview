@@ -10,6 +10,7 @@ import sitkUtils
 import datetime
 from slicer.ScriptedLoadableModule import *
 from SlicerProstateUtils.mixins import ModuleWidgetMixin
+from SlicerProstateUtils.buttons import WindowLevelEffectsButton
 from mpReviewPreprocessor import mpReviewPreprocessorLogic
 from collections import OrderedDict
 from qSlicerMultiVolumeExplorerModuleWidget import qSlicerMultiVolumeExplorerSimplifiedModuleWidget
@@ -22,7 +23,7 @@ class mpReview(ScriptedLoadableModule):
     ScriptedLoadableModule.__init__(self, parent)
     parent.title = "mpReview"
     parent.categories = ["Informatics"]
-    parent.dependencies = ["SlicerProstate", "WindowLevelEffect"]
+    parent.dependencies = ["SlicerProstate"]
     parent.contributors = ["Andrey Fedorov (SPL), Robin Weiss (U. of Chicago), Alireza Mehrtash (SPL), Christian Herz (SPL)"]
     parent.helpText = """
     Multiparametric Image Review (mpReview) module is intended to support review and annotation of multiparametric image data. The driving use case for the development of this module was review and segmentation of the regions of interest in prostate cancer multiparametric MRI.
@@ -283,7 +284,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.labelMapOutlineButton = self.createButton('Outline', checkable=True)
     self.enableJumpToROI = qt.QCheckBox("Jump to ROI")
     self.enableJumpToROI.checked = True
-
+    editorControls = self.getEditorControls()
     modelsFrame = self.createHLayout([qt.QLabel('Structure Models: '), self.buildModelsButton,
                                       self.modelsVisibilityButton, self.labelMapVisibilityButton,
                                       self.labelMapOutlineButton, self.enableJumpToROI])
@@ -292,6 +293,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     perStructureFrame = slicer.util.findChildren(self.editorWidget.volumes, 'PerStructureVolumesFrame')[0]
     perStructureFrame.collapsed = False
+    perStructureFrame.layout().addWidget(editorControls)
     perStructureFrame.layout().addWidget(modelsFrame)
 
   def setupEditorWidget(self):
@@ -300,25 +302,46 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     editorWidgetParent.setMRMLScene(slicer.mrmlScene)
     self.editorWidget = EditorWidget(parent=editorWidgetParent)
     self.editorWidget.setup()
+    try:
+      self.editorWidget.segmentEditorLabel.hide()
+      self.editorWidget.infoIconLabel.hide()
+    except AttributeError:
+      pass
     self.segmentationWidgetLayout.addWidget(editorWidgetParent)
     self.hideUnwantedEditorUIElements()
-    self.configureEditorEffectsUI()
 
   def hideUnwantedEditorUIElements(self):
-    for widgetName in ['AllButtonsFrameButton', 'ReplaceModelsCheckBox', 'MasterVolumeFrame', 'MergeVolumeFrame',
-                       'SplitStructureButton', 'ExportDICOMButton']:
-      widget = slicer.util.findChildren(self.editorWidget.volumes, widgetName)[0]
-      widget.hide()
+    toHide = {}
+    toHide[self.editorWidget.volumes] = ['AllButtonsFrameButton', 'ReplaceModelsCheckBox', 'MasterVolumeFrame', 'MergeVolumeFrame',
+                                         'SplitStructureButton', 'ExportDICOMButton']
+    toHide[self.editorWidget.editBoxFrame] = ['WandEffectToolButton', 'LevelTracingEffectToolButton', 'RectangleEffectToolButton',
+                                              'IdentifyIslandsEffectToolButton', 'ChangeIslandEffectToolButton', 'RemoveIslandsEffectToolButton',
+                                              'SaveIslandEffectToolButton', 'RowFrame4', 'RowFrame3', 'RowFrame2', 'RowFrame1']
+    for widget, o in toHide.iteritems():
+      for objectName in o:
+        try:
+          slicer.util.findChildren(widget, objectName)[0].hide()
+        except AttributeError:
+          continue
 
-  def configureEditorEffectsUI(self):
+  def getEditorControls(self):
     editBoxFrame = self.editorWidget.editBoxFrame
-    effectButtonFrameLayout = slicer.util.findChildren(editBoxFrame, 'RowFrame1')[0].layout()
-    for objectName in ['WandEffectToolButton', 'LevelTracingEffectToolButton', 'RectangleEffectToolButton',
-                       'IdentifyIslandsEffectToolButton', 'ChangeIslandEffectToolButton', 'RemoveIslandsEffectToolButton',
-                       'SaveIslandEffectToolButton', 'RowFrame2']:
-      slicer.util.findChildren(editBoxFrame, objectName)[0].hide()
-    effectButtonFrameLayout.addWidget(slicer.util.findChildren(editBoxFrame, 'DilateEffectToolButton')[0])
-    effectButtonFrameLayout.addWidget(slicer.util.findChildren(editBoxFrame, 'WindowLevelEffectToolButton')[0])
+    effectButtonFrame = slicer.util.findChildren(editBoxFrame, 'RowFrame1')[0]
+    buttons = [c for c in effectButtonFrame.children() if isinstance(c, qt.QToolButton)]
+    buttons.append(slicer.util.findChildren(editBoxFrame, 'DilateEffectToolButton')[0])
+    self.windowLevelEffectsButton = WindowLevelEffectsButton()
+    buttons.append(self.windowLevelEffectsButton)
+    undoButton = slicer.util.findChildren(editBoxFrame, 'PreviousCheckPointToolButton')[0]
+    redoButton = slicer.util.findChildren(editBoxFrame, 'NextCheckPointToolButton')[0]
+
+    undoRedo = self.createHLayout([qt.QLabel("Undo/Redo:"), undoButton, redoButton])
+    undoRedo.layout().setAlignment(qt.Qt.AlignLeft)
+
+    effectButtons = self.createHLayout(buttons)
+    effectButtons.layout().setAlignment(qt.Qt.AlignRight)
+
+    hbox = self.createHLayout([undoRedo, effectButtons])
+    return hbox
 
   def addCustomEditorButtons(self):
     volumesFrame = self.editorWidget.volumes
@@ -1383,6 +1406,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.updateEditorAvailability()
 
     self.multiVolumeExplorer.refreshObservers()
+    self.windowLevelEffectsButton.refreshForAllAvailableSliceWidgets()
     logging.debug('Exiting onReferenceChanged')
 
   '''
@@ -2354,6 +2378,8 @@ class mpReviewFiducialTable(ModuleWidgetMixin):
 
 
 class InformationWatchBox(qt.QGroupBox):
+
+ # TODO: replace that with SlicerProstate code...
 
   DEFAULT_STYLE = 'background-color: rgb(230,230,230)'
   DEFAULT_ATTRIBUTE_PREFIX = "_attribute"
