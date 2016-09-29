@@ -9,7 +9,7 @@ import SimpleITK as sitk
 import sitkUtils
 import datetime
 from slicer.ScriptedLoadableModule import *
-from SlicerProstateUtils.mixins import ModuleWidgetMixin
+from SlicerProstateUtils.mixins import ModuleWidgetMixin, ModuleLogicMixin
 from SlicerProstateUtils.buttons import WindowLevelEffectsButton
 from mpReviewPreprocessor import mpReviewPreprocessorLogic
 from collections import OrderedDict
@@ -1579,38 +1579,20 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         #name = splitted[1]
         label = slicer.util.getNode(splitted[2])
         try:
-          centroid = self.getCentroidForLabel(label, selectedID)
+          centroid = ModuleLogicMixin.getCentroidForLabel(label, int(selectedID))
           logging.debug("Creating fiducial at position %f, %f, %f" % tuple(centroid))
           addedFiducialIds.append(fiducialNode.AddFiducialFromArray(centroid, label.GetName()))
-        except:
-          notificationDialog = slicer.util.infoDisplay
-          notificationDialog("No label object with label %s. \n You might have forgotten to print a label."
-                             "To prevent the duplication of fiducials, all fiducials of the current "
-                             "creation step will be deleted." % label.GetName(), windowTitle='mpReview')
+        except Exception as exc:
+          message = "No label object with label %s. \n You might have forgotten to print a label. To prevent the " \
+                    "duplication of fiducials, all fiducials of the current creation step will be deleted. " \
+                    "For further information see details." % label.GetName()
+          slicer.util.errorDisplay(message, detailedText=str(exc.message), windowTitle='mpReview')
           self.removeFiducialIDsFromNode(fiducialNode, addedFiducialIds)
           return
 
   def removeFiducialIDsFromNode(self, node, ids):
     for idx in reversed(ids):
       node.RemoveMarkup(idx)
-
-  def getCentroidForLabel(self, label, labelId):
-    # TODO: take care about labels without anything drawn and labels with separate regions
-    ls = sitk.LabelShapeStatisticsImageFilter()
-    dstLabelAddress = sitkUtils.GetSlicerITKReadWriteAddress(label.GetName())
-    dstLabelImage = sitk.ReadImage(dstLabelAddress)
-    ls.Execute(dstLabelImage)
-    centroid = ls.GetCentroid(int(labelId))
-    IJKtoRAS = vtk.vtkMatrix4x4()
-    label.GetIJKToRASMatrix(IJKtoRAS)
-    order = label.ComputeScanOrderFromIJKToRAS(IJKtoRAS)
-    if order == 'IS':
-        centroid = [-centroid[0], -centroid[1], centroid[2]]
-    elif order == 'AP':
-        centroid = [-centroid[0], -centroid[2], -centroid[1]]
-    elif order == 'LR':
-        centroid = [centroid[0], -centroid[2], -centroid[1]]
-    return centroid
 
   def onPropagateROI(self):
     # Get the selected label map
@@ -1946,69 +1928,20 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.updateEditorAvailability()
 
   def onJumpToROI(self, selectedLabelID, selectedLabelVol):
-    redSliceWidget = self.layoutManager.sliceWidget('Red')
-    redSliceNode = redSliceWidget.mrmlSliceNode()
-    redSliceOffset = redSliceNode.GetSliceOffset()
 
     logging.debug('Jumping to ROI #' + str(selectedLabelID))
     labelNode = slicer.util.getNode(selectedLabelVol)
-    logging.debug('Using label node '+labelNode.GetID())
-    labelAddress = sitkUtils.GetSlicerITKReadWriteAddress(labelNode.GetName())
-    labelImage = sitk.ReadImage(labelAddress)
 
-    ls = sitk.LabelStatisticsImageFilter()
-    ls.Execute(labelImage,labelImage)
-    bb = ls.GetBoundingBox(selectedLabelID)
+    centroid = ModuleLogicMixin.getCentroidForLabel(labelNode, int(selectedLabelID))
 
-    if len(bb) > 0:
-      # Average to get the center of the BB
-      i_center = ((bb[0] + bb[1]) / 2)
-      j_center = ((bb[2] + bb[3]) / 2)
-      k_center = ((bb[4] + bb[5]) / 2)
-      logging.debug('BB is: ' + str(bb))
-      logging.debug('i_center = '+str(i_center))
-      logging.debug('j_center = '+str(j_center))
-      logging.debug('k_center = '+str(k_center))
-
-      # Now figure out which slice to go to in RAS space based on the i,j,k coords
-      # This *works* but I think its either not right or too complicated or both...
-      IJKtoRAS = vtk.vtkMatrix4x4()
-      labelNode.GetIJKToRASMatrix(IJKtoRAS)
-
-      IJKtoRASDir = vtk.vtkMatrix4x4()
-      labelNode.GetIJKToRASDirectionMatrix(IJKtoRASDir)
-
-      RAScoord = IJKtoRAS.MultiplyPoint((i_center, j_center, k_center, 1))
-
-      # set these in case we fall through for some reason (like we can't handle that scan order)
-      sagittal_offset = redSliceOffset
-      coronal_offset = redSliceOffset
-      axial_offset = redSliceOffset
-
-      order = labelNode.ComputeScanOrderFromIJKToRAS(IJKtoRAS)
-      if order == 'IS':
-          RASDir = IJKtoRASDir.MultiplyPoint((RAScoord[0], RAScoord[1], RAScoord[2], 1))
-          sagittal_offset = -RASDir[0]
-          coronal_offset  = -RASDir[1]
-          axial_offset    =  RASDir[2]
-      elif order == 'AP':
-          RASDir = IJKtoRASDir.MultiplyPoint((RAScoord[0], RAScoord[1], RAScoord[2], 1))
-          sagittal_offset = -RASDir[0]
-          coronal_offset  = -RASDir[2]
-          axial_offset    = -RASDir[1]
-      elif order == 'LR':
-          RASDir = IJKtoRASDir.MultiplyPoint((RAScoord[2], RAScoord[1], RAScoord[0], 1))
-          sagittal_offset =  RASDir[0]
-          coronal_offset  = -RASDir[2]
-          axial_offset    = -RASDir[1]
-
+    if centroid:
       # Set the appropriate offset based on current orientation
       if self.currentOrientation == 'Axial':
-        self.setOffsetOnAllSliceWidgets(axial_offset)
+        self.setOffsetOnAllSliceWidgets(centroid[2])
       elif self.currentOrientation == 'Coronal':
-        self.setOffsetOnAllSliceWidgets(coronal_offset)
+        self.setOffsetOnAllSliceWidgets(centroid[1])
       elif self.currentOrientation == 'Sagittal':
-        self.setOffsetOnAllSliceWidgets(sagittal_offset)
+        self.setOffsetOnAllSliceWidgets(centroid[0])
 
       # snap to IJK to try and avoid rounding errors
       sliceLogics = self.layoutManager.mrmlSliceLogics()
