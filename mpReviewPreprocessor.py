@@ -66,7 +66,7 @@ class mpReviewPreprocessorWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin
 
   def onRunClicked(self):
     logic = mpReviewPreprocessorLogic()
-    self.progress = self.makeProgressIndicator()
+    self.progress = self.slicer.util.createProgressDialog()
     self.progress.canceled.connect(lambda : logic.cancelProcess())
     logic.importStudy(self.inputDirButton.directory, progressCallback=self.updateProgressBar)
     logic.convertData(self.outputDirButton.directory, copyDICOM=self.copyDICOMButton.checked,

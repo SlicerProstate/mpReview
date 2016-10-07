@@ -2249,22 +2249,22 @@ class mpReviewFiducialTable(ModuleWidgetMixin):
 
   def onFiducialListSelected(self):
     logging.debug("mpReviewFiducialTable:onFiducialListSelected")
-    self.removeObservers()
+    self.removeFiducialListObserver()
     self._currentFiducialList = self.currentNode
     if self.fiducialListSelector.currentNode():
-      self.addObservers()
+      self.addFiducialListObservers()
       self.updateTable()
       self.markupsLogic.SetActiveListID(self.currentNode)
     else:
       self.resetTable()
 
-  def removeObservers(self):
+  def removeFiducialListObserver(self):
     if self._currentFiducialList and len(self.fiducialsNodeObservers) > 0:
       for observer in self.fiducialsNodeObservers:
         self._currentFiducialList.RemoveObserver(observer)
     self.fiducialsNodeObservers = []
 
-  def addObservers(self):
+  def addFiducialListObservers(self):
     if self.currentNode:
       for event in self.FIDUCIAL_LIST_OBSERVED_EVENTS:
         self.fiducialsNodeObservers.append(self.currentNode.AddObserver(event, self.onFiducialsUpdated))
