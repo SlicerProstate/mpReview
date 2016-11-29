@@ -313,7 +313,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def hideUnwantedEditorUIElements(self):
     toHide = {}
     toHide[self.editorWidget.volumes] = ['AllButtonsFrameButton', 'ReplaceModelsCheckBox', 'MasterVolumeFrame', 'MergeVolumeFrame',
-                                         'SplitStructureButton', 'ExportDICOMButton']
+                                         'SplitStructureButton']
     toHide[self.editorWidget.editBoxFrame] = ['WandEffectToolButton', 'LevelTracingEffectToolButton', 'RectangleEffectToolButton',
                                               'IdentifyIslandsEffectToolButton', 'ChangeIslandEffectToolButton', 'RemoveIslandsEffectToolButton',
                                               'SaveIslandEffectToolButton', 'RowFrame4', 'RowFrame3', 'RowFrame2', 'RowFrame1']
