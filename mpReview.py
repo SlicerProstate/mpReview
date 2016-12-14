@@ -194,6 +194,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def setupInformationFrame(self):
 
     watchBoxInformation = OrderedDict([('Study ID: ', "StudyID"), ('Study Date: ', "StudyDate"),
+                                       ('Patient Name: ', "PatientName"),
                                        ('Patient ID: ', "PatientID"), ('Patient Birthdate: ', "PatientBirthDate"),
                                        ('Current Data Dir: ', "CurrentDataDir")])
 
