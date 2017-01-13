@@ -948,8 +948,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       redCompositeNode.SetLabelOpacity(0.0 if toggled else 1.0)
 
   def checkAndLoadLabel(self, seriesNumber, volumeName):
-    globPath = os.path.join(self.resourcesDir,str(seriesNumber),"Segmentations",
-                            self.getSetting('UserName')+'*')
+    globPath = os.path.join(self.resourcesDir, str(seriesNumber), "Segmentations", '*')
     previousSegmentations = glob.glob(globPath)
     if not len(previousSegmentations):
       return False,None
