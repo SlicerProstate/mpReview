@@ -11,6 +11,7 @@ import datetime
 from slicer.ScriptedLoadableModule import *
 from SlicerProstateUtils.mixins import ModuleWidgetMixin, ModuleLogicMixin
 from SlicerProstateUtils.buttons import WindowLevelEffectsButton
+from SlicerProstateUtils.helpers import WatchBoxAttribute, XMLBasedInformationWatchBox
 from mpReviewPreprocessor import mpReviewPreprocessorLogic
 from collections import OrderedDict
 from qSlicerMultiVolumeExplorerModuleWidget import qSlicerMultiVolumeExplorerSimplifiedModuleWidget
@@ -193,12 +194,14 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   def setupInformationFrame(self):
 
-    watchBoxInformation = OrderedDict([('Study ID: ', "StudyID"), ('Study Date: ', "StudyDate"),
-                                       ('Patient Name: ', "PatientName"),
-                                       ('Patient ID: ', "PatientID"), ('Patient Birthdate: ', "PatientBirthDate"),
-                                       ('Current Data Dir: ', "CurrentDataDir")])
+    watchBoxInformation = [WatchBoxAttribute('StudyID', 'Study ID:'),
+                           WatchBoxAttribute('PatientName', 'Name:', 'PatientName'),
+                           WatchBoxAttribute('StudyDate', 'Study Date:', 'StudyDate'),
+                           WatchBoxAttribute('PatientID', 'PID:', 'PatientID'),
+                           WatchBoxAttribute('CurrentDataDir', 'Current Data Dir:'),
+                           WatchBoxAttribute('PatientBirthDate', 'DOB:', 'PatientBirthDate')]
 
-    self.informationWatchBox = InformationWatchBox(watchBoxInformation)
+    self.informationWatchBox = XMLBasedInformationWatchBox(watchBoxInformation, columns=2)
 
     self.layout.addWidget(self.informationWatchBox)
 
@@ -313,11 +316,13 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   def hideUnwantedEditorUIElements(self):
     toHide = {}
-    toHide[self.editorWidget.volumes] = ['AllButtonsFrameButton', 'ReplaceModelsCheckBox', 'MasterVolumeFrame', 'MergeVolumeFrame',
-                                         'SplitStructureButton']
-    toHide[self.editorWidget.editBoxFrame] = ['WandEffectToolButton', 'LevelTracingEffectToolButton', 'RectangleEffectToolButton',
-                                              'IdentifyIslandsEffectToolButton', 'ChangeIslandEffectToolButton', 'RemoveIslandsEffectToolButton',
-                                              'SaveIslandEffectToolButton', 'RowFrame4', 'RowFrame3', 'RowFrame2', 'RowFrame1']
+    toHide[self.editorWidget.volumes] = ['AllButtonsFrameButton', 'ReplaceModelsCheckBox', 'MasterVolumeFrame',
+                                         'MergeVolumeFrame', 'SplitStructureButton']
+    toHide[self.editorWidget.editBoxFrame] = ['WandEffectToolButton', 'LevelTracingEffectToolButton',
+                                              'RectangleEffectToolButton', 'IdentifyIslandsEffectToolButton',
+                                              'ChangeIslandEffectToolButton', 'RemoveIslandsEffectToolButton',
+                                              'SaveIslandEffectToolButton', 'RowFrame4', 'RowFrame3', 'RowFrame2',
+                                              'RowFrame1']
     for widget, o in toHide.iteritems():
       for objectName in o:
         try:
@@ -677,7 +682,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def onSeriesSelected(self, modelIndex):
     logging.debug('Row selected: '+self.seriesModel.item(modelIndex.row(),0).text())
     selectionModel = self.seriesView.selectionModel()
-    logging.debug('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
+    logging.debug('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),
+                                                                                            qt.QModelIndex())))
     logging.debug('Row number: '+str(modelIndex.row()))
     self.updateSegmentationTabAvailability()
 
@@ -867,7 +873,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
             self.CLINode = slicer.cli.run(modelMaker, self.CLINode,
                            parameters, wait_for_completion=True)
           except AttributeError:
-            qt.QMessageBox.critical(slicer.util.mainWindow(),'Editor', 'The ModelMaker module is not available<p>Perhaps it was disabled in the application settings or did not load correctly.')
+            qt.QMessageBox.critical(slicer.util.mainWindow(),'Editor', 'The ModelMaker module is not available'
+                                                                       '<p>Perhaps it was disabled in the application '
+                                                                       'settings or did not load correctly.')
         step += 1
       progress.close()
         #
@@ -1112,7 +1120,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.studiesGroupBox.collapsed = True
     logging.debug('Row selected: '+self.studiesModel.item(modelIndex.row(),0).text())
     selectionModel = self.studiesView.selectionModel()
-    logging.debug('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
+    logging.debug('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),
+                                                                                            qt.QModelIndex())))
     logging.debug('Row number: '+str(modelIndex.row()))
 
     self.setTabsEnabled([2], False)
@@ -1381,7 +1390,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     self.editorWidget.helper.setVolumes(self.volumeNodes[0], self.seriesMap[str(ref)]['Label'])
 
-    self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[self.rows,self.cols],viewNames=self.sliceNames,orientation=self.currentOrientation)
+    self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,
+                                 layout=[self.rows,self.cols],viewNames=self.sliceNames,
+                                 orientation=self.currentOrientation)
 
     # Make sure redslice has the ref image (the others were set with viewerPerVolume)
     redSliceWidget = self.layoutManager.sliceWidget('Red')
@@ -1417,7 +1428,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     sl = w.sliceLogic()
     ll = sl.GetLabelLayer()
     lv = ll.GetVolumeNode()
-    self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=lv, layout=[self.rows,self.cols])
+    self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=lv, 
+                                 layout=[self.rows,self.cols])
 
     self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
     self.setOpacityOnAllSliceWidgets(1.0)
@@ -1611,7 +1623,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     propagatePromptLayout = qt.QVBoxLayout()
     self.propagatePrompt.setLayout(propagatePromptLayout)
 
-    propagateLabel = qt.QLabel('Select which volumes you wish to propagate '+ selectedLabel +' to...', self.propagatePrompt)
+    propagateLabel = qt.QLabel('Select which volumes you wish to propagate '+ selectedLabel +' to...',
+                               self.propagatePrompt)
     propagatePromptLayout.addWidget(propagateLabel)
 
     propagateView = qt.QListView()
@@ -1655,7 +1668,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     srcLabel = slicer.util.getNode(selectedLabel)
 
     # Check to make sure we don't propagate on top of something
-    existingStructures = [self.seriesMap[x]['ShortName'] for x in propagateInto if len(slicer.util.getNodes(self.seriesMap[x]['ShortName']+'-'+selectedStructure+'-label*')) != 0]
+    existingStructures = [self.seriesMap[x]['ShortName'] for x in propagateInto if
+                          len(slicer.util.getNodes(self.seriesMap[x]['ShortName']+'-'+selectedStructure+'-label*')) != 0]
     if len(existingStructures) != 0:
       msg = 'ERROR\n\n\'' + selectedStructure + '\' already exists in the following volumes:\n\n'
       for vol in existingStructures:
@@ -2309,65 +2323,3 @@ class mpReviewFiducialTable(ModuleWidgetMixin):
     if not node:
       node = self.fiducialListSelector.addNode()
     return node
-
-
-class InformationWatchBox(qt.QGroupBox):
-
- # TODO: replace that with SlicerProstate code...
-
-  DEFAULT_STYLE = 'background-color: rgb(230,230,230)'
-  DEFAULT_ATTRIBUTE_PREFIX = "_attribute"
-
-  @property
-  def sourceFile(self):
-    return self._sourceFile
-
-  @sourceFile.setter
-  def sourceFile(self, filePath):
-    assert os.path.exists(filePath)
-    assert filePath.endswith('.xml')
-    self._sourceFile = filePath
-    self.updateInformation()
-
-  def __init__(self, labelsAttributeNames, sourceFile=None, parent=None, **kwargs):
-    super(InformationWatchBox, self).__init__(parent)
-    self.labelsAttributeNames = labelsAttributeNames
-    self.setup()
-    if sourceFile:
-      self.sourceFile = sourceFile
-
-  def setup(self):
-    self.setStyleSheet(self.DEFAULT_STYLE)
-    layout = qt.QGridLayout()
-    self.setLayout(layout)
-
-    for index, (label, tagValue) in enumerate(self.labelsAttributeNames.iteritems()):
-      setattr(self, self.DEFAULT_ATTRIBUTE_PREFIX+tagValue, qt.QLabel())
-      layout.addWidget(qt.QLabel(label), index, 0, 1, 1, qt.Qt.AlignLeft)
-      layout.addWidget(getattr(self, self.DEFAULT_ATTRIBUTE_PREFIX+tagValue), index, 1, 1, 2)
-
-  def updateInformation(self):
-    # TODO: implement for DICOM
-    dom = xml.dom.minidom.parse(self._sourceFile)
-    for tagValue in self.labelsAttributeNames.values():
-      label = getattr(self, self.DEFAULT_ATTRIBUTE_PREFIX+tagValue)
-      value = self.findElement(dom, tagValue)
-      if label and value:
-        label.text = value
-        label.toolTip = value
-
-  def setInformation(self, tagName, value, toolTip=None):
-    label = getattr(self, self.DEFAULT_ATTRIBUTE_PREFIX+tagName)
-    if label:
-      label.text = value
-      if toolTip:
-        label.toolTip = toolTip
-
-  def findElement(self, dom, name):
-    els = dom.getElementsByTagName('element')
-    for e in els:
-      if e.getAttribute('name') == name:
-        try:
-          return e.childNodes[0].nodeValue
-        except IndexError:
-          return ""
