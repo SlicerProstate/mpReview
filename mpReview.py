@@ -12,8 +12,8 @@ from slicer.ScriptedLoadableModule import *
 from SlicerProstateUtils.mixins import ModuleWidgetMixin, ModuleLogicMixin
 from SlicerProstateUtils.buttons import WindowLevelEffectsButton
 from SlicerProstateUtils.helpers import WatchBoxAttribute, XMLBasedInformationWatchBox
+from SlicerProstateUtils.widgets import TargetCreationWidget
 from mpReviewPreprocessor import mpReviewPreprocessorLogic
-from collections import OrderedDict
 from qSlicerMultiVolumeExplorerModuleWidget import qSlicerMultiVolumeExplorerSimplifiedModuleWidget
 from qSlicerMultiVolumeExplorerModuleHelper import qSlicerMultiVolumeExplorerModuleHelper as MVHelper
 
@@ -434,10 +434,10 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.fiducialsArea = ctk.ctkCollapsibleButton()
     self.fiducialsArea.text = "Fiducials"
     self.fiducialsArea.collapsed = True
-    fiducialsWidgetLayout = qt.QFormLayout(self.fiducialsArea)
 
-    self.fiducialsWidget = mpReviewFiducialTable(fiducialsWidgetLayout)
-    self.segmentationWidgetLayout.addWidget(self.fiducialsArea)
+    self.fiducialsWidget = TargetCreationWidget()
+    self.fiducialsWidget.targetListSelectorVisible = True
+    self.segmentationWidgetLayout.addWidget(self.fiducialsWidget)
 
   def setupCompletionUI(self):
     self.piradsButton = qt.QPushButton("PI-RADS v2 review form")
