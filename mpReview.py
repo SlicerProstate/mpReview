@@ -9,10 +9,10 @@ import SimpleITK as sitk
 import sitkUtils
 import datetime
 from slicer.ScriptedLoadableModule import *
-from SlicerProstateUtils.mixins import ModuleWidgetMixin, ModuleLogicMixin
-from SlicerProstateUtils.buttons import WindowLevelEffectsButton
-from SlicerProstateUtils.helpers import WatchBoxAttribute, XMLBasedInformationWatchBox
-from SlicerProstateUtils.widgets import TargetCreationWidget
+from SlicerDevelopmentToolboxUtils.mixins import ModuleWidgetMixin, ModuleLogicMixin
+from SlicerDevelopmentToolboxUtils.buttons import WindowLevelEffectsButton
+from SlicerDevelopmentToolboxUtils.helpers import WatchBoxAttribute
+from SlicerDevelopmentToolboxUtils.widgets import TargetCreationWidget, XMLBasedInformationWatchBox
 from mpReviewPreprocessor import mpReviewPreprocessorLogic
 from qSlicerMultiVolumeExplorerModuleWidget import qSlicerMultiVolumeExplorerSimplifiedModuleWidget
 from qSlicerMultiVolumeExplorerModuleHelper import qSlicerMultiVolumeExplorerModuleHelper as MVHelper
@@ -24,10 +24,13 @@ class mpReview(ScriptedLoadableModule, ModuleWidgetMixin):
     ScriptedLoadableModule.__init__(self, parent)
     parent.title = "mpReview"
     parent.categories = ["Informatics"]
-    parent.dependencies = ["SlicerProstate"]
-    parent.contributors = ["Andrey Fedorov (SPL), Robin Weiss (U. of Chicago), Alireza Mehrtash (SPL), Christian Herz (SPL)"]
+    parent.dependencies = ["SlicerDevelopmentToolbox"]
+    parent.contributors = ["Andrey Fedorov (SPL)", "Robin Weiss (U. of Chicago)", "Alireza Mehrtash (SPL)",
+                           "Christian Herz (SPL)"]
     parent.helpText = """
-    Multiparametric Image Review (mpReview) module is intended to support review and annotation of multiparametric image data. The driving use case for the development of this module was review and segmentation of the regions of interest in prostate cancer multiparametric MRI.
+    Multiparametric Image Review (mpReview) module is intended to support review and annotation of multiparametric 
+    image data. The driving use case for the development of this module was review and segmentation of the regions of 
+    interest in prostate cancer multiparametric MRI.
     """
     parent.acknowledgementText = """
     Supported by NIH U24 CA180918 (PIs Fedorov & Kikinis) and U01CA151261 (PI Fennessy)
@@ -1669,7 +1672,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     # Check to make sure we don't propagate on top of something
     existingStructures = [self.seriesMap[x]['ShortName'] for x in propagateInto if
-                          len(slicer.util.getNodes(self.seriesMap[x]['ShortName']+'-'+selectedStructure+'-label*')) != 0]
+                          len(slicer.util.getNodes(self.seriesMap[x]['ShortName']+'-'+selectedStructure+'-label*'))!= 0]
     if len(existingStructures) != 0:
       msg = 'ERROR\n\n\'' + selectedStructure + '\' already exists in the following volumes:\n\n'
       for vol in existingStructures:
@@ -1690,7 +1693,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     nProcessed = 0
     for dstSeries in propagateInto:
       labelName = self.seriesMap[dstSeries]['ShortName']+'-'+selectedStructure+'-label'
-      dstLabel = self.volumesLogic.CreateAndAddLabelVolume(slicer.mrmlScene,self.seriesMap[dstSeries]['Volume'],labelName)
+      dstLabel = self.volumesLogic.CreateAndAddLabelVolume(slicer.mrmlScene,
+                                                           self.seriesMap[dstSeries]['Volume'],labelName)
       # Need to make sure the new label volume has the correct name
       dstLabel.SetName(labelName)
       dstLabel.GetDisplayNode().SetAndObserveColorNodeID(self.mpReviewColorNode.GetID())
@@ -1711,7 +1715,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       parameters["numberOfThreads"] = -1
 
       self.__cliNode = None
-      self.__cliNode = slicer.cli.run(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
+      self.__cliNode = slicer.cli.run(slicer.modules.brainsresample, self.__cliNode, parameters,
+                                      wait_for_completion=True)
 
       # Check to make sure we actually got something in the dstLabel volume
       dstLabelAddress = sitkUtils.GetSlicerITKReadWriteAddress(dstLabel.GetName())
