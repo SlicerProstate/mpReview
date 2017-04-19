@@ -1970,14 +1970,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         l = sliceLogics.GetItemAsObject(n)
         l.SnapSliceOffsetToIJK()
 
-  def onSelect(self):
-    self.applyButton.enabled = self.inputSelector.currentNode() and self.outputSelector.currentNode()
-
-  def onApplyButton(self):
-    logic = mpReviewLogic()
-    logging.debug("Run the algorithm")
-    logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode())
-
 
 class mpReviewLogic(ScriptedLoadableModuleLogic):
   """This class should implement all the actual
@@ -2159,12 +2151,6 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
       return False
     return True
 
-  def run(self,inputVolume,outputVolume):
-    """
-    Run the actual algorithm
-    """
-    return True
-
 
 class mpReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleWidget):
 
@@ -2206,125 +2192,3 @@ class mpReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleWidg
 
   def onSliderChanged(self, frameId):
     return
-
-
-class mpReviewFiducialTable(ModuleWidgetMixin):
-
-  HEADERS = ["Name","Delete"]
-  MODIFIED_EVENT = "ModifiedEvent"
-  FIDUCIAL_LIST_OBSERVED_EVENTS = [MODIFIED_EVENT]
-
-  @property
-  def currentNode(self):
-    return self.fiducialListSelector.currentNode()
-
-  @currentNode.setter
-  def currentNode(self, node):
-    self.fiducialListSelector.setCurrentNode(node)
-
-  def __init__(self, parent):
-    self.parent = parent
-    self.connectedButtons = []
-    self.fiducialsNodeObservers = []
-    self.setup()
-    self._currentFiducialList = None
-    self.markupsLogic = slicer.modules.markups.logic()
-
-  def setup(self):
-    self.setupTargetFiducialListSelector()
-    self.setupFiducialsTable()
-    self.setupConnections()
-
-  def setupTargetFiducialListSelector(self):
-    self.fiducialListSelector = self.createComboBox(nodeTypes=["vtkMRMLMarkupsFiducialNode", ""], addEnabled=True,
-                                                    removeEnabled=True, noneEnabled=False, showChildNodeTypes=False,
-                                                    selectNodeUponCreation=True, toolTip="Select fiducial list")
-    hbox = qt.QHBoxLayout()
-    hbox.addWidget(qt.QLabel("Fiducial List: "))
-    hbox.addWidget(self.fiducialListSelector)
-    self.parent.addRow(hbox)
-
-  def setupFiducialsTable(self):
-    self.table = qt.QTableWidget(0, 2)
-    self.table.setSelectionBehavior(qt.QAbstractItemView.SelectRows)
-    self.table.setSelectionMode(qt.QAbstractItemView.SingleSelection)
-    self.table.setMaximumHeight(200)
-    self.table.horizontalHeader().setStretchLastSection(True)
-    self.resetTable()
-    self.parent.addRow(self.table)
-
-  def resetTable(self):
-    self.cleanupButtons()
-    self.table.clear()
-    self.table.setHorizontalHeaderLabels(self.HEADERS)
-
-  def setupConnections(self):
-    self.fiducialListSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onFiducialListSelected)
-    self.table.connect("cellChanged (int,int)", self.onCellChanged)
-
-  def cleanupButtons(self):
-    for button in self.connectedButtons:
-      button.clicked.disconnect(self.handleDeleteButtonClicked)
-    self.connectedButtons = []
-
-  def onFiducialListSelected(self):
-    logging.debug("mpReviewFiducialTable:onFiducialListSelected")
-    self.removeFiducialListObserver()
-    self._currentFiducialList = self.currentNode
-    if self.fiducialListSelector.currentNode():
-      self.addFiducialListObservers()
-      self.updateTable()
-      self.markupsLogic.SetActiveListID(self.currentNode)
-    else:
-      self.resetTable()
-
-  def removeFiducialListObserver(self):
-    if self._currentFiducialList and len(self.fiducialsNodeObservers) > 0:
-      for observer in self.fiducialsNodeObservers:
-        self._currentFiducialList.RemoveObserver(observer)
-    self.fiducialsNodeObservers = []
-
-  def addFiducialListObservers(self):
-    if self.currentNode:
-      for event in self.FIDUCIAL_LIST_OBSERVED_EVENTS:
-        self.fiducialsNodeObservers.append(self.currentNode.AddObserver(event, self.onFiducialsUpdated))
-
-  def updateTable(self):
-    self.resetTable()
-    if not self.currentNode:
-      return
-    else:
-      nOfControlPoints = self.currentNode.GetNumberOfFiducials()
-      if self.table.rowCount != nOfControlPoints:
-        self.table.setRowCount(nOfControlPoints)
-      for i in range(nOfControlPoints):
-        label = self.currentNode.GetNthFiducialLabel(i)
-        cellLabel = qt.QTableWidgetItem(label)
-        self.table.setItem(i, 0, cellLabel)
-        self.addDeleteButton(i, 1)
-    self.table.show()
-
-  def addDeleteButton(self, row, col):
-    button = qt.QPushButton('X')
-    self.table.setCellWidget(row, col, button)
-    button.clicked.connect(lambda: self.handleDeleteButtonClicked(row))
-    self.connectedButtons.append(button)
-
-  def handleDeleteButtonClicked(self, idx):
-    if slicer.util.confirmYesNoDisplay("Do you really want to delete fiducial %s?"
-                                               % self.currentNode.GetNthFiducialLabel(idx), windowTitle="mpReview"):
-      self.currentNode.RemoveMarkup(idx)
-
-  def onFiducialsUpdated(self, caller, event):
-    if caller.IsA("vtkMRMLMarkupsFiducialNode") and event == self.MODIFIED_EVENT:
-      self.updateTable()
-
-  def onCellChanged(self, row, col):
-    if col == 0:
-      self.currentNode.SetNthFiducialLabel(row, self.table.item(row, col).text())
-
-  def getOrCreateFiducialNode(self):
-    node = self.fiducialListSelector.currentNode()
-    if not node:
-      node = self.fiducialListSelector.addNode()
-    return node
