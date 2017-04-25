@@ -2,7 +2,7 @@ import argparse, sys, shutil, os, logging
 import vtk, qt, ctk, slicer
 import DICOMLib
 from slicer.ScriptedLoadableModule import *
-from SlicerProstateUtils.mixins import ModuleWidgetMixin, ModuleLogicMixin
+from SlicerDevelopmentToolboxUtils.mixins import ModuleWidgetMixin, ModuleLogicMixin
 #
 # mpReviewPreprocessor
 #   Prepares the DICOM data to be compatible with mpReview module
@@ -13,12 +13,14 @@ class mpReviewPreprocessor(ScriptedLoadableModule):
     ScriptedLoadableModule.__init__(self, parent)
     parent.title = "mpReview Preprocessor"
     parent.categories = ["Informatics"]
-    parent.dependencies = ["SlicerProstate"]
-    parent.contributors = ["Andrey Fedorov (SPL), Robin Weiss (U. of Chicago), Christian Herz (SPL)"]
+    parent.dependencies = ["SlicerDevelopmentToolbox"]
+    parent.contributors = ["Andrey Fedorov (SPL)", "Robin Weiss (U. of Chicago)", "Christian Herz (SPL)"]
     parent.helpText = """
     This is a module for conditioning DICOM data for processing using mpReview module
     """
-    parent.acknowledgementText = """Development of this module was supported in part by NIH via grants U24CA180918 and U01CA151261."""
+    parent.acknowledgementText = """
+    Development of this module was supported in part by NIH via grants U24CA180918 and U01CA151261.
+    """
     self.parent = parent
 
     # Add this test to the SelfTest module's list for discovery when the module

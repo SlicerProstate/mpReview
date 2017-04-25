@@ -9,10 +9,11 @@ import SimpleITK as sitk
 import sitkUtils
 import datetime
 from slicer.ScriptedLoadableModule import *
-from SlicerProstateUtils.mixins import ModuleWidgetMixin, ModuleLogicMixin
-from SlicerProstateUtils.buttons import WindowLevelEffectsButton
+from SlicerDevelopmentToolboxUtils.mixins import ModuleWidgetMixin, ModuleLogicMixin
+from SlicerDevelopmentToolboxUtils.buttons import WindowLevelEffectsButton
+from SlicerDevelopmentToolboxUtils.helpers import WatchBoxAttribute
+from SlicerDevelopmentToolboxUtils.widgets import TargetCreationWidget, XMLBasedInformationWatchBox
 from mpReviewPreprocessor import mpReviewPreprocessorLogic
-from collections import OrderedDict
 from qSlicerMultiVolumeExplorerModuleWidget import qSlicerMultiVolumeExplorerSimplifiedModuleWidget
 from qSlicerMultiVolumeExplorerModuleHelper import qSlicerMultiVolumeExplorerModuleHelper as MVHelper
 
@@ -23,10 +24,13 @@ class mpReview(ScriptedLoadableModule, ModuleWidgetMixin):
     ScriptedLoadableModule.__init__(self, parent)
     parent.title = "mpReview"
     parent.categories = ["Informatics"]
-    parent.dependencies = ["SlicerProstate"]
-    parent.contributors = ["Andrey Fedorov (SPL), Robin Weiss (U. of Chicago), Alireza Mehrtash (SPL), Christian Herz (SPL)"]
+    parent.dependencies = ["SlicerDevelopmentToolbox"]
+    parent.contributors = ["Andrey Fedorov (SPL)", "Robin Weiss (U. of Chicago)", "Alireza Mehrtash (SPL)",
+                           "Christian Herz (SPL)"]
     parent.helpText = """
-    Multiparametric Image Review (mpReview) module is intended to support review and annotation of multiparametric image data. The driving use case for the development of this module was review and segmentation of the regions of interest in prostate cancer multiparametric MRI.
+    Multiparametric Image Review (mpReview) module is intended to support review and annotation of multiparametric 
+    image data. The driving use case for the development of this module was review and segmentation of the regions of 
+    interest in prostate cancer multiparametric MRI.
     """
     parent.acknowledgementText = """
     Supported by NIH U24 CA180918 (PIs Fedorov & Kikinis) and U01CA151261 (PI Fennessy)
@@ -193,12 +197,14 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   def setupInformationFrame(self):
 
-    watchBoxInformation = OrderedDict([('Study ID: ', "StudyID"), ('Study Date: ', "StudyDate"),
-                                       ('Patient Name: ', "PatientName"),
-                                       ('Patient ID: ', "PatientID"), ('Patient Birthdate: ', "PatientBirthDate"),
-                                       ('Current Data Dir: ', "CurrentDataDir")])
+    watchBoxInformation = [WatchBoxAttribute('StudyID', 'Study ID:'),
+                           WatchBoxAttribute('PatientName', 'Name:', 'PatientName'),
+                           WatchBoxAttribute('StudyDate', 'Study Date:', 'StudyDate'),
+                           WatchBoxAttribute('PatientID', 'PID:', 'PatientID'),
+                           WatchBoxAttribute('CurrentDataDir', 'Current Data Dir:'),
+                           WatchBoxAttribute('PatientBirthDate', 'DOB:', 'PatientBirthDate')]
 
-    self.informationWatchBox = InformationWatchBox(watchBoxInformation)
+    self.informationWatchBox = XMLBasedInformationWatchBox(watchBoxInformation, columns=2)
 
     self.layout.addWidget(self.informationWatchBox)
 
@@ -313,11 +319,13 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   def hideUnwantedEditorUIElements(self):
     toHide = {}
-    toHide[self.editorWidget.volumes] = ['AllButtonsFrameButton', 'ReplaceModelsCheckBox', 'MasterVolumeFrame', 'MergeVolumeFrame',
-                                         'SplitStructureButton']
-    toHide[self.editorWidget.editBoxFrame] = ['WandEffectToolButton', 'LevelTracingEffectToolButton', 'RectangleEffectToolButton',
-                                              'IdentifyIslandsEffectToolButton', 'ChangeIslandEffectToolButton', 'RemoveIslandsEffectToolButton',
-                                              'SaveIslandEffectToolButton', 'RowFrame4', 'RowFrame3', 'RowFrame2', 'RowFrame1']
+    toHide[self.editorWidget.volumes] = ['AllButtonsFrameButton', 'ReplaceModelsCheckBox', 'MasterVolumeFrame',
+                                         'MergeVolumeFrame', 'SplitStructureButton']
+    toHide[self.editorWidget.editBoxFrame] = ['WandEffectToolButton', 'LevelTracingEffectToolButton',
+                                              'RectangleEffectToolButton', 'IdentifyIslandsEffectToolButton',
+                                              'ChangeIslandEffectToolButton', 'RemoveIslandsEffectToolButton',
+                                              'SaveIslandEffectToolButton', 'RowFrame4', 'RowFrame3', 'RowFrame2',
+                                              'RowFrame1']
     for widget, o in toHide.iteritems():
       for objectName in o:
         try:
@@ -429,10 +437,10 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.fiducialsArea = ctk.ctkCollapsibleButton()
     self.fiducialsArea.text = "Fiducials"
     self.fiducialsArea.collapsed = True
-    fiducialsWidgetLayout = qt.QFormLayout(self.fiducialsArea)
 
-    self.fiducialsWidget = mpReviewFiducialTable(fiducialsWidgetLayout)
-    self.segmentationWidgetLayout.addWidget(self.fiducialsArea)
+    self.fiducialsWidget = TargetCreationWidget()
+    self.fiducialsWidget.targetListSelectorVisible = True
+    self.segmentationWidgetLayout.addWidget(self.fiducialsWidget)
 
   def setupCompletionUI(self):
     self.piradsButton = qt.QPushButton("PI-RADS v2 review form")
@@ -677,7 +685,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def onSeriesSelected(self, modelIndex):
     logging.debug('Row selected: '+self.seriesModel.item(modelIndex.row(),0).text())
     selectionModel = self.seriesView.selectionModel()
-    logging.debug('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
+    logging.debug('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),
+                                                                                            qt.QModelIndex())))
     logging.debug('Row number: '+str(modelIndex.row()))
     self.updateSegmentationTabAvailability()
 
@@ -867,7 +876,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
             self.CLINode = slicer.cli.run(modelMaker, self.CLINode,
                            parameters, wait_for_completion=True)
           except AttributeError:
-            qt.QMessageBox.critical(slicer.util.mainWindow(),'Editor', 'The ModelMaker module is not available<p>Perhaps it was disabled in the application settings or did not load correctly.')
+            qt.QMessageBox.critical(slicer.util.mainWindow(),'Editor', 'The ModelMaker module is not available'
+                                                                       '<p>Perhaps it was disabled in the application '
+                                                                       'settings or did not load correctly.')
         step += 1
       progress.close()
         #
@@ -1112,7 +1123,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.studiesGroupBox.collapsed = True
     logging.debug('Row selected: '+self.studiesModel.item(modelIndex.row(),0).text())
     selectionModel = self.studiesView.selectionModel()
-    logging.debug('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),qt.QModelIndex())))
+    logging.debug('Selection model says row is selected: '+str(selectionModel.isRowSelected(modelIndex.row(),
+                                                                                            qt.QModelIndex())))
     logging.debug('Row number: '+str(modelIndex.row()))
 
     self.setTabsEnabled([2], False)
@@ -1381,7 +1393,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     self.editorWidget.helper.setVolumes(self.volumeNodes[0], self.seriesMap[str(ref)]['Label'])
 
-    self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,layout=[self.rows,self.cols],viewNames=self.sliceNames,orientation=self.currentOrientation)
+    self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,
+                                 layout=[self.rows,self.cols],viewNames=self.sliceNames,
+                                 orientation=self.currentOrientation)
 
     # Make sure redslice has the ref image (the others were set with viewerPerVolume)
     redSliceWidget = self.layoutManager.sliceWidget('Red')
@@ -1417,7 +1431,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     sl = w.sliceLogic()
     ll = sl.GetLabelLayer()
     lv = ll.GetVolumeNode()
-    self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=lv, layout=[self.rows,self.cols])
+    self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=lv, 
+                                 layout=[self.rows,self.cols])
 
     self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
     self.setOpacityOnAllSliceWidgets(1.0)
@@ -1611,7 +1626,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     propagatePromptLayout = qt.QVBoxLayout()
     self.propagatePrompt.setLayout(propagatePromptLayout)
 
-    propagateLabel = qt.QLabel('Select which volumes you wish to propagate '+ selectedLabel +' to...', self.propagatePrompt)
+    propagateLabel = qt.QLabel('Select which volumes you wish to propagate '+ selectedLabel +' to...',
+                               self.propagatePrompt)
     propagatePromptLayout.addWidget(propagateLabel)
 
     propagateView = qt.QListView()
@@ -1655,7 +1671,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     srcLabel = slicer.util.getNode(selectedLabel)
 
     # Check to make sure we don't propagate on top of something
-    existingStructures = [self.seriesMap[x]['ShortName'] for x in propagateInto if len(slicer.util.getNodes(self.seriesMap[x]['ShortName']+'-'+selectedStructure+'-label*')) != 0]
+    existingStructures = [self.seriesMap[x]['ShortName'] for x in propagateInto if
+                          len(slicer.util.getNodes(self.seriesMap[x]['ShortName']+'-'+selectedStructure+'-label*'))!= 0]
     if len(existingStructures) != 0:
       msg = 'ERROR\n\n\'' + selectedStructure + '\' already exists in the following volumes:\n\n'
       for vol in existingStructures:
@@ -1676,7 +1693,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     nProcessed = 0
     for dstSeries in propagateInto:
       labelName = self.seriesMap[dstSeries]['ShortName']+'-'+selectedStructure+'-label'
-      dstLabel = self.volumesLogic.CreateAndAddLabelVolume(slicer.mrmlScene,self.seriesMap[dstSeries]['Volume'],labelName)
+      dstLabel = self.volumesLogic.CreateAndAddLabelVolume(slicer.mrmlScene,
+                                                           self.seriesMap[dstSeries]['Volume'],labelName)
       # Need to make sure the new label volume has the correct name
       dstLabel.SetName(labelName)
       dstLabel.GetDisplayNode().SetAndObserveColorNodeID(self.mpReviewColorNode.GetID())
@@ -1697,7 +1715,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       parameters["numberOfThreads"] = -1
 
       self.__cliNode = None
-      self.__cliNode = slicer.cli.run(slicer.modules.brainsresample, self.__cliNode, parameters, wait_for_completion=True)
+      self.__cliNode = slicer.cli.run(slicer.modules.brainsresample, self.__cliNode, parameters,
+                                      wait_for_completion=True)
 
       # Check to make sure we actually got something in the dstLabel volume
       dstLabelAddress = sitkUtils.GetSlicerITKReadWriteAddress(dstLabel.GetName())
@@ -1951,14 +1970,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         l = sliceLogics.GetItemAsObject(n)
         l.SnapSliceOffsetToIJK()
 
-  def onSelect(self):
-    self.applyButton.enabled = self.inputSelector.currentNode() and self.outputSelector.currentNode()
-
-  def onApplyButton(self):
-    logic = mpReviewLogic()
-    logging.debug("Run the algorithm")
-    logic.run(self.inputSelector.currentNode(), self.outputSelector.currentNode())
-
 
 class mpReviewLogic(ScriptedLoadableModuleLogic):
   """This class should implement all the actual
@@ -2140,12 +2151,6 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
       return False
     return True
 
-  def run(self,inputVolume,outputVolume):
-    """
-    Run the actual algorithm
-    """
-    return True
-
 
 class mpReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleWidget):
 
@@ -2187,187 +2192,3 @@ class mpReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleWidg
 
   def onSliderChanged(self, frameId):
     return
-
-
-class mpReviewFiducialTable(ModuleWidgetMixin):
-
-  HEADERS = ["Name","Delete"]
-  MODIFIED_EVENT = "ModifiedEvent"
-  FIDUCIAL_LIST_OBSERVED_EVENTS = [MODIFIED_EVENT]
-
-  @property
-  def currentNode(self):
-    return self.fiducialListSelector.currentNode()
-
-  @currentNode.setter
-  def currentNode(self, node):
-    self.fiducialListSelector.setCurrentNode(node)
-
-  def __init__(self, parent):
-    self.parent = parent
-    self.connectedButtons = []
-    self.fiducialsNodeObservers = []
-    self.setup()
-    self._currentFiducialList = None
-    self.markupsLogic = slicer.modules.markups.logic()
-
-  def setup(self):
-    self.setupTargetFiducialListSelector()
-    self.setupFiducialsTable()
-    self.setupConnections()
-
-  def setupTargetFiducialListSelector(self):
-    self.fiducialListSelector = self.createComboBox(nodeTypes=["vtkMRMLMarkupsFiducialNode", ""], addEnabled=True,
-                                                    removeEnabled=True, noneEnabled=False, showChildNodeTypes=False,
-                                                    selectNodeUponCreation=True, toolTip="Select fiducial list")
-    hbox = qt.QHBoxLayout()
-    hbox.addWidget(qt.QLabel("Fiducial List: "))
-    hbox.addWidget(self.fiducialListSelector)
-    self.parent.addRow(hbox)
-
-  def setupFiducialsTable(self):
-    self.table = qt.QTableWidget(0, 2)
-    self.table.setSelectionBehavior(qt.QAbstractItemView.SelectRows)
-    self.table.setSelectionMode(qt.QAbstractItemView.SingleSelection)
-    self.table.setMaximumHeight(200)
-    self.table.horizontalHeader().setStretchLastSection(True)
-    self.resetTable()
-    self.parent.addRow(self.table)
-
-  def resetTable(self):
-    self.cleanupButtons()
-    self.table.clear()
-    self.table.setHorizontalHeaderLabels(self.HEADERS)
-
-  def setupConnections(self):
-    self.fiducialListSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onFiducialListSelected)
-    self.table.connect("cellChanged (int,int)", self.onCellChanged)
-
-  def cleanupButtons(self):
-    for button in self.connectedButtons:
-      button.clicked.disconnect(self.handleDeleteButtonClicked)
-    self.connectedButtons = []
-
-  def onFiducialListSelected(self):
-    logging.debug("mpReviewFiducialTable:onFiducialListSelected")
-    self.removeFiducialListObserver()
-    self._currentFiducialList = self.currentNode
-    if self.fiducialListSelector.currentNode():
-      self.addFiducialListObservers()
-      self.updateTable()
-      self.markupsLogic.SetActiveListID(self.currentNode)
-    else:
-      self.resetTable()
-
-  def removeFiducialListObserver(self):
-    if self._currentFiducialList and len(self.fiducialsNodeObservers) > 0:
-      for observer in self.fiducialsNodeObservers:
-        self._currentFiducialList.RemoveObserver(observer)
-    self.fiducialsNodeObservers = []
-
-  def addFiducialListObservers(self):
-    if self.currentNode:
-      for event in self.FIDUCIAL_LIST_OBSERVED_EVENTS:
-        self.fiducialsNodeObservers.append(self.currentNode.AddObserver(event, self.onFiducialsUpdated))
-
-  def updateTable(self):
-    self.resetTable()
-    if not self.currentNode:
-      return
-    else:
-      nOfControlPoints = self.currentNode.GetNumberOfFiducials()
-      if self.table.rowCount != nOfControlPoints:
-        self.table.setRowCount(nOfControlPoints)
-      for i in range(nOfControlPoints):
-        label = self.currentNode.GetNthFiducialLabel(i)
-        cellLabel = qt.QTableWidgetItem(label)
-        self.table.setItem(i, 0, cellLabel)
-        self.addDeleteButton(i, 1)
-    self.table.show()
-
-  def addDeleteButton(self, row, col):
-    button = qt.QPushButton('X')
-    self.table.setCellWidget(row, col, button)
-    button.clicked.connect(lambda: self.handleDeleteButtonClicked(row))
-    self.connectedButtons.append(button)
-
-  def handleDeleteButtonClicked(self, idx):
-    if slicer.util.confirmYesNoDisplay("Do you really want to delete fiducial %s?"
-                                               % self.currentNode.GetNthFiducialLabel(idx), windowTitle="mpReview"):
-      self.currentNode.RemoveMarkup(idx)
-
-  def onFiducialsUpdated(self, caller, event):
-    if caller.IsA("vtkMRMLMarkupsFiducialNode") and event == self.MODIFIED_EVENT:
-      self.updateTable()
-
-  def onCellChanged(self, row, col):
-    if col == 0:
-      self.currentNode.SetNthFiducialLabel(row, self.table.item(row, col).text())
-
-  def getOrCreateFiducialNode(self):
-    node = self.fiducialListSelector.currentNode()
-    if not node:
-      node = self.fiducialListSelector.addNode()
-    return node
-
-
-class InformationWatchBox(qt.QGroupBox):
-
- # TODO: replace that with SlicerProstate code...
-
-  DEFAULT_STYLE = 'background-color: rgb(230,230,230)'
-  DEFAULT_ATTRIBUTE_PREFIX = "_attribute"
-
-  @property
-  def sourceFile(self):
-    return self._sourceFile
-
-  @sourceFile.setter
-  def sourceFile(self, filePath):
-    assert os.path.exists(filePath)
-    assert filePath.endswith('.xml')
-    self._sourceFile = filePath
-    self.updateInformation()
-
-  def __init__(self, labelsAttributeNames, sourceFile=None, parent=None, **kwargs):
-    super(InformationWatchBox, self).__init__(parent)
-    self.labelsAttributeNames = labelsAttributeNames
-    self.setup()
-    if sourceFile:
-      self.sourceFile = sourceFile
-
-  def setup(self):
-    self.setStyleSheet(self.DEFAULT_STYLE)
-    layout = qt.QGridLayout()
-    self.setLayout(layout)
-
-    for index, (label, tagValue) in enumerate(self.labelsAttributeNames.iteritems()):
-      setattr(self, self.DEFAULT_ATTRIBUTE_PREFIX+tagValue, qt.QLabel())
-      layout.addWidget(qt.QLabel(label), index, 0, 1, 1, qt.Qt.AlignLeft)
-      layout.addWidget(getattr(self, self.DEFAULT_ATTRIBUTE_PREFIX+tagValue), index, 1, 1, 2)
-
-  def updateInformation(self):
-    # TODO: implement for DICOM
-    dom = xml.dom.minidom.parse(self._sourceFile)
-    for tagValue in self.labelsAttributeNames.values():
-      label = getattr(self, self.DEFAULT_ATTRIBUTE_PREFIX+tagValue)
-      value = self.findElement(dom, tagValue)
-      if label and value:
-        label.text = value
-        label.toolTip = value
-
-  def setInformation(self, tagName, value, toolTip=None):
-    label = getattr(self, self.DEFAULT_ATTRIBUTE_PREFIX+tagName)
-    if label:
-      label.text = value
-      if toolTip:
-        label.toolTip = toolTip
-
-  def findElement(self, dom, name):
-    els = dom.getElementsByTagName('element')
-    for e in els:
-      if e.getAttribute('name') == name:
-        try:
-          return e.childNodes[0].nodeValue
-        except IndexError:
-          return ""
