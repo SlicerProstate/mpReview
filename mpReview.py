@@ -1105,13 +1105,10 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.mpReviewPreprocessorLogic = mpReviewPreprocessorLogic()
     self.progress = self.createProgressDialog()
     self.progress.canceled.connect(lambda : self.mpReviewPreprocessorLogic.cancelProcess())
-    self.mpReviewPreprocessorLogic.importStudy(self.inputDataDir, progressCallback=self.updateProgressBar)
-    success = False
-    if self.mpReviewPreprocessorLogic.patientFound():
-      success = True
-      self.logic.createDirectory(outputDirectory)
-      self.mpReviewPreprocessorLogic.convertData(outputDir=outputDirectory, copyDICOM=True,
-                                                 progressCallback=self.updateProgressBar)
+    self.logic.createDirectory(outputDirectory)
+    success = self.mpReviewPreprocessorLogic.importAndProcessData(self.inputDataDir, outputDir=outputDirectory,
+                                                                  copyDICOM=True,
+                                                                  progressCallback=self.updateProgressBar)
     self.progress.canceled.disconnect(lambda : self.mpReviewPreprocessorLogic.cancelProcess())
     self.progress.close()
     return success
