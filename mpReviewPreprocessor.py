@@ -1,6 +1,7 @@
 import argparse, sys, shutil, os, logging
 import qt, ctk, slicer
 import DICOMLib
+from DICOMLib.DICOMUtils import TemporaryDICOMDatabase
 from slicer.ScriptedLoadableModule import *
 from SlicerDevelopmentToolboxUtils.mixins import ModuleWidgetMixin, ModuleLogicMixin
 
@@ -97,7 +98,7 @@ class mpReviewPreprocessorLogic(ScriptedLoadableModuleLogic, ModuleLogicMixin):
 
   @property
   def patients(self):
-    return self.temporaryDatabase.patients()
+    return self.dicomDatabase.patients()
 
   def __init__(self):
     ScriptedLoadableModuleLogic.__init__(self)
@@ -107,7 +108,6 @@ class mpReviewPreprocessorLogic(ScriptedLoadableModuleLogic, ModuleLogicMixin):
       shutil.rmtree(self.dataDir)
 
     self.createDirectory(self.dataDir)
-    self.temporaryDatabase = TemporaryDatabase(os.path.join(self.dataDir, "CtkDICOMDatabase"))
 
   def patientFound(self):
     return len(self.patients) > 0
@@ -119,15 +119,12 @@ class mpReviewPreprocessorLogic(ScriptedLoadableModuleLogic, ModuleLogicMixin):
   def cancelProcess(self):
     self.indexer.cancel()
     self.canceled = True
-    slicer.dicomDatabase = self.originalDICOMDatabase
 
   def importAndProcessData(self, inputDir, outputDir, copyDICOM, progressCallback=None):
     self.canceled = False
-    self.originalDICOMDatabase = slicer.dicomDatabase
-    slicer.dicomDatabase = self.temporaryDatabase
-    self._importStudy(inputDir, progressCallback)
-    success = self._processData(outputDir, copyDICOM, progressCallback)
-    slicer.dicomDatabase = self.originalDICOMDatabase
+    with TemporaryDICOMDatabase(os.path.join(self.dataDir, "CtkDICOMDatabase"), True) as db:
+      self._importStudy(inputDir, progressCallback)
+      success = self._processData(outputDir, copyDICOM, progressCallback)
     return success
 
   def _importStudy(self, inputDir, progressCallback=None):
@@ -231,26 +228,6 @@ class Converter(object):
           fileCount = fileCount + 1
     else:
       print 'No node!'
-
-
-class TemporaryDatabase(ctk.ctkDICOMDatabase, ModuleLogicMixin):
-
-  @property
-  def directory(self):
-    return self._directory
-
-  def __init__(self, path):
-    ctk.ctkDICOMDatabase.__init__(self)
-    self._directory = path
-    self.reset()
-
-    self.openDatabase(os.path.join(self.directory, "ctkDICOM.sql"), "mpReviewPreprocessor")
-    self.initializeDatabase()
-
-  def reset(self):
-    if os.access(self.directory, os.F_OK):
-      shutil.rmtree(self.directory)
-    self.createDirectory(self.directory)
 
 
 def main(argv):
