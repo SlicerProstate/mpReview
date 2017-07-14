@@ -23,17 +23,9 @@ set(MODULE_PYTHON_SCRIPTS
   ${MODULE_NAME}.py
   )
 
-set(MODULE_PYTHON_RESOURCES
-  Resources/Icons/${MODULE_NAME}.png
-  Resources/Colors/mpReviewColors.csv
-  Resources/Icons/icon-completion_fit.png
-  Resources/Icons/icon-infoBox.png
-  Resources/Icons/icon-segmentation_fit.png
-  Resources/Icons/icon-studyselection_fit.png
-  Resources/Icons/mpReview-simple-small.png
-  Resources/Icons/mpReviewExtensionLogo.png
-  Resources/Icons/mpReviewLogo128px.png
-  )
+file(GLOB_RECURSE MODULE_PYTHON_RESOURCES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/Resources/*
+)
 
 #-----------------------------------------------------------------------------
 slicerMacroBuildScriptedModule(

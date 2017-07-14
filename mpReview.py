@@ -9,13 +9,17 @@ import SimpleITK as sitk
 import sitkUtils
 import datetime
 from slicer.ScriptedLoadableModule import *
+
+from mpReviewPreprocessor import mpReviewPreprocessorLogic
+
+from qSlicerMultiVolumeExplorerModuleWidget import qSlicerMultiVolumeExplorerSimplifiedModuleWidget
+from qSlicerMultiVolumeExplorerModuleHelper import qSlicerMultiVolumeExplorerModuleHelper as MVHelper
+
 from SlicerDevelopmentToolboxUtils.mixins import ModuleWidgetMixin, ModuleLogicMixin
 from SlicerDevelopmentToolboxUtils.buttons import WindowLevelEffectsButton
 from SlicerDevelopmentToolboxUtils.helpers import WatchBoxAttribute
 from SlicerDevelopmentToolboxUtils.widgets import TargetCreationWidget, XMLBasedInformationWatchBox
-from mpReviewPreprocessor import mpReviewPreprocessorLogic
-from qSlicerMultiVolumeExplorerModuleWidget import qSlicerMultiVolumeExplorerSimplifiedModuleWidget
-from qSlicerMultiVolumeExplorerModuleHelper import qSlicerMultiVolumeExplorerModuleHelper as MVHelper
+from SlicerDevelopmentToolboxUtils.icons import Icons
 
 
 class mpReview(ScriptedLoadableModule, ModuleWidgetMixin):
@@ -219,9 +223,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.setupStudySelectionView()
 
   def createHelperLabel(self, toolTipText=""):
-    helperPixmap = qt.QPixmap(os.path.join(self.resourcesPath, 'Icons', 'icon-infoBox.png'))
-    helperPixmap = helperPixmap.scaled(qt.QSize(23, 20))
-    label = self.createLabel("", pixmap=helperPixmap, toolTip=toolTipText)
+    label = self.createLabel("", pixmap=Icons.info.pixmap(qt.QSize(23, 20)), toolTip=toolTipText)
     label.setCursor(qt.Qt.PointingHandCursor)
     return label
 
