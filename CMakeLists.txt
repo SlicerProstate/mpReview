@@ -56,4 +56,6 @@ if(BUILD_TESTING)
 endif()
 
 #-----------------------------------------------------------------------------
+
+include(${Slicer_EXTENSION_GENERATE_CONFIG})
 include(${Slicer_EXTENSION_CPACK})

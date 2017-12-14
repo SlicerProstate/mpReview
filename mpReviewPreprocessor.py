@@ -122,7 +122,7 @@ class mpReviewPreprocessorLogic(ScriptedLoadableModuleLogic, ModuleLogicMixin):
 
   def importAndProcessData(self, inputDir, outputDir, copyDICOM, progressCallback=None):
     self.canceled = False
-    with TemporaryDICOMDatabase(os.path.join(self.dataDir, "CtkDICOMDatabase"), True) as db:
+    with TemporaryDICOMDatabase(os.path.join(self.dataDir, "CtkDICOMDatabase")) as db:
       self._importStudy(inputDir, progressCallback)
       success = self._processData(outputDir, copyDICOM, progressCallback)
     return success
