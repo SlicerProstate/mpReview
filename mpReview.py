@@ -70,7 +70,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.dataDirButton.text = "Choose data directory"
       truncatedPath = None
     else:
-      truncatedPath = self.truncatePath(directory)
+      truncatedPath = ModuleLogicMixin.truncatePath(directory)
       self.dataDirButton.text = truncatedPath
       self.dataDirButton.caption = directory
       self.setSetting('InputLocation', directory)
@@ -232,7 +232,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.studiesGroupBox.title = "Studies"
     studiesGroupBoxLayout = qt.QGridLayout()
     self.studiesGroupBox.setLayout(studiesGroupBoxLayout)
-    self.studiesView, self.studiesModel = self._createListView('StudiesTable', ['Study ID'])
+    self.studiesView, self.studiesModel = self.createListView('StudiesTable', ['Study ID'])
     self.studiesView.setSizePolicy(qt.QSizePolicy.Expanding, qt.QSizePolicy.Expanding)
     studiesGroupBoxLayout.addWidget(self.studiesView)
     self.studyAndSeriesSelectionWidgetLayout.addWidget(self.studiesGroupBox, 2, 0, 1, 3)
@@ -241,7 +241,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.seriesGroupBox = qt.QGroupBox("Series")
     seriesGroupBoxLayout = qt.QGridLayout()
     self.seriesGroupBox.setLayout(seriesGroupBoxLayout)
-    self.seriesView, self.seriesModel = self._createListView('SeriesTable', ['Series ID'])
+    self.seriesView, self.seriesModel = self.createListView('SeriesTable', ['Series ID'])
     self.seriesView.setSelectionMode(qt.QAbstractItemView.ExtendedSelection)
     self.selectAllSeriesButton = self.createButton('Select All')
     self.deselectAllSeriesButton = self.createButton('Deselect All')
