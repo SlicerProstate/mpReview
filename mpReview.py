@@ -16,7 +16,6 @@ from qSlicerMultiVolumeExplorerModuleWidget import qSlicerMultiVolumeExplorerSim
 from qSlicerMultiVolumeExplorerModuleHelper import qSlicerMultiVolumeExplorerModuleHelper as MVHelper
 
 from SlicerDevelopmentToolboxUtils.mixins import ModuleWidgetMixin, ModuleLogicMixin
-from SlicerDevelopmentToolboxUtils.buttons import WindowLevelEffectsButton
 from SlicerDevelopmentToolboxUtils.helpers import WatchBoxAttribute
 from SlicerDevelopmentToolboxUtils.widgets import TargetCreationWidget, XMLBasedInformationWatchBox
 from SlicerDevelopmentToolboxUtils.icons import Icons
@@ -340,8 +339,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     effectButtonFrame = slicer.util.findChildren(editBoxFrame, 'RowFrame1')[0]
     buttons = [c for c in effectButtonFrame.children() if isinstance(c, qt.QToolButton)]
     buttons.append(slicer.util.findChildren(editBoxFrame, 'DilateEffectToolButton')[0])
-    self.windowLevelEffectsButton = WindowLevelEffectsButton()
-    buttons.append(self.windowLevelEffectsButton)
     undoButton = slicer.util.findChildren(editBoxFrame, 'PreviousCheckPointToolButton')[0]
     redoButton = slicer.util.findChildren(editBoxFrame, 'NextCheckPointToolButton')[0]
 
@@ -1420,7 +1417,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.updateEditorAvailability()
 
     self.multiVolumeExplorer.refreshObservers()
-    self.windowLevelEffectsButton.refreshForAllAvailableSliceWidgets()
     logging.debug('Exiting onReferenceChanged')
 
   '''
