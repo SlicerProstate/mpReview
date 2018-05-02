@@ -991,7 +991,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       if not success:
         return False,None
       logging.debug('Setting loaded label name to '+volumeName)
-      actualFileName = os.path.split(fileName)[1]
       label.SetName(volumeName+'-'+structure+'-label')
       label.RemoveAllDisplayNodeIDs()
 
@@ -1218,7 +1217,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       fileName = self.seriesMap[seriesNumber]['NRRDLocation']
       (success,volume) = slicer.util.loadVolume(fileName,returnNode=True)
       if success:
-
         if volume.GetClassName() == 'vtkMRMLScalarVolumeNode':
           self.seriesMap[seriesNumber]['Volume'] = volume
           self.seriesMap[seriesNumber]['Volume'].SetName(shortName)
@@ -2018,6 +2016,7 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
   def abbreviateName(meta):
     try:
       description = meta['SeriesDescription']
+      print description
       seriesNumber = meta['SeriesNumber']
     except:
       description = meta['DerivedSeriesDescription']
@@ -2077,10 +2076,10 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
           metaFile = os.path.join(root, currentXMLFile)
           logging.debug('Current XML File: ' + metaFile)
           try:
-            (seriesNumber,seriesName) = mpReviewLogic.getSeriesInfoFromXML(metaFile)
+            (seriesNumber, seriesName) = mpReviewLogic.getSeriesInfoFromXML(metaFile)
             logging.debug(str(seriesNumber)+' '+seriesName)
-          except:
-            logging.debug('Failed to get from XML')
+          except Exception as exc:
+            logging.error('Failed to get from XML: %s' % str(exc))
             continue
 
           if updateProgressCallback:
@@ -2126,7 +2125,7 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
 
     dom = xml.dom.minidom.parse(f)
     number = findElement(dom, 'SeriesNumber')
-    name = findElement(dom, 'SeriesDescription')
+    name = findElement(dom, 'SeriesDescription').encode('utf-8').strip()
     return number, name.replace('-','').replace('(','').replace(')','')
 
   def formatDate(self, extractedDate):
