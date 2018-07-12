@@ -178,6 +178,7 @@ class mpReviewPreprocessorLogic(ScriptedLoadableModuleLogic, ModuleLogicMixin):
       loadables = plugin.examine([files])
       if len(loadables) == 0:
         continue
+      loadables.sort(key=lambda x: x.confidence, reverse=True)
       if loadables[0].confidence > 0.1:
         return plugin, loadables[0]
     return None, None
