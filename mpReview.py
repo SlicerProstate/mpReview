@@ -1083,6 +1083,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.studyItems = []
     self.seriesModel.clear()
     dirs = self.logic.getStudyNames(self.inputDataDir)
+    dirs.sort()
     progress = self.createProgressDialog(maximum=len(dirs))
     for studyIndex, studyName in enumerate(dirs, start=1):
       if os.path.isdir(os.path.join(self.inputDataDir, studyName)) and studyName != 'SETTINGS':
