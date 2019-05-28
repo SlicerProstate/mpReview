@@ -8,6 +8,7 @@ Then run this script to generate volume reconstructions
 '''
 
 import os, shutil, sys, subprocess, logging, glob, tqdm
+import nibabel
 
 #logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("mpReviewPreprocessor2")
@@ -24,6 +25,7 @@ def main(argv):
   progressBar = tqdm.tqdm(total=totalSeriesToProcess)
 
   failedSeries = []
+  multivolumeSeries = []
   for root, dirs, files in os.walk(argv[0]):
     resourceType = os.path.split(root)[1]
     if not resourceType == "DICOM":
@@ -44,15 +46,29 @@ def main(argv):
       logger.error("Volume reconstruction failed for "+root)
       failedSeries.append(root)
 
+    # rename all dcm2niix-created nii files, since they are not readable by the defailt Slicer reader
+    for niiFile in niiFiles:
+      im = nibabel.load(niiFile)
+      if len(im.shape) == 4:
+        # move multivolume so that it is not recognized by the default mpReview loader
+        logger.debug("Moving multivolume nifti: "+niiFile)
+        shutil.move(niiFile, niiFile+".multivolume")
+        multivolumeSeries.append(niiFile+".miltivolume")
+
     progressBar.update(1)
 
   progressBar.close()
 
   if len(failedSeries):
-    with f as open("failed_series.readme", "w"):
+    with open("failed_series.readme", "w") as f:
       for fs in failedSeries:
-        f.write(fs)
-      
+        f.write(fs+"\n")
+
+  if len(multivolumeSeries):
+    with open("multivolume_series.readme", "w") as f:
+      for fs in multivolumeSeries:
+        f.write(fs+"\n")
+
   return
 
 # one argument is input dir
