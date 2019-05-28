@@ -2073,15 +2073,29 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
       logging.debug('Resource: '+resourceType)
 
       if resourceType == 'Reconstructions':
+        seriesNumber = None
+        seriesDescription = None
+
+        # mpReviewPreprocessor generated tree
         for currentXMLFile in [f for f in files if f.endswith('.xml')]:
           metaFile = os.path.join(root, currentXMLFile)
           logging.debug('Current XML File: ' + metaFile)
           try:
-            (seriesNumber, seriesName) = mpReviewLogic.getSeriesInfoFromXML(metaFile)
-            logging.debug(str(seriesNumber)+' '+seriesName)
+            (seriesNumber, seriesDescription) = mpReviewLogic.getSeriesInfoFromXML(metaFile)
+            logging.debug(str(seriesNumber)+' '+seriesDescription)
           except Exception as exc:
             logging.error('Failed to get from XML: %s' % str(exc))
             continue
+
+        # mpReviewPreprocessor2 generated tree
+        if seriesNumber is None or seriesDescription is None:
+          for currentJSONFile in [f for f in files if f.endswith('.json')]:
+            metaFile = os.path.join(root, currentJSONFile)
+            bidsJSON = json.load(open(metaFile))
+            seriesNumber = bidsJSON["SeriesNumber"]
+            seriesDescription = bidsJSON["SeriesDescription"]
+          except Exception as exc:
+            logging.error('Failed to get from JSON: %s' % str(exc))            
 
           if updateProgressCallback:
             updateProgressCallback(labelText=seriesName, value=nLoaded)
