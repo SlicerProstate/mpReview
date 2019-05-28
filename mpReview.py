@@ -31,8 +31,8 @@ class mpReview(ScriptedLoadableModule, ModuleWidgetMixin):
     parent.contributors = ["Andrey Fedorov (SPL)", "Robin Weiss (U. of Chicago)", "Alireza Mehrtash (SPL)",
                            "Christian Herz (SPL)"]
     parent.helpText = """
-    Multiparametric Image Review (mpReview) module is intended to support review and annotation of multiparametric 
-    image data. The driving use case for the development of this module was review and segmentation of the regions of 
+    Multiparametric Image Review (mpReview) module is intended to support review and annotation of multiparametric
+    image data. The driving use case for the development of this module was review and segmentation of the regions of
     interest in prostate cancer multiparametric MRI.
     """
     parent.acknowledgementText = """
@@ -1425,7 +1425,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     sl = w.sliceLogic()
     ll = sl.GetLabelLayer()
     lv = ll.GetVolumeNode()
-    self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=lv, 
+    self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=lv,
                                  layout=[self.rows,self.cols])
 
     self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
@@ -2087,7 +2087,20 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
             updateProgressCallback(labelText=seriesName, value=nLoaded)
           nLoaded += 1
 
-          volumePath = os.path.join(root,seriesNumber+'.nrrd')
+          volumePath = None
+          reconDirFiles = glob.glob(os.path.join(root, seriesNumber+'.*'))
+          # considering there may be different paths to reconstruction, take the
+          # first suitable format
+          for f in reconDirFiles:
+            type = f.split('.')[-1]
+            if type in ["nrrd", "nii", "nii.gz"]:
+              volumePath = f
+              break
+
+          if volumePath is None:
+            logging.error("Failed to find reconstructed volume file.")
+            break
+
           seriesMap[seriesNumber] = {'MetaInfo':None, 'NRRDLocation':volumePath,'LongName':seriesName}
           seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+seriesName
           if loadFurtherInformation is True:
