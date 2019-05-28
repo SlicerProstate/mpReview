@@ -2113,7 +2113,7 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
 
         if volumePath is None:
           logging.error("Failed to find reconstructed volume file.")
-          break
+          continue
 
         seriesMap[seriesNumber] = {'MetaInfo':None, 'NRRDLocation':volumePath,'LongName':seriesDescription}
         seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+seriesDescription
