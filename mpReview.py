@@ -2017,7 +2017,6 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
   def abbreviateName(meta):
     try:
       description = meta['SeriesDescription']
-      print description
       seriesNumber = meta['SeriesNumber']
     except:
       description = meta['DerivedSeriesDescription']
@@ -2061,7 +2060,7 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
 
   @staticmethod
   def loadMpReviewProcessedData(resourcesDir, updateProgressCallback=None):
-    loadFurtherInformation = True
+    loadFurtherInformation = False # True
 
     sourceFile = None
 
@@ -2091,35 +2090,36 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
         if seriesNumber is None or seriesDescription is None:
           for currentJSONFile in [f for f in files if f.endswith('.json')]:
             metaFile = os.path.join(root, currentJSONFile)
-            bidsJSON = json.load(open(metaFile))
-            seriesNumber = bidsJSON["SeriesNumber"]
-            seriesDescription = bidsJSON["SeriesDescription"]
-          except Exception as exc:
-            logging.error('Failed to get from JSON: %s' % str(exc))            
+            try:
+              bidsJSON = json.load(open(metaFile))
+              seriesNumber = str(bidsJSON["SeriesNumber"])
+              seriesDescription = bidsJSON["SeriesDescription"]
+            except Exception as exc:
+              logging.error('Failed to get from JSON: %s' % str(exc))
 
           if updateProgressCallback:
-            updateProgressCallback(labelText=seriesName, value=nLoaded)
+            updateProgressCallback(labelText=seriesDescription, value=nLoaded)
           nLoaded += 1
 
-          volumePath = None
-          reconDirFiles = glob.glob(os.path.join(root, seriesNumber+'.*'))
-          # considering there may be different paths to reconstruction, take the
-          # first suitable format
-          for f in reconDirFiles:
-            type = f.split('.')[-1]
-            if type in ["nrrd", "nii", "nii.gz"]:
-              volumePath = f
-              break
-
-          if volumePath is None:
-            logging.error("Failed to find reconstructed volume file.")
+        volumePath = None
+        reconDirFiles = os.listdir(root)
+        # considering there may be different paths to reconstruction, take the
+        # first suitable format
+        for f in reconDirFiles:
+          type = f[f.find(".")+1:]
+          if type in ["nrrd", "nii", "nii.gz"]:
+            volumePath = f
             break
 
-          seriesMap[seriesNumber] = {'MetaInfo':None, 'NRRDLocation':volumePath,'LongName':seriesName}
-          seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+seriesName
-          if loadFurtherInformation is True:
-            sourceFile = metaFile
-            loadFurtherInformation = False
+        if volumePath is None:
+          logging.error("Failed to find reconstructed volume file.")
+          break
+
+        seriesMap[seriesNumber] = {'MetaInfo':None, 'NRRDLocation':volumePath,'LongName':seriesDescription}
+        seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+seriesDescription
+        if loadFurtherInformation is True:
+          sourceFile = metaFile
+          loadFurtherInformation = False
 
       # ignore the PK maps for the purposes of segmentation
       if resourceType == 'OncoQuant' and False:
@@ -2130,12 +2130,12 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
             logging.debug('JSON meta info: '+str(metaInfo))
             try:
               seriesNumber = metaInfo['SeriesNumber']
-              seriesName = metaInfo['SeriesDescription']
+              seriesDescription = metaInfo['SeriesDescription']
             except:
               seriesNumber = metaInfo['DerivedSeriesNumber']
-              seriesName = metaInfo['ModelType']+'-'+metaInfo['AIF']+'-'+metaInfo['Parameter']
+              seriesDescription = metaInfo['ModelType']+'-'+metaInfo['AIF']+'-'+metaInfo['Parameter']
             volumePath = os.path.join(root,seriesNumber+'.nrrd')
-            seriesMap[seriesNumber] = {'MetaInfo':metaInfo, 'NRRDLocation':volumePath,'LongName':seriesName}
+            seriesMap[seriesNumber] = {'MetaInfo':metaInfo, 'NRRDLocation':volumePath,'LongName':seriesDescription}
             seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":" + \
                                                    mpReviewLogic.abbreviateName(seriesMap[seriesNumber]['MetaInfo'])
 
