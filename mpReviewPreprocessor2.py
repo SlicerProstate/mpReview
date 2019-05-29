@@ -2,12 +2,15 @@
 
 First sort instances with dicomsort Using
 
-dicomsort.py -k ~/dropbox_partners/ProstateQTI ~/Temp/QTI-sorted/%PatientID_%StudyDate_%StudyTime/RESOURCES/%SeriesNumber/DICOM/%SOPInstanceUID.dcm
+dicomsort.py -k <input directory with DICOM data> <output directory for mpReview>/%PatientID_%StudyDate_%StudyTime/RESOURCES/%SeriesNumber/DICOM/%SOPInstanceUID.dcm
 
-Then run this script to generate volume reconstructions
+Then run this script to generate volume reconstructions:
+
+python mpReviewPreprocessor2.py -i <output directory for mpReview>
+
 '''
 
-import os, shutil, sys, subprocess, logging, glob, tqdm
+import os, shutil, sys, subprocess, logging, glob, tqdm, argparse
 import nibabel
 
 #logging.basicConfig(level=logging.INFO)
@@ -15,8 +18,19 @@ logger = logging.getLogger("mpReviewPreprocessor2")
 
 
 def main(argv):
+
+  try:
+    parser = argparse.ArgumentParser(description="mpReview preprocessor v2 (dcm2niix-based)")
+    parser.add_argument("-i", "--input-folder", dest="input_folder", metavar="PATH",
+                        required=True, help="Folder of input sorted DICOM files (is expected to follow mpReview input hierarchy, see https://github.com/SlicerProstate/mpReview")
+    args = parser.parse_args(argv)
+
+  except Exception as e:
+    logger.error("Failed with exception parsing command line arguments: "+str(e))
+    return
+
   totalSeriesToProcess = 0
-  for root, dirs, files in os.walk(argv[0]):
+  for root, dirs, files in os.walk(args.input_folder):
     resourceType = os.path.split(root)[1]
     if not resourceType == "DICOM":
       continue
@@ -26,7 +40,7 @@ def main(argv):
 
   failedSeries = []
   multivolumeSeries = []
-  for root, dirs, files in os.walk(argv[0]):
+  for root, dirs, files in os.walk(args.input_folder):
     resourceType = os.path.split(root)[1]
     if not resourceType == "DICOM":
       continue
@@ -73,7 +87,4 @@ def main(argv):
 
 # one argument is input dir
 if __name__ == "__main__":
-  # check to confirm dcm2niix is in the path!
-  if len(sys.argv) != 2:
-    logger.error("Input directory not specified!")
   main(sys.argv[1:])
