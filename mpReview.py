@@ -4,7 +4,7 @@ import vtk, qt, ctk, slicer
 import logging
 import CompareVolumes
 from Editor import EditorWidget
-from EditorLib import EditorLib
+from EditorLib.EditUtil import EditUtil
 import SimpleITK as sitk
 import sitkUtils
 import datetime
@@ -82,15 +82,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.resourcesPath = os.path.join(slicer.modules.mpreview.path.replace(self.moduleName+".py",""), 'Resources')
     self.qaFormURL = ''
     self.piradsFormURL = ''
-
-    # TODO: figure out why module/class hierarchy is different
-    # between developer builds ans packages
-    try:
-      # for developer build...
-      self.editUtil = EditorLib.EditUtil.EditUtil()
-    except AttributeError:
-      # for release package...
-      self.editUtil = EditorLib.EditUtil()
+    
     # mrml node for invoking command line modules
     self.CLINode = None
     self.logic = mpReviewLogic()
@@ -275,14 +267,14 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     self.structuresView = slicer.util.findChildren(self.editorWidget.volumes, 'StructuresView')[0]
 
-    self.editorParameterNode = EditorLib.EditUtil.EditUtil.getParameterNode()
+    self.editorParameterNode = EditUtil.getParameterNode()
     self.editorParameterNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onEditorWidgetParameterNodeChanged)
 
     self.addCustomEditorButtons()
     self.editorWidget.toolsColor.colorSpin.setEnabled(False)
     self.editorWidget.toolsColor.colorPatch.setEnabled(False)
 
-    self.editorParameterNode = self.editUtil.getParameterNode()
+    self.editorParameterNode = EditUtil.getParameterNode()
     self.editorParameterNode.SetParameter('propagationMode', str(slicer.vtkMRMLApplicationLogic.LabelLayer))
     self.modelsVisibility = True
 
@@ -327,7 +319,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
                                               'ChangeIslandEffectToolButton', 'RemoveIslandsEffectToolButton',
                                               'SaveIslandEffectToolButton', 'RowFrame4', 'RowFrame3', 'RowFrame2',
                                               'RowFrame1']
-    for widget, o in toHide.iteritems():
+    for widget, o in iter(toHide.items()):
       for objectName in o:
         try:
           slicer.util.findChildren(widget, objectName)[0].hide()
@@ -921,7 +913,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.labelMapOutlineButton.setText('Outline')
 
     # Set outline on widgets
-    self.editUtil.setLabelOutline(toggled)
+    EditUtil.setLabelOutline(toggled)
 
   def onModelsVisibilityButton(self,toggled):
     if self.refSeriesNumber != '-1':
@@ -986,7 +978,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
           if timeStamp > storedTimeStamp:
             latestSegmentations[structureName] = segmentation
 
-    for structure,fileName in latestSegmentations.iteritems():
+    for structure,fileName in iter(latestSegmentations.items()):
       (success,label) = slicer.util.loadLabelVolume(fileName, returnNode=True)
       if not success:
         return False,None
@@ -1401,7 +1393,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
     self.setOpacityOnAllSliceWidgets(1.0)
-    self.editUtil.setLabelOutline(self.labelMapOutlineButton.checked)
+    EditUtil.setLabelOutline(self.labelMapOutlineButton.checked)
 
     self.onViewUpdateRequested(self.viewButtonGroup.checkedId())
 
@@ -2009,7 +2001,7 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
                     'MAP','POST','ThreeParameter','AutoAIF',
                     'BAT','-Slope','PkRsqr','Loc','Cal','Body']
     for d in discardThose:
-      if string.find(desc,d)>=0:
+      if desc.find(d)>=0:
         return False
     return True
 
@@ -2026,7 +2018,7 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
     substrAbbreviation = {'Apparent Diffusion Coeff': 'ADC', 'T2':'T2', 'T1':'T1', 'Ktrans':'Ktrans', 'Ve':'ve',
                           'MaxSlope':'MaxSlope', 'TTP':'TTp', 'Auc':'AUC', }
 
-    for substring, abbreviation in substrAbbreviation.iteritems():
+    for substring, abbreviation in iter(substrAbbreviation.items()):
       if substring in description:
         abbr = abbreviation
     if re.search('[a-zA-Z]',description) is None:
@@ -2048,13 +2040,13 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
     colorNode.NamesInitialisedOn()
     import csv
     structureNames = []
-    with open(colorFile, 'rb') as csvfile:
+    with open(colorFile, 'rt', newline='') as csvfile:
       reader = csv.DictReader(csvfile, delimiter=',')
-      for index, row in enumerate(reader):
+      for index,row in enumerate(reader):
         success = colorNode.SetColor(index, row['Label'], float(row['R']) / 255,
                                      float(row['G']) / 255, float(row['B']) / 255, float(row['A']))
         if not success:
-          print "color %s could not be set" % row['Label']
+          print("color %s could not be set" % row['Label'])
         structureNames.append(row['Label'])
     return colorNode, structureNames
 
