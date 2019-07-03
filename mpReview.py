@@ -82,7 +82,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.resourcesPath = os.path.join(slicer.modules.mpreview.path.replace(self.moduleName+".py",""), 'Resources')
     self.qaFormURL = ''
     self.piradsFormURL = ''
-    
+
     # mrml node for invoking command line modules
     self.CLINode = None
     self.logic = mpReviewLogic()
@@ -807,7 +807,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       numNodes = slicer.mrmlScene.GetNumberOfNodesByClass( "vtkMRMLModelHierarchyNode" )
       outHierarchy = None
 
-      for n in xrange(numNodes):
+      for n in range(numNodes):
         node = slicer.mrmlScene.GetNthNodeByClass( n, "vtkMRMLModelHierarchyNode" )
         if node.GetName() == 'mpReview-'+refLongName:
           outHierarchy = node
@@ -819,7 +819,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         outHierarchy.GetChildrenModelNodes(collection)
         n = collection.GetNumberOfItems()
         if n != 0:
-          for i in xrange(n):
+          for i in range(n):
             modelNode = collection.GetItemAsObject(i)
             slicer.mrmlScene.RemoveNode(modelNode)
 
@@ -879,7 +879,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         outHierarchy.GetChildrenModelNodes(collection)
         n = collection.GetNumberOfItems()
         if n != 0:
-          for i in xrange(n):
+          for i in range(n):
             modelNode = collection.GetItemAsObject(i)
             displayNode = modelNode.GetDisplayNode()
             displayNode.SetSliceIntersectionVisibility(1)
@@ -890,7 +890,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def removeAllModels(self):
     modelHierarchyNodes = []
     numNodes = slicer.mrmlScene.GetNumberOfNodesByClass( "vtkMRMLModelHierarchyNode" )
-    for n in xrange(numNodes):
+    for n in range(numNodes):
       node = slicer.mrmlScene.GetNthNodeByClass( n, "vtkMRMLModelHierarchyNode")
       if node.GetName()[:12] == 'mpReview-':
         modelHierarchyNodes.append(node)
@@ -922,7 +922,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
       outHierarchy = None
       numNodes = slicer.mrmlScene.GetNumberOfNodesByClass( "vtkMRMLModelHierarchyNode" )
-      for n in xrange(numNodes):
+      for n in range(numNodes):
         node = slicer.mrmlScene.GetNthNodeByClass( n, "vtkMRMLModelHierarchyNode" )
         if node.GetName() == 'mpReview-'+refLongName:
           outHierarchy = node
@@ -933,7 +933,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         outHierarchy.GetChildrenModelNodes(collection)
         n = collection.GetNumberOfItems()
         if n != 0:
-          for i in xrange(n):
+          for i in range(n):
             modelNode = collection.GetItemAsObject(i)
             displayNode = modelNode.GetDisplayNode()
             displayNode.SetSliceIntersectionVisibility(0 if toggled else 1)
@@ -979,9 +979,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
             latestSegmentations[structureName] = segmentation
 
     for structure,fileName in iter(latestSegmentations.items()):
-      (success,label) = slicer.util.loadLabelVolume(fileName, returnNode=True)
-      if not success:
-        return False,None
+      label = slicer.util.loadLabelVolume(fileName)
       logging.debug('Setting loaded label name to '+volumeName)
       label.SetName(volumeName+'-'+structure+'-label')
       label.RemoveAllDisplayNodeIDs()
@@ -1208,22 +1206,19 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       longName = self.seriesMap[seriesNumber]['LongName']
 
       fileName = self.seriesMap[seriesNumber]['NRRDLocation']
-      (success,volume) = slicer.util.loadVolume(fileName,returnNode=True)
-      if success:
-        if volume.GetClassName() == 'vtkMRMLScalarVolumeNode':
-          self.seriesMap[seriesNumber]['Volume'] = volume
-          self.seriesMap[seriesNumber]['Volume'].SetName(shortName)
-        elif volume.GetClassName() == 'vtkMRMLMultiVolumeNode':
-          self.seriesMap[seriesNumber]['MultiVolume'] = volume
-          self.seriesMap[seriesNumber]['MultiVolume'].SetName(shortName+'_multivolume')
-          self.seriesMap[seriesNumber]['FrameNumber'] = volume.GetNumberOfFrames()-1
-          scalarVolumeNode = MVHelper.extractFrame(None, self.seriesMap[seriesNumber]['MultiVolume'],
-                                                         self.seriesMap[seriesNumber]['FrameNumber'])
-          scalarVolumeNode.SetName(shortName)
-          self.seriesMap[seriesNumber]['Volume'] = scalarVolumeNode
-      else:
-        logging.debug('Failed to load image volume!')
-        return True
+      print("Loading file from "+fileName)
+      volume = slicer.util.loadVolume(fileName)
+      if volume.GetClassName() == 'vtkMRMLScalarVolumeNode':
+        self.seriesMap[seriesNumber]['Volume'] = volume
+        self.seriesMap[seriesNumber]['Volume'].SetName(shortName)
+      elif volume.GetClassName() == 'vtkMRMLMultiVolumeNode':
+        self.seriesMap[seriesNumber]['MultiVolume'] = volume
+        self.seriesMap[seriesNumber]['MultiVolume'].SetName(shortName+'_multivolume')
+        self.seriesMap[seriesNumber]['FrameNumber'] = volume.GetNumberOfFrames()-1
+        scalarVolumeNode = MVHelper.extractFrame(None, self.seriesMap[seriesNumber]['MultiVolume'],
+                                                       self.seriesMap[seriesNumber]['FrameNumber'])
+        scalarVolumeNode.SetName(shortName)
+        self.seriesMap[seriesNumber]['Volume'] = scalarVolumeNode
       self.checkAndLoadLabel(seriesNumber, shortName)
       try:
         if self.seriesMap[seriesNumber]['MetaInfo']['ResourceType'] == 'OncoQuant':
@@ -1332,7 +1327,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.setCrosshairEnabled(eligible)
     logging.debug('Current reference node: '+text)
     if eligible:
-      self.refSeriesNumber = string.split(text,':')[0]
+      self.refSeriesNumber = text.split(':')[0]
       ref = int(self.refSeriesNumber)
     else:
       return
@@ -2100,7 +2095,7 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
         for f in reconDirFiles:
           type = f[f.find(".")+1:]
           if type in ["nrrd", "nii", "nii.gz"]:
-            volumePath = f
+            volumePath = os.path.join(root, f)
             break
 
         if volumePath is None:
@@ -2175,7 +2170,7 @@ class mpReviewMultiVolumeExplorer(qSlicerMultiVolumeExplorerSimplifiedModuleWidg
     ref = -1
     if self._bgMultiVolumeNode:
       name = self._bgMultiVolumeNode.GetName()
-      ref = string.split(name,':')[0]
+      ref = name.split(':')[0]
     return ref
   def showInputMultiVolumeSelector(self, show):
     if show:

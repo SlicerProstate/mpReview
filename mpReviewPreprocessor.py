@@ -160,7 +160,7 @@ class mpReviewPreprocessorLogic(ScriptedLoadableModuleLogic, ModuleLogicMixin):
 
             self.updateProgressBar(value=seriesIndex, maximum=len(series),
                                   labelText="Processing: %s" % seriesDescription)
-          
+
             plugin, loadable = self._getPluginAndLoadableForFiles(seriesDescription, files)
 
             if loadable and plugin:
@@ -228,7 +228,7 @@ class Converter(object):
           shutil.copy(dcm, os.path.join(dirName, "%06d.dcm" % fileCount))
           fileCount = fileCount + 1
     else:
-      print 'No node!'
+      print('No node!')
 
 
 def main(argv):
@@ -249,8 +249,8 @@ def main(argv):
 
     logic = mpReviewPreprocessorLogic()
     logic.importAndProcessData(args.input_folder, args.output_folder, copyDICOM=args.copyDICOM)
-  except Exception, e:
-    print e
+  except Exception as e:
+    print(e)
   sys.exit()
 
 if __name__ == "__main__":
