@@ -1297,7 +1297,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     if len(multiVolumes) == 1:
       multiVolume = multiVolumes[0]
     elif len(multiVolumes) > 1:
-      multiVolume = max(multiVolumes, key=lambda mv: mv.GetNumberOfFrames)
+      multiVolume = max(multiVolumes, key=lambda mv: mv.GetNumberOfFrames())
       # TODO: set selector
     self.multiVolumeExplorer.setMultiVolume(multiVolume)
     self.showMultiVolumeExplorer(len(multiVolumes) > 0)
