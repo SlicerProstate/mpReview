@@ -2080,7 +2080,7 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
             try:
               bidsJSON = json.load(open(metaFile))
               seriesNumber = str(bidsJSON["SeriesNumber"])
-              seriesDescription = bidsJSON["SeriesDescription"]
+              seriesDescription = mpReviewLogic.normalizeSeriesDescription(bidsJSON["SeriesDescription"])
             except Exception as exc:
               logging.error('Failed to get from JSON: %s' % str(exc))
 
@@ -2140,8 +2140,12 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
 
     dom = xml.dom.minidom.parse(f)
     number = findElement(dom, 'SeriesNumber')
-    name = findElement(dom, 'SeriesDescription').encode('utf-8').strip()
-    return number, name.replace('-','').replace('(','').replace(')','')
+    name = self.normalizeSeriesDescription(findElement(dom, 'SeriesDescription').encode('utf-8').strip())
+    return number, name
+
+  @staticmethod
+  def normalizeSeriesDescription(name):
+    return name.replace('-','').replace('(','').replace(')','')
 
   def formatDate(self, extractedDate):
     formatted = datetime.date(int(extractedDate[0:4]), int(extractedDate[4:6]), int(extractedDate[6:8]))
