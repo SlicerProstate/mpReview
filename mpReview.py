@@ -1062,6 +1062,11 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     for s in sorted([int(x) for x in self.seriesMap.keys()]):
       seriesText = str(s) + ':' + self.seriesMap[str(s)]['LongName']
       sItem = qt.QStandardItem(seriesText)
+      try:
+        sItem.setToolTip(self.seriesMap[str(s)]['SeriesTypeAnnotation'])
+        print("Setting tooltip "+self.seriesMap[str(s)]['SeriesTypeAnnotation']+" for "+str(s))
+      except KeyError:
+        pass
       self.seriesItems.append(sItem)
       self.seriesModel.appendRow(sItem)
       sItem.setCheckable(1)
@@ -2104,6 +2109,16 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
 
         seriesMap[seriesNumber] = {'MetaInfo':None, 'NRRDLocation':volumePath,'LongName':seriesDescription}
         seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+seriesDescription
+
+        canonicalFile = os.path.join(os.path.split(root)[0], "Canonical", seriesNumber+".json")
+        try:
+          canonicalDict = json.load(open(canonicalFile))
+          if "SeriesTypeAnnotation" in canonicalDict.keys():
+            seriesMap[seriesNumber]['SeriesTypeAnnotation'] = canonicalDict['SeriesTypeAnnotation']
+            print("Setting SeriesTypeAnnotation to "+canonicalDict['SeriesTypeAnnotation']+" for series "+seriesNumber)
+        except (OSError, IOError) as e:
+          pass
+
         if loadFurtherInformation is True:
           sourceFile = metaFile
           loadFurtherInformation = False
@@ -2125,6 +2140,8 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
             seriesMap[seriesNumber] = {'MetaInfo':metaInfo, 'NRRDLocation':volumePath,'LongName':seriesDescription}
             seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":" + \
                                                    mpReviewLogic.abbreviateName(seriesMap[seriesNumber]['MetaInfo'])
+
+
 
     logging.debug('All series found: '+str(seriesMap.keys()))
     return seriesMap, sourceFile

@@ -1,4 +1,4 @@
-import shutil, string, os, sys, glob, xml.dom.minidom
+import shutil, string, os, sys, glob, xml.dom.minidom, pydicom
 
 # Iterate over all series in the directory that follows PCampReview convention,
 # use rules defined in getCanonicalType() to 'tag' series according to the
@@ -23,7 +23,7 @@ def checkTagExistence(dom,tag):
       return True
 
   return False
- 
+
 def getValidDirs(dir):
   #dirs = [f for f in os.listdir(dir) if (not f.startswith('.')) and (not os.path.isfile(f))]
   dirs = os.listdir(dir)
@@ -66,14 +66,33 @@ for c in studies:
   seriesPerStudy = 0
 
   for s in series:
+
+    if s.startswith("."):
+      continue
+
     canonicalPath = os.path.join(studyDir,s,'Canonical')
     try:
       os.mkdir(canonicalPath)
     except:
       pass
 
+    dicomDir = os.path.join(studyDir,s,'DICOM')
+    for dcmName in os.listdir(dicomDir):
+      # print("looking at "+os.path.join(dicomDir,dcmName))
+      try:
+        dcm = pydicom.read_file()
+      except:
+        continue
+
+      try:
+        print(dcm.DiffusionBValue)
+      except:
+        pass
+
+    '''
+
     xmlFileName = os.path.join(studyDir,s,'Reconstructions',s+'.xml')
-    
+
     try:
       dom = xml.dom.minidom.parse(xmlFileName)
     except:
@@ -90,12 +109,13 @@ for c in studies:
       seriesDescription2Count[desc]=1
 
     seriesDescription2Type[desc] = seriesType
-    
+
     f = open(os.path.join(canonicalPath,s+'.json'),'w')
     import json
     attrs = {'CanonicalType':seriesType}
     f.write(json.dumps(attrs))
     f.close
+    '''
 
   #print 'Total series for study ',c,':',seriesPerStudy
 
