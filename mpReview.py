@@ -2098,8 +2098,7 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
         # considering there may be different paths to reconstruction, take the
         # first suitable format
         for f in reconDirFiles:
-          type = f[f.find(".")+1:]
-          if type in ["nrrd", "nii", "nii.gz"]:
+          if f.find(".nrrd")>0 or f.find(".nii")>0 or f.find(".nii.gz")>0:
             volumePath = os.path.join(root, f)
             break
 
