@@ -10,9 +10,9 @@ python mpReviewPreprocessor2.py -i <output directory for mpReview>
 
 '''
 
-import tqdm, nibabel # not included in Slicer
+import tqdm, nibabel, argparse # not included in Slicer
 
-import os, shutil, sys, subprocess, logging, glob, argparse
+import os, shutil, sys, subprocess, logging, glob
 
 #logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("mpReviewPreprocessor2")
@@ -150,7 +150,7 @@ def main(argv):
     if not resourceType == "DICOM":
       continue
 
-    logger.debug("Processing "+root)
+    #logger.debug("Processing "+root)
     reconstructionsDir = os.path.join(os.path.split(root)[0], "Reconstructions")
     if not os.path.exists(reconstructionsDir):
       os.mkdir(reconstructionsDir)
