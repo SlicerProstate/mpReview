@@ -246,6 +246,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def setupSegmentationToolsUI(self):
     self.refSelector = qt.QComboBox()
     self.segmentationWidgetLayout.addWidget(self.createHLayout([qt.QLabel("Reference image: "), self.refSelector]))
+    self.userSelector = qt.QComboBox()
+    self.segmentationWidgetLayout.addWidget(self.createHLayout([qt.QLabel("Reader: "), self.userSelector]))
     self.setupMultiVolumeExplorerUI()
     self.setupLabelMapEditorUI()
     self.setupAdvancedSegmentationSettingsUI()
@@ -482,6 +484,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     def setupOtherConnections():
       self.refSelector.connect('currentIndexChanged(int)', self.onReferenceChanged)
+      self.userSelector.connect('currentIndexChanged(int)', self.onUserSelector)
       self.tabWidget.connect('currentChanged(int)',self.onTabWidgetClicked)
 
     setupButtonConnections()
@@ -524,6 +527,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.namePrompt.exec_()
     else:
       self.parameters['UserName'] = userName
+
+    self.currentUser = userName
 
     if self.piradsFormURL is None or self.piradsFormURL == '':
       # prompt the user for the review form
@@ -949,14 +954,21 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       redCompositeNode = widget.mrmlSliceCompositeNode()
       redCompositeNode.SetLabelOpacity(0.0 if toggled else 1.0)
 
+
   def checkAndLoadLabel(self, seriesNumber, volumeName):
-    globPath = os.path.join(self.resourcesDir,str(seriesNumber),"Segmentations",
-                            self.getSetting('UserName')+'*')
+    if self.userSelector.findText(self.currentUser) == -1:
+      self.userSelector.addItem(self.currentUser)
+    globPath = os.path.join(self.resourcesDir, str(seriesNumber), "Segmentations", '*')
+    allSegmentations = glob.glob(globPath)
+    userNames = sorted(list(set([os.path.basename(fileName).split('-')[0] for fileName in allSegmentations])))
+    for userName in userNames:
+      if self.userSelector.findText(userName) == -1:
+        self.userSelector.addItem(userName)
+    self.userSelector.currentText = self.currentUser
+    globPath = os.path.join(self.resourcesDir, str(seriesNumber), "Segmentations", self.currentUser+'*')
     previousSegmentations = glob.glob(globPath)
     if not len(previousSegmentations):
       return False,None
-
-    #fileName = previousSegmentations[-1]
 
     # Iterate over segmentation files and choose the latest for each structure
     latestSegmentations = {}
@@ -1320,7 +1332,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     else:
       self.crosshairNode.SetCrosshairMode(slicer.vtkMRMLCrosshairNode.NoCrosshair)
 
-  def onReferenceChanged(self, id):
+  def onReferenceChanged(self):
     # TODO: when None is selected, viewers and editor should be resetted
     self.labelMapVisibilityButton.checked = False
     self.fiducialLabelPropagateModel = None
@@ -1409,6 +1421,29 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     self.multiVolumeExplorer.refreshObservers()
     logging.debug('Exiting onReferenceChanged')
+
+  def onUserSelector(self, id):
+    selectedUser = self.userSelector.itemText(id)
+    if selectedUser == self.currentUser:
+      return
+    continueCurrentStep = self.showExitStep3Or4Warning()
+    if continueCurrentStep:
+      self.userSelector.currentText = self.currentUser
+      return
+    else:
+        print('User changed from {} to {}...'.format(self.currentUser, selectedUser))
+        labelNodes = slicer.util.getNodesByClass('vtkMRMLLabelMapVolumeNode')
+        for labelNode in labelNodes:
+          slicer.mrmlScene.RemoveNode(labelNode)
+        self.currentUser = selectedUser
+        for key, val in self.seriesMap.items():
+          self.checkAndLoadLabel(key, val["ShortName"])
+        # self.mpReviewColorNode, self.structureNames = self.logic.loadColorTable(self.colorFile)
+        labelNodes = slicer.util.getNodesByClass('vtkMRMLLabelMapVolumeNode')
+        for labelNode in labelNodes:
+          ref = labelNode.GetName().split(':')[0]
+          self.seriesMap[str(ref)]['Label'] = labelNode
+        self.onReferenceChanged()
 
   '''
   def updateViews(self):
