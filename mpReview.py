@@ -2161,7 +2161,10 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
 
   @staticmethod
   def normalizeSeriesDescription(name):
-    return name.replace('-','').replace('(','').replace(')','')
+    import re
+    pattern = re.compile('[^a-zA-Z0-9_ ]')
+    normalized_name = pattern.sub('_', name)
+    return normalized_name
 
   def formatDate(self, extractedDate):
     formatted = datetime.date(int(extractedDate[0:4]), int(extractedDate[4:6]), int(extractedDate[6:8]))
