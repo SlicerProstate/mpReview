@@ -1,6 +1,6 @@
 {
-  "SeriesTypes": ["SUB","T2AX","ADC"],
-  "Structures": ["WholeGland","PeripheralZone","TumorROI_PZ_1","TumorROI_CGTZ_1"],
+  "SeriesTypes": ["SUB","T2AX","ADC","Unknown"],
+  "Structures": ["WholeGland","PeripheralZone","TumorROI_PZ_1","TumorROI_CGTZ_1", "TumorROI_PZ_2", "TumorROI_CGTZ_2"],
   "Readers": ["fionafennessy"],
   "MeasurementTypes": ["Volume","Mean","Median","StandardDeviation","Minimum","Maximum"]
 }

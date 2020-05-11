@@ -35,7 +35,7 @@ def checkTagExistence(dom,tag):
       return True
 
   return False
- 
+
 def getValidDirs(dir):
   #dirs = [f for f in os.listdir(dir) if (not f.startswith('.')) and (not os.path.isfile(f))]
   dirs = os.listdir(dir)
@@ -65,7 +65,7 @@ def initHeader(settings):
       for mtype in settings['MeasurementTypes']:
         header.append(structure+'.'+stype+'.'+mtype)
   return header
-      
+
 
 seriesDescription2Count = {}
 seriesDescription2Type = {}
@@ -109,7 +109,7 @@ for c in studies:
   seriesPerStudy = 0
 
   for stype in settings['SeriesTypes']:
-    print 'looking for SeriesType = ',stype
+    print('looking for SeriesType = '+stype)
     stypeFound = False
 
     for s in series:
@@ -140,11 +140,11 @@ for c in studies:
         # no Segmentations directory
         continue
 
-      print 'Found: ',c,s,canonicalFile
+      print(f'Found: {c} ,{s}, {canonicalFile}')
       stypeFound = True
 
       canonicalType = seriesAttributes['CanonicalType']
-  
+
 
       # if no structures specified in the config file, consider all
       allStructures = None
@@ -157,11 +157,11 @@ for c in studies:
           'NormalROI_PZ_1',
           'NormalROI_CGTZ_1']
 
-      print 'Structures:'+str(allStructures)
+      print('Structures:'+str(allStructures))
 
       for structure in allStructures:
         # check if segmentation is available for this series
-        
+
         for mtype in settings['MeasurementTypes']:
 
           measurementsDir = os.path.join(studyDir,s,'Measurements')
@@ -170,7 +170,7 @@ for c in studies:
           try:
             mjson = json.loads(open(measurementsFile,'r').read())
           except:
-            print 'Failed to open ',measurementsFile
+            print('Failed to open '+measurementsFile)
             mjson = 'NA'
 
           if mjson == 'NA':
@@ -188,8 +188,8 @@ for c in studies:
 
   if tableRow:
     if len(tableRow)!=len(header):
-      print 'Table row:',str(tableRow)
-      print 'Table header:',str(header)
+      print('Table row:'+str(tableRow))
+      print('Table header:'+str(header))
       abort()
     tableRowVector = []
     for colName in header:

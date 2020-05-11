@@ -31,17 +31,16 @@ def getValidDirs(dir):
   dirs = [f for f in dirs if not f.startswith('.')]
   return dirs
 
-def getCanonicalType(dom):
+def getCanonicalType(desc):
   import re
-  desc = getElementValue(dom,'SeriesDescription')
-  if re.search('[a-zA-Z]',desc) == None:
+  if re.search('[a-zA-Z]',desc) == None or desc.startswith("SUB") or re.search('Subtract', desc):
     return "SUB"
-  elif re.search('AX',desc) and re.search('T2',desc):
+  elif (re.search('AX',desc) or re.search('Ax',desc)) and re.search('T2',desc):
     return "T2AX"
-  elif desc.startswith('Apparent Diffusion Coefficient'):
+  elif desc.startswith('Apparent Diffusion Coefficient') or re.search("ADC", desc):
     # TODO: parse platform-specific b-values etc
     return 'ADC'
-  elif re.search('Ax Dynamic',desc) or re.search('3D DCE',desc):
+  elif re.search('Ax Dynamic',desc) or re.search('3D DCE',desc) or re.search("DYNAMIC", desc):
     return 'DCE'
   else:
     return "Unknown"
@@ -56,7 +55,6 @@ totalStudies = 0
 
 for c in studies:
   studyDir = os.path.join(data,c,'RESOURCES')
-
   try:
     series = os.listdir(studyDir)
   except:
@@ -75,19 +73,16 @@ for c in studies:
       os.mkdir(canonicalPath)
     except:
       pass
-
     dicomDir = os.path.join(studyDir,s,'DICOM')
     for dcmName in os.listdir(dicomDir):
-      # print("looking at "+os.path.join(dicomDir,dcmName))
+      dcmFile = os.path.join(dicomDir,dcmName)
+      #print(dcmFile)
       try:
-        dcm = pydicom.read_file()
+        dcm = pydicom.read_file(dcmFile)
+        break
       except:
+        print("exception")
         continue
-
-      try:
-        print(dcm.DiffusionBValue)
-      except:
-        pass
 
     '''
 
@@ -99,7 +94,13 @@ for c in studies:
       continue
 
     desc = getElementValue(dom, 'SeriesDescription')
-    seriesType = getCanonicalType(dom)
+    '''
+    try:
+      desc = dcm.SeriesDescription
+    except:
+      # no SeriesDescription!
+      continue
+    seriesType = getCanonicalType(desc)
     totalSeries = totalSeries+1
     seriesPerStudy = seriesPerStudy+1
 
@@ -110,12 +111,15 @@ for c in studies:
 
     seriesDescription2Type[desc] = seriesType
 
+    #print(desc+" => "+ seriesType)
+
+
     f = open(os.path.join(canonicalPath,s+'.json'),'w')
     import json
     attrs = {'CanonicalType':seriesType}
     f.write(json.dumps(attrs))
     f.close
-    '''
+
 
   #print 'Total series for study ',c,':',seriesPerStudy
 
@@ -123,4 +127,4 @@ for c in studies:
 #print seriesDescription2Count
 
 for k in seriesDescription2Type.keys():
-  print k,' ==> ',seriesDescription2Type[k]
+  print(k+' ==> '+seriesDescription2Type[k])

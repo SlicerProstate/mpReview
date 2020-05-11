@@ -29,7 +29,7 @@ class MeasurementsManager:
       mc[study] = {}
     if not series in mc[study].keys():
       mc[study][series] = {}
-    if not struct in mc[study][series].keys(): 
+    if not struct in mc[study][series].keys():
       mc[study][series][struct] = {}
     if not reader in mc[study][series][struct].keys():
       mc[study][series][struct][reader] = {}
@@ -43,7 +43,7 @@ class MeasurementsManager:
 
   def getCSV(self):
     return
-    
+
 
 def getElementValue(dom,name):
   elements = dom.getElementsByTagName('element')
@@ -60,7 +60,7 @@ def checkTagExistence(dom,tag):
       return True
 
   return False
- 
+
 def getValidDirs(dir):
   #dirs = [f for f in os.listdir(dir) if (not f.startswith('.')) and (not os.path.isfile(f))]
   dirs = os.listdir(dir)
@@ -117,11 +117,11 @@ for c in studies:
     # check if the series type is of interest
     if not seriesAttributes['CanonicalType'] in settings['SeriesTypes']:
       continue
- 
+
     if 1:
       # check if segmentation is available for this series
       segmentationsPath = os.path.join(studyDir,s,'Segmentations')
-      
+
       for reader in settings['Readers']:
         segFiles = glob.glob(segmentationsPath+'/'+reader+'-2*')
 
@@ -136,7 +136,7 @@ for c in studies:
 
         label = sitk.ReadImage(str(segmentationFile))
         image = sitk.ReadImage(imageFile)
-        
+
         if resampleLabel:
           resample = sitk.ResampleImageFilter()
           resample.SetReferenceImage(image)
@@ -153,10 +153,10 @@ for c in studies:
 
         stats = sitk.LabelStatisticsImageFilter()
         stats.Execute(label,label)
-        totalLabels = stats.GetNumberOfLabels()        
+        totalLabels = stats.GetNumberOfLabels()
         if totalLabels<2:
-          print segmentationFile
-          print "ERROR: Segmentation should have exactly 2 labels!"
+          print(segmentationFile)
+          print("ERROR: Segmentation should have exactly 2 labels!")
           continue
 
         allLabelIDs = list(stats.GetLabels())
@@ -167,7 +167,7 @@ for c in studies:
           structure = str(labelID)
           measurements = {}
           measurements['SegmentationName'] = structure
- 
+
           # threshold to label 1
           thresh = sitk.BinaryThresholdImageFilter()
           thresh.SetLowerThreshold(labelID)
@@ -177,7 +177,7 @@ for c in studies:
           thisLabel = thresh.Execute(label)
 
           stats.Execute(image,thisLabel)
- 
+
           for mtype in settings['MeasurementTypes']:
 
             if mtype == "Mean":
@@ -217,4 +217,4 @@ for c in studies:
 
         #print str(measurements)
 
-print 'WARNING: ADD RESAMPLING OF THE LABEL TO IMAGE!!!'
+print('WARNING: ADD RESAMPLING OF THE LABEL TO IMAGE!!!')
