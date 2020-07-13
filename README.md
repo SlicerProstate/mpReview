@@ -2,7 +2,7 @@
 
 Multiparametric Review (mpReview) is a 3D Slicer (see http://slicer.org) module that facilitates review and annotation (segmentation) of multi-parametric imaging datasets. 
 
-This module is work in progress, and has not yet been released as a 3D Slicer extension, but this is in the plans. Development of this module was supported by NIH via grants U01CA151261 and U24CA180918. Contact is Andrey Fedorov, fedorov@bwh.harvard.edu.
+Development of this module was supported by NIH via grants U01CA151261 and U24CA180918. Contact is Andrey Fedorov, fedorov@bwh.harvard.edu.
 
 ### Functionality
 
@@ -11,20 +11,11 @@ The module guides the user through a workflow that consists of the following ste
 1. Select location of input data: the data is expected to be in a certain layout that is described below.
 2. Select the study that will be annotated. The list of studies will be determined from the directory layout in the source directory.
 3. Select the series that will be used during annotation. The module has some hard-coded logic about what series should be loaded. The user can adjust the selection as needed.
-4. Segment one or more series. Upon entering this step, the series selected in the previous step will be loaded. In this step, the user is required to choose the reference series. Once selected, the reference series will be selected as the Background layer (using Slicer terminology) in all slice viewers. The slice viewer layout will be initialized automatically to show all the series, with the non-reference series in the Foreground layer. At this time, the user can use embedded Editor module to prepare segmentation labels of the reference series.
+4. Segment one or more series. Upon entering this step, the series selected in the previous step will be loaded. In this step, the user is required to choose the reference series. Once selected, the reference series will be selected as the Background layer (using Slicer terminology) in all slice viewers. The slice viewer layout will be initialized automatically to show all the series, with the non-reference series in the Foreground layer. At this time, the user can use embedded segment editor to prepare segmentation labels of the reference series.
 
 Once annotation task is completed, the result can be saved in the directory hierarchy.
 
 The workflow can be linked with a Google form to support subject-specific form-based review, with the subject and reader IDs pre-populated, as illustrated in this module.
-
-WindowLevelExtension
-(http://wiki.slicer.org/slicerWiki/index.php/Documentation/Nightly/Extensions/WindowLevelEffect)
-can be used to simplify setting window/level for the Foreground volume in 3D
-Slicer.
-
-### Dependencies
-
-This module expects that WindowLevelEffect extension (http://wiki.slicer.org/slicerWiki/index.php/Documentation/Nightly/Extensions/WindowLevelEffect) is installed. It is available from Slicer Extensions Manager.
 
 ### Data organization conventions
 
