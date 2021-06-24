@@ -2083,7 +2083,7 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
           for currentJSONFile in [f for f in files if f.endswith('.json')]:
             metaFile = os.path.join(root, currentJSONFile)
             try:
-              bidsJSON = json.load(open(metaFile))
+              bidsJSON = json.load(open(metaFile, encoding='utf-8'))
               seriesNumber = str(bidsJSON["SeriesNumber"])
               seriesDescription = mpReviewLogic.normalizeSeriesDescription(bidsJSON["SeriesDescription"])
             except Exception as exc:
