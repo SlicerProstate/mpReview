@@ -18,6 +18,9 @@ from SlicerDevelopmentToolboxUtils.helpers import WatchBoxAttribute
 from SlicerDevelopmentToolboxUtils.widgets import TargetCreationWidget, XMLBasedInformationWatchBox
 from SlicerDevelopmentToolboxUtils.icons import Icons
 
+from DICOMLib import DICOMPlugin
+import DICOMSegmentationPlugin
+
 
 class mpReview(ScriptedLoadableModule, ModuleWidgetMixin):
 
@@ -191,8 +194,12 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.refSelectorIgnoreUpdates = False
     self.selectedStudyName = None
 
-    self.dataDirButton.directory = self.getSetting('InputLocation')
+    # self.dataDirButton.directory = self.getSetting('InputLocation')
     self.currentTabIndex = 0
+    
+    self.updateStudyTable() # I added
+    
+    self.checkAndSetLUT() # I added 
 
   def setupInformationFrame(self):
 
@@ -208,10 +215,11 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.layout.addWidget(self.informationWatchBox)
 
   def setupDataAndStudySelectionUI(self):
-    self.dataDirButton = ctk.ctkDirectoryButton()
-    self.studyAndSeriesSelectionWidgetLayout.addWidget(qt.QLabel("Data directory:"), 0, 0, 1, 1)
-    self.studyAndSeriesSelectionWidgetLayout.addWidget(self.dataDirButton, 0, 1, 1, 2)
+    # self.dataDirButton = ctk.ctkDirectoryButton()
+    # self.studyAndSeriesSelectionWidgetLayout.addWidget(qt.QLabel("Data directory:"), 0, 0, 1, 1)
+    # self.studyAndSeriesSelectionWidgetLayout.addWidget(self.dataDirButton, 0, 1, 1, 2)
 
+    print ('in setupDataAndStudySelectionUI')
     self.customLUTInfoIcon = self.createHelperLabel()
     self.studyAndSeriesSelectionWidgetLayout.addWidget(self.customLUTInfoIcon, 0, 2, 1, 1, qt.Qt.AlignRight)
     self.customLUTInfoIcon.hide()
@@ -297,6 +305,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     modelsFrame = self.createHLayout([qt.QLabel('Structure Models: '),
                                       self.modelsVisibilityButton, self.labelMapVisibilityButton,
                                       self.labelMapOutlineButton, self.enableJumpToROI])
+    # added
+    self.modelsVisibilityButton.hide() 
+    
     self.segmentationWidgetLayout.addWidget(modelsFrame)
 
   def setupAdvancedSegmentationSettingsUI(self):
@@ -360,7 +371,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   def setupConnections(self):
 
-    self.dataDirButton.directorySelected.connect(lambda: setattr(self, "inputDataDir", self.dataDirButton.directory))
+    # self.dataDirButton.directorySelected.connect(lambda: setattr(self, "inputDataDir", self.dataDirButton.directory))
     self.selectAllSeriesButton.connect('clicked()', lambda: self.selectAllSeries(True))
     self.deselectAllSeriesButton.connect('clicked()', lambda: self.selectAllSeries(False))
     self.modelsVisibilityButton.connect("toggled(bool)", self.onModelsVisibilityButton)
@@ -481,19 +492,22 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def checkAndSetLUT(self):
     # Default to module color table
     self.terminologyFile = os.path.join(self.resourcesPath, "SegmentationCategoryTypeModifier-mpReview.json")
+    print ('self.terminologyFile: ' + str(self.terminologyFile))
+
     self.customLUTInfoIcon.show()
     self.customLUTInfoIcon.toolTip = 'Using Default Terminology'
 
-    # Check for custom LUT
-    terminologyFileLoc = os.path.join(self.inputDataDir, 'SETTINGS', self.inputDataDir.split(os.sep)[-1] + '-terminology.json')
-    logging.debug('Checking for lookup table at : ' + terminologyFileLoc)
-    if os.path.isfile(terminologyFileLoc):
-      # use custom color table
-      self.terminologyFile = terminologyFileLoc
-      self.customLUTInfoIcon.toolTip = 'Project-Specific terminology Found'
+    # # Check for custom LUT
+    # terminologyFileLoc = os.path.join(self.inputDataDir, 'SETTINGS', self.inputDataDir.split(os.sep)[-1] + '-terminology.json')
+    # logging.debug('Checking for lookup table at : ' + terminologyFileLoc)
+    # if os.path.isfile(terminologyFileLoc):
+    #   # use custom color table
+    #   self.terminologyFile = terminologyFileLoc
+    #   self.customLUTInfoIcon.toolTip = 'Project-Specific terminology Found'
 
     tlogic = slicer.modules.terminologies.logic()
     self.terminologyName = tlogic.LoadTerminologyFromFile(self.terminologyFile)
+    print ('self.terminologyName: ' + str(self.terminologyName))
 
     # Set the first entry in this terminology as the default so that when the user
     # opens the terminoogy selector, the correct list is shown.
@@ -629,7 +643,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     username = self.getSetting('UserName')
 
-    savedMessage = self.saveSegmentations(timestamp, username)# save w/l settings for all non-label volume nodes
+    # savedMessage = self.saveSegmentations(timestamp, username)# save w/l settings for all non-label volume nodes
+    # savedMessage = self.saveSegmentationsDICOM(timestamp, username)
+    savedMessage = self.saveSegmentationsDICOMDatabase(timestamp, username)
     '''
     volumeNodes = slicer.util.getNodes('vtkMRMLScalarVolumeNode*')
     logging.debug('All volume nodes: '+str(volumeNodes))
@@ -646,41 +662,224 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     savedMessage += "\n " + self.saveTargets(username, timestamp)
     slicer.util.infoDisplay(savedMessage, windowTitle="mpReview")
+    
+  def saveSegmentationsDICOMDatabase(self, timestamp, username):
+    
+    # wlSettingsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'WindowLevelSettings')
+    # self.logic.createDirectory(wlSettingsDir)
+    # save all label nodes (there should be only one per volume!)
+    labelNodes = slicer.util.getNodes('*-label*')
+    
+    logging.debug('All label nodes found: ' + str(labelNodes))
+    savedMessage = 'Segmentations for the following series were saved:\n\n'
+    
+    import DICOMSegmentationPlugin
+    # DICOMSegmentationPlugin = slicer.modules.dicomPlugins['DICOMSegmentationPlugin']()
+    exporter = DICOMSegmentationPlugin.DICOMSegmentationPluginClass()
+    
+    success = 0 
+    
+    db = slicer.dicomDatabase
+    
+    for label in labelNodes.values():
+    
+        labelSeries = label.GetName().split(':')[0]
+        labelName = label.GetName().split(':')[1]
+        labelName_ref = label.GetName()[:label.GetName().rfind("-")]
+      
+        # structure is root -> study -> resources -> series # ->
+        # Segmentations/Reconstructions/OncoQuant -> files
+        # segmentationsDir = os.path.join(self.inputDataDir, self.selectedStudyName,
+        #                                 'RESOURCES', labelSeries, 'Segmentations')
+        # self.logic.createDirectory(segmentationsDir)
+        # segmentationsDir = os.path.join(db.databaseDirectory, self.selectedStudyName) # change later?? 
+        segmentationsDir = os.path.join(db.databaseDirectory, self.selectedStudyName, labelSeries) 
+        self.logic.createDirectory(segmentationsDir) 
+        
+        volume_nodes = slicer.util.getNodesByClass('vtkMRMLScalarVolumeNode')
+        volume_names = [f.GetName() for f in volume_nodes]
+        matching_index = volume_names.index(labelName_ref)
+        referenceVolumeNode = volume_nodes[matching_index]
+        
+        # temp2 = shNode.GetItemDataNode(shNode.GetItemByName('6:T2 Weighted Axial-label'))
+        shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
+        
+        # set these for now. 
+        # study list could be from different patients. 
+        patientItemID = shNode.CreateSubjectItem(shNode.GetSceneItemID(), self.selectedStudyName)
+        studyItemID = shNode.CreateStudyItem(patientItemID, self.selectedStudyName)
+        volumeShItemID = shNode.GetItemByDataNode(referenceVolumeNode) # set volume node 
+        shNode.SetItemParent(volumeShItemID, studyItemID)
+        segmentationShItem = shNode.GetItemByDataNode(label) # segmentation
+        shNode.SetItemParent(segmentationShItem, studyItemID)
+        
+        # Export to DICOM
+        exportables = exporter.examineForExport(segmentationShItem)
+        for exp in exportables:
+          exp.directory = segmentationsDir
+        exporter.export(exportables)
+        success = 1 
+        
+        # # uniqueID = username + '-' + "SEG" + '-' + timestamp 
+        # # labelFileName = os.path.join(segmentationsDir, uniqueID + ".dcm")
+        labelFileName = os.path.join(segmentationsDir,"subject_hierarchy_export.SEG" + exporter.currentDateTime + ".dcm")
+        print ('labelFileName: ' + labelFileName)
+        
+        
+        if success:
+            savedMessage = savedMessage + label.GetName() + '\n'
+            logging.debug(label.GetName() + ' has been saved to ' + labelFileName)
 
+    return savedMessage
+    
+    # DICOMSegmentationPlugin.export(segmentationsDir, 'segmentations.dcm', )
+    # DICOMSegmentationPlugin.export(outputDirectory, segFileName, metadata, segmentIDs=None, skipEmpty=False):
+    
+  def saveSegmentationsDICOM(self, timestamp, username):
+    
+    wlSettingsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'WindowLevelSettings')
+    self.logic.createDirectory(wlSettingsDir)
+    # save all label nodes (there should be only one per volume!)
+    labelNodes = slicer.util.getNodes('*-label*')
+    
+    logging.debug('All label nodes found: ' + str(labelNodes))
+    savedMessage = 'Segmentations for the following series were saved:\n\n'
+    
+    import DICOMSegmentationPlugin
+    # DICOMSegmentationPlugin = slicer.modules.dicomPlugins['DICOMSegmentationPlugin']()
+    exporter = DICOMSegmentationPlugin.DICOMSegmentationPluginClass()
+    
+    success = 0 
+    
+    for label in labelNodes.values():
+    
+        labelSeries = label.GetName().split(':')[0]
+        labelName = label.GetName().split(':')[1]
+        labelName_ref = label.GetName()[:label.GetName().rfind("-")]
+      
+        # structure is root -> study -> resources -> series # ->
+        # Segmentations/Reconstructions/OncoQuant -> files
+        segmentationsDir = os.path.join(self.inputDataDir, self.selectedStudyName,
+                                        'RESOURCES', labelSeries, 'Segmentations')
+        self.logic.createDirectory(segmentationsDir)
+        
+        
+        volume_nodes = slicer.util.getNodesByClass('vtkMRMLScalarVolumeNode')
+        volume_names = [f.GetName() for f in volume_nodes]
+        matching_index = volume_names.index(labelName_ref)
+        referenceVolumeNode = volume_nodes[matching_index]
+        
+        # temp2 = shNode.GetItemDataNode(shNode.GetItemByName('6:T2 Weighted Axial-label'))
+        shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
+        
+        # set these for now. 
+        # study list could be from different patients. 
+        patientItemID = shNode.CreateSubjectItem(shNode.GetSceneItemID(), self.selectedStudyName)
+        studyItemID = shNode.CreateStudyItem(patientItemID, self.selectedStudyName)
+        volumeShItemID = shNode.GetItemByDataNode(referenceVolumeNode) # set volume node 
+        shNode.SetItemParent(volumeShItemID, studyItemID)
+        segmentationShItem = shNode.GetItemByDataNode(label) # segmentation
+        shNode.SetItemParent(segmentationShItem, studyItemID)
+        
+        # Export to DICOM
+        exportables = exporter.examineForExport(segmentationShItem)
+        for exp in exportables:
+          exp.directory = segmentationsDir
+        exporter.export(exportables)
+        success = 1 
+        
+        # uniqueID = username + '-' + "SEG" + '-' + timestamp 
+        # labelFileName = os.path.join(segmentationsDir, uniqueID + ".dcm")
+        labelFileName = os.path.join(segmentationsDir,"subject_hierarchy_export.SEG" + exporter.currentDateTime + ".dcm")
+        print ('labelFileName: ' + labelFileName)
+        
+        
+        if success:
+            savedMessage = savedMessage + label.GetName() + '\n'
+            logging.debug(label.GetName() + ' has been saved to ' + labelFileName)
+
+    return savedMessage
+    
+    # DICOMSegmentationPlugin.export(segmentationsDir, 'segmentations.dcm', )
+    # DICOMSegmentationPlugin.export(outputDirectory, segFileName, metadata, segmentIDs=None, skipEmpty=False):
+    
   def saveSegmentations(self, timestamp, username):
     wlSettingsDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'WindowLevelSettings')
     self.logic.createDirectory(wlSettingsDir)
     # save all label nodes (there should be only one per volume!)
     labelNodes = slicer.util.getNodes('*-label*')
+    
     logging.debug('All label nodes found: ' + str(labelNodes))
     savedMessage = 'Segmentations for the following series were saved:\n\n'
+    
+    # labelNodes in the Editor gets one label per segmentation
+    # labelNodes with segmentEditor gets one label for all segmentations together 
+    # print ('labelNodes: ' + str(labelNodes))
+    
+    # This will only be one. Since we are only contouring on one volume. (T2, etc). 
     for label in labelNodes.values():
-
-      labelSeries = label.GetName().split(':')[0]
-      labelName = label.GetName().split(':')[1]
-
-      # structure is root -> study -> resources -> series # ->
-      # Segmentations/Reconstructions/OncoQuant -> files
-      segmentationsDir = os.path.join(self.inputDataDir, self.selectedStudyName,
-                                      'RESOURCES', labelSeries, 'Segmentations')
-      self.logic.createDirectory(segmentationsDir)
-
-      structureName = labelName[labelName[:-6].rfind("-") + 1:-6]
-      # Only save labels with known structure names
-      if any(structureName == s for s in self.structureNames):
-        logging.debug("structure name is: %s" % structureName)
-        uniqueID = username + '-' + structureName + '-' + timestamp
-
-        labelFileName = os.path.join(segmentationsDir, uniqueID + '.nrrd')
-
-        sNode = slicer.vtkMRMLVolumeArchetypeStorageNode()
-        sNode.SetFileName(labelFileName)
-        sNode.SetWriteFileFormat('nrrd')
-        sNode.SetURI(None)
-        success = sNode.WriteData(label)
-        if success:
-          savedMessage = savedMessage + label.GetName() + '\n'
-          logging.debug(label.GetName() + ' has been saved to ' + labelFileName)
+    
+        labelSeries = label.GetName().split(':')[0]
+        labelName = label.GetName().split(':')[1]
+        # print ('labelSeries: ' + labelSeries)
+        # print ('labelName: ' + labelName)
+      
+        # structure is root -> study -> resources -> series # ->
+        # Segmentations/Reconstructions/OncoQuant -> files
+        segmentationsDir = os.path.join(self.inputDataDir, self.selectedStudyName,
+                                        'RESOURCES', labelSeries, 'Segmentations')
+        self.logic.createDirectory(segmentationsDir)
+        
+        num_segments = label.GetSegmentation().GetNumberOfSegments()
+        segment_ids = label.GetSegmentation().GetSegmentIDs()
+        # print ('num_segments: ' + str(num_segments))
+        # print ('segment_ids: ' + str(segment_ids))
+        
+        # Get the volume node that matches - to set as reference 
+        # labelName_ref = labelName[labelName[:-6].rfind("-") + 1:-6]
+        labelName_ref = label.GetName()[:label.GetName().rfind("-")]
+        # print ('labelName_ref: ' + str(labelName_ref))
+        volume_nodes = slicer.util.getNodesByClass('vtkMRMLScalarVolumeNode')
+        volume_names = [f.GetName() for f in volume_nodes]
+        # print ('volume_names: ' + str(volume_names))
+        matching_index = volume_names.index(labelName_ref)
+        # print ('matching_index: ' + str(matching_index))
+        referenceVolumeNode = volume_nodes[matching_index]
+        
+        for n in range(0,num_segments):
+            
+            # This doesn't work anymore
+            # structureName = labelName[labelName[:-6].rfind("-") + 1:-6]
+            structureName = label.GetSegmentation().GetSegment(segment_ids[n]).GetName()
+            # print ('structureName: ' + structureName)
+            sucess = 0 
+            # Only save labels with known structure names
+            if any(structureName == s for s in self.structureNames):
+                logging.debug("structure name is: %s" % structureName)
+                uniqueID = username + '-' + structureName + '-' + timestamp
+        
+                labelFileName = os.path.join(segmentationsDir, uniqueID + '.nrrd')
+                # print ('labelFileName: ' + labelFileName)
+                
+                labelmapVolumeNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode")
+                segmentIds = vtk.vtkStringArray()
+                segmentId = label.GetSegmentation().GetSegmentIdBySegmentName(structureName)
+                segmentIds.InsertNextValue(segmentId)
+                slicer.vtkSlicerSegmentationsModuleLogic.ExportSegmentsToLabelmapNode(label, segmentIds, labelmapVolumeNode, referenceVolumeNode)
+                slicer.util.saveNode(labelmapVolumeNode, labelFileName)
+                slicer.mrmlScene.RemoveNode(labelmapVolumeNode.GetDisplayNode().GetColorNode())
+                slicer.mrmlScene.RemoveNode(labelmapVolumeNode)
+                success = 1 
+                
+                # sNode = slicer.vtkMRMLVolumeArchetypeStorageNode()
+                # sNode.SetFileName(labelFileName)
+                # sNode.SetWriteFileFormat('nrrd')
+                # sNode.SetURI(None)
+                # success = sNode.WriteData(label)
+                
+                if success:
+                    savedMessage = savedMessage + label.GetName() + '\n'
+                    logging.debug(label.GetName() + ' has been saved to ' + labelFileName)
 
     return savedMessage
 
@@ -739,6 +938,124 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       widget = self.layoutManager.sliceWidget(sliceLogic.GetName())
       redCompositeNode = widget.mrmlSliceCompositeNode()
       redCompositeNode.SetLabelOpacity(0.0 if toggled else 1.0)
+      
+  def checkAndLoadLabelDICOMDatabase(self, seriesNumber, volumeName):
+    # globPath = os.path.join(self.resourcesDir,str(seriesNumber),"Segmentations",
+    #                         self.getSetting('UserName')+'*')
+    # globPath = os.path.join(self.resourcesDir,str(seriesNumber),"Segmentations",'*')
+    
+    db = slicer.dicomDatabase 
+    # globPath = os.path.join(db.databaseDirectory, self.selectedStudyName,'*')
+    globPath = os.path.join(db.databaseDirectory, self.selectedStudyName, seriesNumber, '*')
+    print ('globPath: ' + str(globPath))
+    previousSegmentations = glob.glob(globPath)
+    print ('previousSegmentations: ' + str(previousSegmentations))
+    
+    if not len(previousSegmentations):
+      return False,None
+  
+    # Iterate over segmentation files and choose the latest for each structure
+    # latestSegmentations = {}
+    # fileName = os.path.split(previousSegmentations[0])[1]
+    fileName = previousSegmentations[0]
+    latestSegmentation = previousSegmentations[0]
+    # storedTimeStamp = int(actualFileName.split("-")[2][:-5])
+    storedTimeStamp = os.path.getmtime(latestSegmentation)
+    for n in range(1,len(previousSegmentations)):
+        segmentation = previousSegmentations[n]
+        # actualFileName = os.path.split(segmentation)[1] # username-SEG-timestamp.dcm
+        # timeStamp = int(actualFileName.split("-")[2][:-5])
+        timeStamp = os.path.getmtime(segmentation)
+        if (timeStamp > storedTimeStamp):
+            latestSegmentations = segmentation 
+            # fileName = os.path.split(previousSegmentations[n])[1]
+            fileName = previousSegmentations[n]
+    
+    print ('DICOM SEG filename to load: ' + fileName)
+    
+    # Need to add to the DICOM database first 
+    from DICOMLib import DICOMUtils
+    db = slicer.dicomDatabase
+    # DICOMUtils.importDicom(fileName,db)
+    # DICOMUtils.importDicom(fileName)
+    # DICOMUtils.importDicom(globPath)
+    DICOMUtils.importDicom(globPath, dicomDatabase=db,copyFiles=False)
+    print ('loaded DICOM SEG file into DICOM database')
+    
+    # Then load from the DICOM database 
+    # db = slicer.dicomDatabase 
+    
+    seriesList = db.seriesForStudy(self.selectedStudyNumber)
+    # get seriesDescription for each and load ones that say label 
+    for series in seriesList: 
+        fileList = db.filesForSeries(series)
+        seriesDescription = db.fileValue(fileList[0], "0008,103e")
+        print ('seriesDescription: ' + str(seriesDescription))
+        if "label" in seriesDescription: 
+            DICOMSegmentationPlugin = slicer.modules.dicomPlugins['DICOMSegmentationPlugin']()
+            loadables = DICOMSegmentationPlugin.examineFiles(fileList)
+            # print ('loadables: ' + str(loadables))
+            DICOMSegmentationPlugin.load(loadables[0])
+            
+            # create seriesMap 
+            # refLabel = self.seriesMap[str(ref)]['Label']
+            self.refSeriesNumber = seriesDescription.split(':')[0] # should be 6 
+            ref = int(self.refSeriesNumber) # 6
+            # self.seriesMap[str(ref)]['Label'] 
+            # This is a segmentation node! 
+            # slicer.util.getNodes('*vtkMRMLSegmentationNode*').values())[-1]
+            # slicer.util.getNode('6:T2 Weighted Axial-label')
+            refLabel = slicer.util.getNode(seriesDescription) # seriesDescription should be '6:T2 Weighted Axial-label' 
+            self.seriesMap[str(ref)]['Label'] = refLabel 
+    
+    return True
+      
+  def checkAndLoadLabelDICOM(self, seriesNumber, volumeName):
+    # globPath = os.path.join(self.resourcesDir,str(seriesNumber),"Segmentations",
+    #                         self.getSetting('UserName')+'*')
+    globPath = os.path.join(self.resourcesDir,str(seriesNumber),"Segmentations",'*')
+    print ('globPath: ' + str(globPath))
+    previousSegmentations = glob.glob(globPath)
+    print ('previousSegmentations: ' + str(previousSegmentations))
+    
+    if not len(previousSegmentations):
+      return False,None
+  
+    # Iterate over segmentation files and choose the latest for each structure
+    # latestSegmentations = {}
+    # fileName = os.path.split(previousSegmentations[0])[1]
+    fileName = previousSegmentations[0]
+    latestSegmentation = previousSegmentations[0]
+    # storedTimeStamp = int(actualFileName.split("-")[2][:-5])
+    storedTimeStamp = os.path.getmtime(latestSegmentation)
+    for n in range(1,len(previousSegmentations)):
+        segmentation = previousSegmentations[n]
+        # actualFileName = os.path.split(segmentation)[1] # username-SEG-timestamp.dcm
+        # timeStamp = int(actualFileName.split("-")[2][:-5])
+        timeStamp = os.path.getmtime(segmentation)
+        if (timeStamp > storedTimeStamp):
+            latestSegmentations = segmentation 
+            # fileName = os.path.split(previousSegmentations[n])[1]
+            fileName = previousSegmentations[n]
+    
+    print ('DICOM SEG filename to load: ' + fileName)
+    
+    # DICOMSegmentationPlugin = slicer.modules.dicomPlugins['DICOMSegmentationPlugin']()
+    # loadables = DICOMSegmentationPlugin.examineFiles(fileName)
+    # print ('loadables: ' + str(loadables))
+    # DICOMSegmentationPlugin.load(loadables[0])
+    
+    # Need to add to the DICOM database first 
+    from DICOMLib import DICOMUtils
+    db = slicer.dicomDatabase
+    DICOMUtils.importDicom(fileName,db)
+    
+    # Then load from the DICOM database 
+    db = slicer.dicomDatabase 
+    
+    
+    
+    return True
 
   def checkAndLoadLabel(self, seriesNumber, volumeName):
     globPath = os.path.join(self.resourcesDir,str(seriesNumber),"Segmentations",
@@ -769,17 +1086,47 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
           if timeStamp > storedTimeStamp:
             latestSegmentations[structureName] = segmentation
 
+
+    # # segmentationNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLSegmentationNode')
+    # segmentationNode = slicer.vtkMRMLSegmentationNode()
+    # slicer.mrmlScene.AddNode(segmentationNode)
+    # # get segmentationNode from scene 
+    # # segmentationNode = slicer.util.getNode('6:T2 Weighted Axial-label') # for now
+    # for structure,filename in iter(latestSegmentations.items()):
+    #     labelmapVolumeNode = slicer.util.loadLabelVolume(filename = filename)
+    #     slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(labelmapVolumeNode, segmentationNode)
+    #     slicer.mrmlScene.RemoveNode(labelmapVolumeNode)
+    #
+    # segmentation = segmentationNode.GetSegmentation()
+    # n = 0 
+    # for structure,filename in iter(latestSegmentations.items()): 
+    #     segment0 = segmentation.GetSegment(segmentation.GetNthSegmentID(n))
+    #     #segment0.SetColor(1,0,0) # get this from the terminology file!! 
+    #     structureName = filename.split(os.sep)[-1]
+    #     structureName = structureName.split("-")[1] 
+    #     print ('structureName: ' + str(structureName))
+    #     segment0.SetName(structureName)
+    #     n += 1
+    # # change name of node 
+    # segmentationNode.SetName("6:T2 Weighted Axial-label") #6:T2 Weighted Axial-label for now 
+   
+ 
+    
+
+    ### Below are changes Andras made ### 
+    
     for structure,fileName in iter(latestSegmentations.items()):
       label = slicer.util.loadSegmentation(fileName)
       logging.debug('Setting loaded label name to '+volumeName)
       label.SetName(volumeName+'-'+structure+'-label')
+    
       #label.RemoveAllDisplayNodeIDs()
-
+    
       #dNode = slicer.vtkMRMLLabelMapVolumeDisplayNode()
       #slicer.mrmlScene.AddNode(dNode)
       #dNode.SetAndObserveColorNodeID(self.mpReviewColorNode.GetID())
       #label.SetAndObserveDisplayNodeID(dNode.GetID())
-
+    
       logging.debug('Label loaded, storage node is '+label.GetStorageNode().GetID())
 
     return True
@@ -809,10 +1156,12 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   def updateStudyTable(self):
     self.studiesModel.clear()
-    if self.logic.wasmpReviewPreprocessed(self.inputDataDir):
-      self.fillStudyTable()
-    else:
-      self.notifyUserAboutMissingEligibleData()
+    # self.fillStudyTable()
+    self.fillStudyTableDICOMDatabase()
+    # if self.logic.wasmpReviewPreprocessed(self.inputDataDir):
+    #   self.fillStudyTable()
+    # else:
+    #   self.notifyUserAboutMissingEligibleData()
 
   def notifyUserAboutMissingEligibleData(self):
     outputDirectory = os.path.abspath(self.inputDataDir) + "_" + datetime.datetime.now().strftime("%Y%m%d%H%M%S")
@@ -846,22 +1195,69 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
                                 windowTitle="mpReview")
 
   def updateSeriesTable(self):
-    self.seriesItems = []
+    
+    self.seriesItems = []  
     self.seriesModel.clear()
+    db = slicer.dicomDatabase
+    # seriesList = db.seriesForStudy(self.selectedStudyName)
+    seriesList = db.seriesForStudy(self.selectedStudyNumber)
+    # print ('seriesList: ' + str(seriesList))
+    
+
+    
+    # ds = pydicom.dcmread(os.path.join(dicomFilesDirectory,fileList[0]))
+    # patientName = ds[0x0010,0x0010].value
+    # studyInstanceUID = ds[0x0020,0x000d].value
+    # seriesInstanceUID = ds[0x0020,0x000e].value
+    # seriesDescription = ds[0x0008,0x103e].value
+    
+    # Form the self.seriesMap before setting the items in table 
+    seriesMap = {} 
+    for series in seriesList: 
+        fileList = db.filesForSeries(series)
+        seriesDescription = db.fileValue(fileList[0], "0008,103e")
+        # if label in the seriesDescription, skip this 
+        if "label" not in seriesDescription: 
+            seriesNumber = db.fileValue(fileList[0], "0020,0011")
+            seriesMap[seriesNumber] = {'ShortName': str(seriesNumber)+":"+seriesDescription, 
+                                       'LongName': seriesDescription, 
+                                       'seriesInstanceUID': series} 
+            # seriesMap[seriesNumber] = {'MetaInfo':None, 'DICOMLocation':dicomFilesDirectory,'LongName':seriesDescription, 
+            #                            'patientName':patientName, 'studyInstanceUID':studyInstanceUID, 'seriesInstanceUID':seriesInstanceUID}
+            # seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+seriesDescription
+    
+    self.seriesMap = seriesMap 
+    
+    # for s in seriesList: 
     for s in sorted([int(x) for x in self.seriesMap.keys()]):
+      # seriesText = s 
       seriesText = str(s) + ':' + self.seriesMap[str(s)]['LongName']
-      sItem = qt.QStandardItem(seriesText)
-      try:
-        sItem.setToolTip(self.seriesMap[str(s)]['SeriesTypeAnnotation'])
-        print("Setting tooltip "+self.seriesMap[str(s)]['SeriesTypeAnnotation']+" for "+str(s))
-      except KeyError:
-        pass
-      self.seriesItems.append(sItem)
+      sItem = qt.QStandardItem(seriesText) 
+      self.seriesItems.append(sItem)   
       self.seriesModel.appendRow(sItem)
       sItem.setCheckable(1)
       if self.logic.isSeriesOfInterest(seriesText):
         sItem.setCheckState(2)
+        
     self.updateSegmentationTabAvailability()
+    
+    
+    # self.seriesItems = []
+    # self.seriesModel.clear()
+    # for s in sorted([int(x) for x in self.seriesMap.keys()]):
+    #   seriesText = str(s) + ':' + self.seriesMap[str(s)]['LongName']
+    #   sItem = qt.QStandardItem(seriesText)
+    #   try:
+    #     sItem.setToolTip(self.seriesMap[str(s)]['SeriesTypeAnnotation'])
+    #     print("Setting tooltip "+self.seriesMap[str(s)]['SeriesTypeAnnotation']+" for "+str(s))
+    #   except KeyError:
+    #     pass
+    #   self.seriesItems.append(sItem)
+    #   self.seriesModel.appendRow(sItem)
+    #   sItem.setCheckable(1)
+    #   if self.logic.isSeriesOfInterest(seriesText):
+    #     sItem.setCheckState(2)
+    # self.updateSegmentationTabAvailability()
 
   def fillStudyTable(self):
     self.studyItems = []
@@ -883,6 +1279,67 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       modelIndex = self.studiesModel.index(0,0)
       self.studiesView.selectionModel().setCurrentIndex(modelIndex, self.studiesView.selectionModel().Select)
       self.studiesView.selectionModel().select(modelIndex, self.studiesView.selectionModel().Select)
+      
+  def fillStudyTableDICOMDatabase(self):
+      
+    self.studyItems = [] 
+    self.seriesModel.clear() 
+    self.studiesMap = self.logic.getStudyNamesDICOMDatabase()
+    
+    # for s in sorted([int(x) for x in self.studiesMap.keys()]):
+    for s in [x for x in self.studiesMap.keys()]: 
+        # studiesText = str(s) + ':' + self.studiesMap[str(s)]['LongName']
+        # studiesText = self.studiesMap[str(s)]['LongName']
+        studiesText = self.studiesMap[str(s)]['ShortName'] # patientname_studydate 
+        sItem = qt.QStandardItem(studiesText)
+        self.studyItems.append(sItem)
+        self.studiesModel.appendRow(sItem)
+        # logging.debug('Appended to model study ' + studyName)
+        logging.debug('Appended to model study ' + studiesText)
+        # progress.setValue(studyIndex)
+        slicer.app.processEvents()
+    if len(self.studyItems) == 1:
+        modelIndex = self.studiesModel.index(0,0)
+        self.studiesView.selectionModel().setCurrentIndex(modelIndex, self.studiesView.selectionModel().Select)
+        self.studiesView.selectionModel().select(modelIndex, self.studiesView.selectionModel().Select)
+      
+    # self.seriesItems = []
+    # self.seriesModel.clear()
+    # for s in sorted([int(x) for x in self.seriesMap.keys()]):
+    #   seriesText = str(s) + ':' + self.seriesMap[str(s)]['LongName']
+    #   sItem = qt.QStandardItem(seriesText)
+    #   try:
+    #     sItem.setToolTip(self.seriesMap[str(s)]['SeriesTypeAnnotation'])
+    #     print("Setting tooltip "+self.seriesMap[str(s)]['SeriesTypeAnnotation']+" for "+str(s))
+    #   except KeyError:
+    #     pass
+    #   self.seriesItems.append(sItem)
+    #   self.seriesModel.appendRow(sItem)
+    #   sItem.setCheckable(1)
+    #   if self.logic.isSeriesOfInterest(seriesText):
+    #     sItem.setCheckState(2)
+    # self.updateSegmentationTabAvailability()
+    
+    
+    # self.studyItems = []
+    # self.seriesModel.clear()
+    # dirs = self.logic.getStudyNamesDICOMDatabase()
+    # print ('dirs: ' + str(dirs))
+    # # dirs.sort()
+    # progress = self.createProgressDialog(maximum=len(dirs))
+    # for studyIndex, studyName in enumerate(dirs, start=1):
+    #     sItem = qt.QStandardItem(studyName)
+    #     self.studyItems.append(sItem)
+    #     self.studiesModel.appendRow(sItem)
+    #     logging.debug('Appended to model study ' + studyName)
+    #     progress.setValue(studyIndex)
+    #     slicer.app.processEvents()
+    # # TODO: unload all volume nodes that are already loaded
+    # progress.close()
+    # if len(self.studyItems) == 1:
+    #   modelIndex = self.studiesModel.index(0,0)
+    #   self.studiesView.selectionModel().setCurrentIndex(modelIndex, self.studiesView.selectionModel().Select)
+    #   self.studiesView.selectionModel().select(modelIndex, self.studiesView.selectionModel().Select)
 
   def invokePreProcessing(self, outputDirectory):
     self.mpReviewPreprocessorLogic = mpReviewPreprocessorLogic()
@@ -918,23 +1375,31 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       slicer.mrmlScene.RemoveNode(node)
 
     self.selectedStudyName = self.studiesModel.item(modelIndex.row(),0).text()
+    # print ('self.selectedStudyName: ' + str(self.selectedStudyName))
+    self.selectedStudyNumber = list(self.studiesMap.keys())[[f['ShortName'] for f in list(self.studiesMap.values())].index(self.selectedStudyName)]
+    # print ('self.selectedStudyNumber: ' + str(self.selectedStudyNumber))
     self.parameters['StudyName'] = self.selectedStudyName
 
-    self.resourcesDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'RESOURCES')
+    # self.resourcesDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'RESOURCES')
 
-    self.progress = self.createProgressDialog(maximum=len(os.listdir(self.resourcesDir)))
-    self.seriesMap, metaFile = self.logic.loadMpReviewProcessedData(self.resourcesDir,
-                                                                    updateProgressCallback=self.updateProgressBar)
-    self.informationWatchBox.sourceFile = metaFile
+    # self.progress = self.createProgressDialog(maximum=len(os.listdir(self.resourcesDir)))
+    # self.seriesMap, metaFile = self.logic.loadMpReviewProcessedData(self.resourcesDir,
+    #                                                                 updateProgressCallback=self.updateProgressBar)
+    # self.seriesMap, metaFile = self.logic.loadMpReviewProcessedDataDICOM(self.resourcesDir,
+    #                                                                      updateProgressCallback=self.updateProgressBar)
+    # self.informationWatchBox.sourceFile = metaFile
     self.informationWatchBox.setInformation("StudyID", self.selectedStudyName)
-
+    #
+    # added 
+    # self.seriesMap = self.logic. 
+    
     self.updateSeriesTable()
-
-    self.selectAllSeriesButton.setEnabled(True)
-    self.deselectAllSeriesButton.setEnabled(True)
-
-    self.progress.delete()
-    self.setTabsEnabled([1], True)
+    #
+    # self.selectAllSeriesButton.setEnabled(True)
+    # self.deselectAllSeriesButton.setEnabled(True)
+    #
+    # self.progress.delete()
+    # self.setTabsEnabled([1], True)
 
   def onStep2Selected(self):
     if self.currentTabIndex == 2:
@@ -982,9 +1447,34 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       shortName = self.seriesMap[seriesNumber]['ShortName']
       longName = self.seriesMap[seriesNumber]['LongName']
 
-      fileName = self.seriesMap[seriesNumber]['NRRDLocation']
-      print("Loading file from "+fileName)
-      volume = slicer.util.loadVolume(fileName)
+      # fileName = self.seriesMap[seriesNumber]['NRRDLocation']
+      # print("Loading file from "+fileName)
+      # volume = slicer.util.loadVolume(fileName)
+      
+      # This loads from the filepath 
+      # filePath = self.seriesMap[seriesNumber]['DICOMLocation']
+      # print("Loading files from " + filePath)
+      # import DICOMLib.DICOMUtils as utils
+      # import DICOMScalarVolumePlugin
+      # scalarVolumeReader = DICOMScalarVolumePlugin.DICOMScalarVolumePluginClass()
+      # files = [os.path.join(filePath,f) for f in os.listdir(filePath)]
+      # loadable = scalarVolumeReader.examineForImport([files])[0]
+      # volume = scalarVolumeReader.load(loadable)
+      
+      # Instead load from the DICOM database 
+      db = slicer.dicomDatabase
+      # Get appropriate files 
+      seriesInstanceUID = self.seriesMap[seriesNumber]['seriesInstanceUID']
+      fileList = db.filesForSeries(seriesInstanceUID)
+      # print ('fileList: ' + str(fileList))
+      # Now load
+      import DICOMScalarVolumePlugin
+      scalarVolumeReader = DICOMScalarVolumePlugin.DICOMScalarVolumePluginClass()
+      loadable = scalarVolumeReader.examineForImport([fileList])[0]
+      volume = scalarVolumeReader.load(loadable)
+      
+              
+      
       if volume.GetClassName() == 'vtkMRMLScalarVolumeNode':
         self.seriesMap[seriesNumber]['Volume'] = volume
         self.seriesMap[seriesNumber]['Volume'].SetName(shortName)
@@ -996,7 +1486,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
                                                        self.seriesMap[seriesNumber]['FrameNumber'])
         scalarVolumeNode.SetName(shortName)
         self.seriesMap[seriesNumber]['Volume'] = scalarVolumeNode
-      self.checkAndLoadLabel(seriesNumber, shortName)
+      # self.checkAndLoadLabel(seriesNumber, shortName)
+      # self.checkAndLoadLabelDICOM(seriesNumber, shortName) # comment back in when I can load DICOM SEG files.
+      # self.checkAndLoadLabelDICOMDatabase(seriesNumber, shortName)
       try:
         if self.seriesMap[seriesNumber]['MetaInfo']['ResourceType'] == 'OncoQuant':
           dNode = volume.GetDisplayNode()
@@ -1015,6 +1507,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
       selectedSeriesNumbers.append(int(seriesNumber))
 
+    # self.checkAndLoadLabelDICOMDatabase(seriesNumber, shortName) # add for now 
     self.seriesMap = selectedSeries
 
     progress.delete()
@@ -1026,7 +1519,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.refSelectorIgnoreUpdates = False
 
     self.checkForMultiVolumes()
-    self.checkForFiducials()
+    # self.checkForFiducials() # Do this later!! 
     return True
 
   def onStep3Selected(self):
@@ -1091,6 +1584,60 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.crosshairNode.SetCrosshairMode(slicer.vtkMRMLCrosshairNode.ShowSmallBasic)
     else:
       self.crosshairNode.SetCrosshairMode(slicer.vtkMRMLCrosshairNode.NoCrosshair)
+      
+  def getLatestDICOMSEG(self): 
+    '''From the reference series number, find the corresponding labels from the 
+       DICOM database. Choose the latest one and load that segmentation. '''
+        
+    ref = int(self.refSeriesNumber) 
+    print ('ref: ' + str(ref))
+    # set the segmentation node to self.seriesMap[str(ref)]['Label'] 
+    
+    # Get the list of series descriptions and filenames 
+    # Keep the ones that have the ref number and label in the name 
+    seriesList = slicer.dicomDatabase.seriesForStudy(self.selectedStudyNumber)
+    seriesDescriptions = []
+    fileNames = [] 
+    
+    for series in seriesList: 
+        fileList = slicer.dicomDatabase.filesForSeries(series)
+        fileName = fileList[0]
+        seriesDescription = slicer.dicomDatabase.fileValue(fileName, "0008,103e")
+        if ("label" in seriesDescription) and (int(seriesDescription.split(':')[0]) == ref):
+            seriesDescriptions.append(seriesDescription)
+            fileNames.append(fileName)
+    
+    # No labels exist 
+    if not len(fileNames):
+      return False,None
+            
+    # Get the latest file
+    for index, seriesDescription in enumerate(seriesDescriptions):
+        currentTimeStamp = os.path.getmtime(fileNames[index])
+        if (index==0):
+            latestTimeStamp = currentTimeStamp
+            fileName = fileNames[0] 
+            seriesDescription = seriesDescriptions[0]
+        else:
+            # if the file is newer 
+            if (currentTimeStamp > latestTimeStamp):
+                latestTimeStamp = currentTimeStamp 
+                fileName = fileNames[index]
+                seriesDescription = seriesDescriptions[index]
+    
+    # Load the segmentation file 
+    DICOMSegmentationPlugin = slicer.modules.dicomPlugins['DICOMSegmentationPlugin']()
+    loadables = DICOMSegmentationPlugin.examineFiles([fileName])
+    DICOMSegmentationPlugin.load(loadables[0])
+    
+    # create seriesMap 
+    # self.refSeriesNumber = seriesDescription.split(':')[0] # should be 6 
+    # ref = int(self.refSeriesNumber) # 6
+    refLabel = slicer.util.getNode(seriesDescription) # seriesDescription should be '6:T2 Weighted Axial-label'
+    self.seriesMap[str(ref)]['Label'] = refLabel 
+    
+    return True       
+  
 
   def onReferenceChanged(self, id):
     # TODO: when None is selected, viewers and editor should be resetted
@@ -1120,6 +1667,11 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     self.sliceNames = [str(x) for x in seriesNumbers if x != ref]
     self.sliceNames = [str(ref)]+self.sliceNames
+    
+    # Added
+    # Load the latest DICOM SEG file from the DICOM database according to the reference chosen 
+    # set the self.seriesMap[str(ref)]['Label'] to be equal to the segmentation node 
+    self.getLatestDICOMSEG()
 
     try:
       # check if already have a label for this node
@@ -1275,6 +1827,45 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
     return [d for d in getSubDirectories(directory) if "RESOURCES" in getSubDirectories(os.path.join(directory, d))]
 
   @staticmethod
+  def getStudyNamesDICOMDatabase():
+    db = slicer.dicomDatabase
+    patientList = list(db.patients())
+    studiesMap = {} 
+    studyListAll = [] 
+    for patient in range(0,len(patientList)):
+      studyList = db.studiesForPatient(patientList[patient])
+      # print ('studyList: ' + str(studyList))
+      for index, study in enumerate(studyList):
+          # print ('index: ' + str(index))
+          # print ('study: ' + str(study))
+          seriesList = db.seriesForStudy(study)
+          fileList = db.filesForSeries(seriesList[0])
+          # ShortName = PatientName_studyDate
+          ShortName = db.fileValue(fileList[0], "0010,0010") + '_' + db.fileValue(fileList[0], "0008,0020")
+          # studiesMap[index] = {'ShortName': ShortName}
+          studiesMap[study] = {'ShortName': ShortName}
+          # LongName = SeriesDescription 
+          # studiesMap[index]['LongName'] = db.fileValue(fileList[0], "0008,1030")
+          studiesMap[study]['LongName'] = db.fileValue(fileList[0], "0008,1030")
+          # studiesMap[index]['StudyInstanceUID'] = study 
+          studiesMap[study]['StudyInstanceUID'] = study 
+          
+      # if (len(studyList)>1):
+      #   studyListAll.append([d for d in studyList])
+      # else:
+      #   studyListAll.append(studyList[0])
+        
+    # return studyListAll 
+    return studiesMap 
+    
+    # studiesMap = {}
+    # studiesNumber 
+    # studiesMap[seriesNumber] = {'MetaInfo':None, 'DICOMLocation':dicomFilesDirectory,'LongName':seriesDescription, 
+    #                             'patientName':patientName, 'studyInstanceUID':studyInstanceUID, 'seriesInstanceUID':seriesInstanceUID}
+    # studiesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+seriesDescription
+
+
+  @staticmethod
   def createDirectory(directory, message=None):
     if message:
       logging.debug(message)
@@ -1338,8 +1929,10 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
     seriesMap = {}
     for root, dirs, files in os.walk(resourcesDir):
       logging.debug('Root: '+root+', files: '+str(files))
-      resourceType = os.path.split(root)[1]
+      resourceType = os.path.split(root)[1] 
       logging.debug('Resource: '+resourceType)
+      
+      print ('resourceType: ' + resourceType)
 
       if resourceType == 'Reconstructions':
         seriesNumber = None
@@ -1399,6 +1992,7 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
         if loadFurtherInformation is True:
           sourceFile = metaFile
           loadFurtherInformation = False
+          
 
       # ignore the PK maps for the purposes of segmentation
       if resourceType == 'OncoQuant' and False:
@@ -1421,6 +2015,60 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
 
 
     logging.debug('All series found: '+str(seriesMap.keys()))
+    return seriesMap, sourceFile
+
+  @staticmethod 
+  def loadMpReviewProcessedDataDICOM(resourcesDir, updateProgressCallback=None):
+      
+    loadFurtherInformation = False # True
+    sourceFile = None
+    nLoaded = 0
+    seriesMap = {}
+    
+    for root, dirs, files in os.walk(resourcesDir):
+        
+        logging.debug('Root: '+root+', files: '+str(files))
+        resourceType = os.path.split(root)[1] 
+        logging.debug('Resource: '+resourceType)
+                
+        if resourceType == 'DICOM':
+        
+            dicomFilesDirectory = root
+            print ('dicomFilesDirectory: ' + dicomFilesDirectory)
+            # Get series number 
+            seriesNumber = os.path.basename(os.path.dirname(root))
+            print ('seriesNumber: ' + str(seriesNumber))
+            # Get series description 
+            import pydicom 
+            fileList = os.listdir(dicomFilesDirectory)
+            ds = pydicom.dcmread(os.path.join(dicomFilesDirectory,fileList[0]))
+            patientName = ds[0x0010,0x0010].value
+            studyInstanceUID = ds[0x0020,0x000d].value
+            seriesInstanceUID = ds[0x0020,0x000e].value
+            seriesDescription = ds[0x0008,0x103e].value
+            print ('patientName: ' + str(patientName))
+            print ('studyInstanceUID: ' + str(studyInstanceUID))
+            print ('seriesInstanceUID: ' + str(seriesInstanceUID))
+            print ('seriesDescription: ' + str(seriesDescription))
+            # seriesMap[seriesNumber] = {'MetaInfo':None, 'NRRDLocation': dicomFilesDirectory,'LongName':seriesDescription}
+            # seriesMap[seriesNumber] = {'MetaInfo':None, 'DICOMLocation': dicomFilesDirectory,'LongName':seriesDescription}
+            seriesMap[seriesNumber] = {'MetaInfo':None, 'DICOMLocation':dicomFilesDirectory,'LongName':seriesDescription, 
+                                       'patientName':patientName, 'studyInstanceUID':studyInstanceUID, 'seriesInstanceUID':seriesInstanceUID}
+            seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+seriesDescription
+            
+            # # Need to add to the DICOM database
+            # # instantiate a new DICOM browser
+            # slicer.util.selectModule("DICOM")
+            # dicomBrowser = slicer.modules.DICOMWidget.browserWidget.dicomBrowser
+            # # use dicomBrowser.ImportDirectoryCopy to make a copy of the files (useful for importing data from removable storage)
+            # dicomBrowser.importDirectory(dicomFilesDirectory, dicomBrowser.ImportDirectoryAddLink)
+            # # wait for import to finish before proceeding (optional, if removed then import runs in the background)
+            # dicomBrowser.waitForImportFinished()
+            
+            from DICOMLib import DICOMUtils
+            db = slicer.dicomDatabase
+            DICOMUtils.importDicom(dicomFilesDirectory,db)
+        
     return seriesMap, sourceFile
 
   @staticmethod
