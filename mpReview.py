@@ -291,6 +291,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     if segmentEditorNode is None:
       segmentEditorNode = slicer.vtkMRMLSegmentEditorNode()
       segmentEditorNode.SetSingletonTag(segmentEditorSingletonTag)
+      # Set overwrite mode: 0/1/2 -> overwrite all/visible/none
+      segmentEditorNode.SetOverwriteMode(2) # allow overlap
       segmentEditorNode = slicer.mrmlScene.AddNode(segmentEditorNode)
     if self.editorWidget.mrmlSegmentEditorNode() != segmentEditorNode:
       self.editorWidget.setMRMLSegmentEditorNode(segmentEditorNode)
@@ -717,13 +719,22 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         exportables = exporter.examineForExport(segmentationShItem)
         for exp in exportables:
           exp.directory = segmentationsDir
+          exp.setTag('ContentCreatorName', username)
+        # exporter.export(exportables)
+        
+        uniqueID = username + '-' + "SEG" + '-' + timestamp 
+        labelFileName = os.path.join(segmentationsDir, uniqueID + ".dcm")
+        print ('labelFileName: ' + str(labelFileName))
+   
+        # exporter.export(exportables, labelFileName)
         exporter.export(exportables)
+        
         success = 1 
         
         # # uniqueID = username + '-' + "SEG" + '-' + timestamp 
         # # labelFileName = os.path.join(segmentationsDir, uniqueID + ".dcm")
-        labelFileName = os.path.join(segmentationsDir,"subject_hierarchy_export.SEG" + exporter.currentDateTime + ".dcm")
-        print ('labelFileName: ' + labelFileName)
+        # labelFileName = os.path.join(segmentationsDir,"subject_hierarchy_export.SEG" + exporter.currentDateTime + ".dcm")
+        # print ('labelFileName: ' + labelFileName)
         
         
         if success:
@@ -1603,7 +1614,10 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         fileList = slicer.dicomDatabase.filesForSeries(series)
         fileName = fileList[0]
         seriesDescription = slicer.dicomDatabase.fileValue(fileName, "0008,103e")
-        if ("label" in seriesDescription) and (int(seriesDescription.split(':')[0]) == ref):
+        ContentCreatorName = slicer.dicomDatabase.fileValue(fileName, "0070,0084")
+        if ("label" in seriesDescription) and \
+           (int(seriesDescription.split(':')[0]) == ref) and \
+           (ContentCreatorName == self.getSetting('UserName')) :
             seriesDescriptions.append(seriesDescription)
             fileNames.append(fileName)
     
