@@ -194,7 +194,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.refSelectorIgnoreUpdates = False
     self.selectedStudyName = None
 
-    self.dataDirButton.directory = self.getSetting('InputLocation')
+    # self.dataDirButton.directory = self.getSetting('InputLocation')
     self.currentTabIndex = 0
     
     self.updateStudyTable() # I added
@@ -215,9 +215,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.layout.addWidget(self.informationWatchBox)
 
   def setupDataAndStudySelectionUI(self):
-    self.dataDirButton = ctk.ctkDirectoryButton()
-    self.studyAndSeriesSelectionWidgetLayout.addWidget(qt.QLabel("Data directory:"), 0, 0, 1, 1)
-    self.studyAndSeriesSelectionWidgetLayout.addWidget(self.dataDirButton, 0, 1, 1, 2)
+    # self.dataDirButton = ctk.ctkDirectoryButton()
+    # self.studyAndSeriesSelectionWidgetLayout.addWidget(qt.QLabel("Data directory:"), 0, 0, 1, 1)
+    # self.studyAndSeriesSelectionWidgetLayout.addWidget(self.dataDirButton, 0, 1, 1, 2)
 
     print ('in setupDataAndStudySelectionUI')
     self.customLUTInfoIcon = self.createHelperLabel()
@@ -373,7 +373,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   def setupConnections(self):
 
-    self.dataDirButton.directorySelected.connect(lambda: setattr(self, "inputDataDir", self.dataDirButton.directory))
+    # self.dataDirButton.directorySelected.connect(lambda: setattr(self, "inputDataDir", self.dataDirButton.directory))
     self.selectAllSeriesButton.connect('clicked()', lambda: self.selectAllSeries(True))
     self.deselectAllSeriesButton.connect('clicked()', lambda: self.selectAllSeries(False))
     self.modelsVisibilityButton.connect("toggled(bool)", self.onModelsVisibilityButton)
