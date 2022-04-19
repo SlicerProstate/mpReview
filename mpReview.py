@@ -22,6 +22,7 @@ from DICOMLib import DICOMPlugin
 import DICOMSegmentationPlugin
 
 import DICOMwebBrowser
+# from builtins import False
 
 # I should not copy the class from DICOMwebBrowser, but for some reason when I use it 
 # as DICOMwebBrowser.GoogleCloudPlatform() it does not work?? 
@@ -54,6 +55,12 @@ class GoogleCloudPlatform(object):
   
   def copy_from_bucket_to_dicomStore(self, project, location, dataset, dicomStore, bucket_name):
     return self.gcloud(f"--project {project} healthcare dicom-stores import gcs {dicomStore} --dataset {dataset} --location {location} --gcs-uri gs://{bucket_name}/**.dcm")
+  
+  def datasetsOnly(self, project):
+    return self.gcloud(f"--project {project} healthcare datasets list --format=value(ID)").split("\n")
+  
+  def locations(self):
+    return self.gcloud(f"compute regions list --format=value(NAME)").split("\n")
 
 
 class mpReview(ScriptedLoadableModule, ModuleWidgetMixin):
@@ -313,6 +320,10 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.serverUrlLineEdit.setText('')
     self.serverUrlLineEdit.setReadOnly(True)
     
+    self.selectDatabaseOKButton = qt.QPushButton("OK")
+    self.selectDatabaseOKButton.setEnabled(False)
+    databaseGroupBoxLayout.addRow(self.selectDatabaseOKButton)
+    
     self.databaseGroupBox.setLayout(databaseGroupBoxLayout)
     self.databaseSelectionWidgetLayout.addWidget(self.databaseGroupBox, 3, 0, 1, 3)
     
@@ -333,7 +344,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     else:
       url = ''
     
-    self.serverUrl = url 
+    self.serverUrl = url
+  
     
   def onProjectSelected(self):
     currentText = self.projectSelectorCombobox.currentText
@@ -352,22 +364,166 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.dicomStoreSelectorCombobox.clear()
       qt.QTimer.singleShot(0, lambda : self.dicomStoreSelectorCombobox.addItems(self.gcp.dicomStores(self.project, self.dataset)))
 
+  # def onDICOMStoreSelected(self):
+  #   currentText = self.dicomStoreSelectorCombobox.currentText
+  #   if currentText != "":
+  #     self.dicomStore = currentText.split()[0]
+  #     # populate the server url here?? 
+  #     self.getServerUrl()
+  #     self.serverUrlLineEdit.setText(self.serverUrl)
+  #     # authorize 
+  #     self.dicomwebAuthorize()
+  #     # fill the studies 
+  #     self.studiesMap = {} 
+  #     self.getStudyNamesRemoteDatabase()      
+  #     self.fillStudyTableRemoteDatabase()
+  #
+  #     # update the availability of the next tab 
+  #     self.updateStudiesAndSeriesTabAvailability()
+
   def onDICOMStoreSelected(self):
     currentText = self.dicomStoreSelectorCombobox.currentText
     if currentText != "":
       self.dicomStore = currentText.split()[0]
-      # populate the server url here?? 
+      # populate the server url here
       self.getServerUrl()
       self.serverUrlLineEdit.setText(self.serverUrl)
-      # authorize 
-      self.dicomwebAuthorize()
-      # fill the studies 
-      self.studiesMap = {} 
-      self.getStudyNamesRemoteDatabase()      
-      self.fillStudyTableRemoteDatabase()
+      self.selectDatabaseOKButton.setEnabled(True)
+
       
-      # update the availability of the next tab 
-      self.updateStudiesAndSeriesTabAvailability()
+  def onDICOMStoreChangedMessageBox(self):
+    
+    mbox = qt.QMessageBox()
+    mbox.text = self.messageBoxText 
+    okButton = mbox.addButton(qt.QMessageBox.Ok)
+    mbox.exec_()
+    selectedButton = mbox.clickedButton()
+    # if selectedButton in [okButton]:
+  
+  def checkIfProjectExists(self):
+     
+    projectList = self.gcp.projects()
+    if not self.project in projectList: 
+      return False 
+    else: 
+      return True 
+    
+  def checkIfLocationExists(self):
+    
+    locationList = self.gcp.locations()
+    if not self.location in locationlist: 
+      return False
+    else:
+      return True 
+    
+  def checkIfDatasetExists(self):
+    
+    # datasetList = self.gcp.datasets(self.project)
+    datasetList = self.gcp.datasetsOnly(self.project)
+    if not self.dataset in datasetList:
+      return False
+    else: 
+      return True 
+    
+  def checkIfDicomStoreExists(self):
+    
+    dicomStoreList = self.gcp.dicomStores(self.project, self.dataset)
+    if not self.dicomStore in dicomStoreList: 
+      return False 
+    else:
+      return True 
+    
+  def checkserverURLIsValid(self):
+    
+    # set to True at beginning 
+    self.serverURLIsValid = True
+    
+    # get the current text  
+    currentText = self.serverUrlLineEdit.text 
+    textparts = currentText.split('/')
+    
+    # Need to check if first part of url is also valid. https://healthcare.googleapis.com/v1beta1
+    startStr = r"https://healthcare.googleapis.com/v1beta1"
+    if not startStr in currentText: 
+      self.messageBoxText = 'Beginning of serverURL must be set to https://healthcare.googleapis.com/v1beta1'
+      self.serverURLIsValid = False 
+      return 
+      
+    # If 'project' is in the serverURL 
+    if 'projects' in textparts: 
+      project_ind = textparts.index('projects')
+      self.project = textparts[project_ind+1]
+      # Check if the project exists 
+      if not self.checkIfProjectExists(): 
+        self.messageBoxText = 'Project ' + self.project + ' does not exist, please specify another one.'
+        self.serverURLIsValid = False 
+        return 
+    else: 
+      self.messageBoxText = 'Keyword project must exist in the serverURL.' 
+      self.serverURLIsValid = False 
+      return 
+    
+    # If 'location' is in serverURL
+    if 'location' in textparts: 
+      location_ind = textparts.index('location')
+      self.location = textparts[location_ind+1]
+      # Check if location is valid 
+      if not self.checkIfLocationExists():
+        self.messageBox = 'Location ' + self.location + ' is not a valid location, please specify another one.'
+        self.serverURLIsValid = False
+        return 
+      else:
+        self.messageBoxText = 'Keyword location must exist in the serverURL.'
+        self.serverURLIsValid = False 
+        return 
+
+    # If 'dataset' is in serverURL 
+    if 'datasets' in textparts:  
+      dataset_ind = textparts.index('datasets')
+      self.dataset = textparts[dataset_ind+1]
+      # Check if dataset exists in the project 
+      if not self.checkIfDatasetExists():
+        self.messageBoxText = 'Dataset ' + self.dataset + ' does not exist within project ' + self.project + ', please specify another one.'
+        self.serverURLIsValid = False 
+        return 
+    else: 
+      self.messageBoxText = 'Keyword dataset must exist in the serverURL.'
+      self.serverURLIsValid = False 
+      return 
+    
+    # If 'dicomStores' is in serverURL
+    if 'dicomStores' in textparts: 
+      dicomStore_ind = textparts.index('dicomStores')
+      self.dicomStore = textparts[dicomStore_ind+1]
+      # Check if dicomStore exists in the project and dataset 
+      if not self.checkIfDicomStoreExists():
+        self.messageBoxText = 'dicomStore ' + self.dicomStore + ' does not exist within project ' + self.project + ' nor within dataset ' + self.dataset + ', please specify another one.'
+        self.serverURLIsValid = False 
+        return 
+    else: 
+      self.messageBoxText = 'Keyword dicomStores must exist in the serverURL. '
+      self.serverURLIsValid = False 
+      return 
+  
+    
+  
+  # If the serverURL is changed, set the project/dataset/dicom datastore. 
+  # Do error checking too. 
+  # https://healthcare.googleapis.com/v1beta1/projects/idc-external-018/locations/us-central1/datasets/mpreview_dataset/dicomStores/mpreview_dicomstore/dicomWeb
+  def onDICOMStoreChanged(self):
+    
+    # get error message 
+    errorMessage = self.checkserverURLIsValid() # this sets the self.serverURLIsValid field 
+    # If valid, set the new serverURL so we can get the updated studies 
+    # And then update the study table remote 
+    if self.serverURLIsValid:
+      self.getServerUrl()
+      self.updateStudyTableRemote()
+    # If not valid, display an error message 
+    else:
+      self.onDICOMStoreChangedMessageBox()
+      self.setTabsEnabled([1,2], False) # set the study tab and segmentation tab to false.
+    
       
   def updateStudiesAndSeriesTabAvailability(self):
     self.setTabsEnabled([1], True)
@@ -593,8 +749,16 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.refSelector.connect('currentIndexChanged(int)', self.onReferenceChanged)
     self.tabWidget.connect('currentChanged(int)',self.onTabWidgetClicked)
     
-    self.selectLocalDatabaseButton.clicked.connect(lambda: self.updateStudyTable())
+    # self.selectLocalDatabaseButton.clicked.connect(lambda: self.updateStudyTable())
+    # self.selectRemoteDatabaseButton.clicked.connect(lambda: self.updateSelectorAvailability())
+    
+    # if serverURL text is changed
+    # self.serverUrlLineEdit.textChanged.connect(lambda: self.onDICOMStoreChanged())
+    
+    
+    self.selectLocalDatabaseButton.clicked.connect(lambda: self.selectDatabaseOKButton.setEnabled(True))
     self.selectRemoteDatabaseButton.clicked.connect(lambda: self.updateSelectorAvailability())
+    self.selectDatabaseOKButton.clicked.connect(lambda: self.checkWhichDatabaseSelected())
 
 
 
@@ -802,30 +966,61 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.setTabsEnabled([2], any(sItem.checkState() == 2 for sItem in self.seriesItems))
 
 
+  # def onPIRADSFormClicked(self):
+  #   self.webView = qt.QWebView()
+  #   self.webView.settings().setAttribute(qt.QWebSettings.DeveloperExtrasEnabled, True)
+  #   self.webView.connect('loadFinished(bool)', self.webViewFormLoadedCallback)
+  #   self.webView.show()
+  #   preFilledURL = self.piradsFormURL
+  #   preFilledURL += '?entry.1455103354='+self.getSetting('UserName')
+  #   preFilledURL += '&entry.347120626='+self.selectedStudyName
+  #   preFilledURL += '&entry.1734306468='+str(self.editorWidget.toolsColor.colorSpin.value)
+  #   u = qt.QUrl(preFilledURL)
+  #   self.webView.setUrl(u)
+  #
+  # # https://docs.google.com/forms/d/18Ni2rcooi60fev5mWshJA0yaCzHYvmXPhcG2-jMF-uw/viewform?entry.1920755914=READER&entry.204001910=STUDY
+  # def onQAFormClicked(self):
+  #   self.webView = qt.QWebView()
+  #   self.webView.settings().setAttribute(qt.QWebSettings.DeveloperExtrasEnabled, True)
+  #   self.webView.connect('loadFinished(bool)', self.webViewFormLoadedCallback)
+  #   self.webView.show()
+  #   preFilledURL = self.qaFormURL
+  #   preFilledURL += '?entry.1920755914='+self.getSetting('UserName')
+  #   preFilledURL += '&entry.204001910='+self.selectedStudyName
+  #   print('Pre-filled URL:'+preFilledURL)
+  #   u = qt.QUrl(preFilledURL)
+  #   self.webView.setUrl(u)
+  
   def onPIRADSFormClicked(self):
-    self.webView = qt.QWebView()
-    self.webView.settings().setAttribute(qt.QWebSettings.DeveloperExtrasEnabled, True)
-    self.webView.connect('loadFinished(bool)', self.webViewFormLoadedCallback)
+    self.webView = slicer.qSlicerWebWidget()
+    # self.webView.settings().setAttribute(qt.QWebSettings.DeveloperExtrasEnabled, True)
+    # self.webView.connect('loadFinished(bool)', self.webViewFormLoadedCallback)
     self.webView.show()
     preFilledURL = self.piradsFormURL
     preFilledURL += '?entry.1455103354='+self.getSetting('UserName')
     preFilledURL += '&entry.347120626='+self.selectedStudyName
-    preFilledURL += '&entry.1734306468='+str(self.editorWidget.toolsColor.colorSpin.value)
     u = qt.QUrl(preFilledURL)
-    self.webView.setUrl(u)
+    print ('u: ' + str(u))
+    # self.webView.setUrl(u)
+    self.webView.setUrl(preFilledURL)
+    slicer.app.openUrl(u)
 
   # https://docs.google.com/forms/d/18Ni2rcooi60fev5mWshJA0yaCzHYvmXPhcG2-jMF-uw/viewform?entry.1920755914=READER&entry.204001910=STUDY
   def onQAFormClicked(self):
-    self.webView = qt.QWebView()
-    self.webView.settings().setAttribute(qt.QWebSettings.DeveloperExtrasEnabled, True)
-    self.webView.connect('loadFinished(bool)', self.webViewFormLoadedCallback)
+    self.webView = slicer.qSlicerWebWidget()
+    # self.webView.settings().setAttribute(qt.QWebSettings.DeveloperExtrasEnabled, True)
+    # self.webView.connect('loadFinished(bool)', self.webViewFormLoadedCallback)
     self.webView.show()
     preFilledURL = self.qaFormURL
     preFilledURL += '?entry.1920755914='+self.getSetting('UserName')
     preFilledURL += '&entry.204001910='+self.selectedStudyName
     print('Pre-filled URL:'+preFilledURL)
     u = qt.QUrl(preFilledURL)
-    self.webView.setUrl(u)
+    print ('u: ' + str(u))
+    # self.webView.setUrl(u)
+    self.webView.setUrl(preFilledURL)
+    slicer.app.openUrl(u)
+
 
   def webViewFormLoadedCallback(self,ok):
     if not ok:
@@ -836,6 +1031,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     document = frame.documentElement()
     element = document.findFirst('entry.2057130045')
     element.setAttribute("value", self.parameters['UserName'])
+
+    
 
   def onSaveClicked(self):
     """ Elements that will be saved:
@@ -1118,11 +1315,16 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.tabWidget.childAt(1, 1).setTabEnabled(index, enabled)
       
   def onStep0Selected(self):
-    return True 
+    if self.checkStep2or3Leave() is True:
+      return False
+    else:
+      return True 
+    # return True 
 
   def checkStep2or3Leave(self):
     # if self.currentTabIndex in [1,2]:
-    if self.currentTabIndex in [1,2,3]: # or [2,3]?
+    # if self.currentTabIndex in [1,2,3]: # or [2,3]?
+    if self.currentTabIndex in [2,3]:
       continueCurrentStep = self.showExitStep3Or4Warning()
       if continueCurrentStep:
         self.tabWidget.setCurrentIndex(self.currentTabIndex)
@@ -1139,6 +1341,24 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.onStudySelected(self.studiesView.selectedIndexes()[0])
     # self.updateSegmentationTabAvailability()
     return True
+  
+  def checkWhichDatabaseSelected(self):
+    # OK button was clicked. 
+    # Check if local or remote Qradio button was clicked 
+    
+    # If local was clicked, updateStudyTable 
+    if self.selectLocalDatabaseButton.isChecked():
+      self.updateStudyTable() 
+      
+    elif self.selectRemoteDatabaseButton.isChecked():
+      self.onDICOMStoreChanged()
+      # first check if the serverURL is valid
+      # if self.isValidserverURL:  
+      # if valid, updateStudyTableRemote()
+      
+      # if not valid, show error message 
+      # self.updateStudyTableRemote()
+      
 
   def updateStudyTable(self):
     # need to have Study Selection tab enabled 
@@ -1152,6 +1372,17 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     # else:
     #   self.notifyUserAboutMissingEligibleData()
     
+  def updateStudyTableRemote(self):
+    # authorize 
+    self.dicomwebAuthorize()
+    # fill the studies 
+    self.studiesMap = {} 
+    self.getStudyNamesRemoteDatabase()      
+    self.fillStudyTableRemoteDatabase()
+
+    # update the availability of the next tab 
+    self.updateStudiesAndSeriesTabAvailability()
+    
     
   def updateSelectorAvailability(self):
     # ungray out the selection 
@@ -1159,6 +1390,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.datasetSelectorCombobox.setEnabled(True)
     self.dicomStoreSelectorCombobox.setEnabled(True)
     self.serverUrlLineEdit.setReadOnly(False)
+    # self.serverUrlLineEdit.setReadOnly(True)
   
   def getPatientIDsRemoteDatabase(self, studies):
     
@@ -1286,17 +1518,17 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     # Form the self.seriesMap before setting the items in table 
     seriesMap = {} 
     for series in seriesList: 
-        fileList = db.filesForSeries(series)
-        seriesDescription = db.fileValue(fileList[0], "0008,103e")
-        # if label in the seriesDescription, skip this 
-        if "label" not in seriesDescription: 
-            seriesNumber = db.fileValue(fileList[0], "0020,0011")
-            seriesMap[seriesNumber] = {'ShortName': str(seriesNumber)+":"+seriesDescription, 
-                                       'LongName': seriesDescription, 
-                                       'seriesInstanceUID': series} 
-            # seriesMap[seriesNumber] = {'MetaInfo':None, 'DICOMLocation':dicomFilesDirectory,'LongName':seriesDescription, 
-            #                            'patientName':patientName, 'studyInstanceUID':studyInstanceUID, 'seriesInstanceUID':seriesInstanceUID}
-            # seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+seriesDescription
+      fileList = db.filesForSeries(series)
+      seriesDescription = db.fileValue(fileList[0], "0008,103e")
+      # if label in the seriesDescription, skip this 
+      if "label" not in seriesDescription: 
+        seriesNumber = db.fileValue(fileList[0], "0020,0011")
+        seriesMap[seriesNumber] = {'ShortName': str(seriesNumber)+":"+seriesDescription, 
+                                   'LongName': seriesDescription, 
+                                   'seriesInstanceUID': series} 
+        # seriesMap[seriesNumber] = {'MetaInfo':None, 'DICOMLocation':dicomFilesDirectory,'LongName':seriesDescription, 
+        #                            'patientName':patientName, 'studyInstanceUID':studyInstanceUID, 'seriesInstanceUID':seriesInstanceUID}
+        # seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+seriesDescription
     
     self.seriesMap = seriesMap 
     
@@ -1694,6 +1926,19 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
           latestTimeStamp = currentTimeStamp 
           fileName = fileNames[index]
           seriesDescription = seriesDescriptions[index]
+          
+          
+    ### added ###
+    # remove the previous seg nodes with the same name before loading in the latest one.
+    seg_nodes_already_exist = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
+    print ('seg nodes that already exist: ' + str(len(seg_nodes_already_exist)))
+    seg_names = [] 
+    for seg_node in seg_nodes_already_exist:
+      seg_name = seg_node.GetName() 
+      if (seg_name==seriesDescription):
+        slicer.mrmlScene.RemoveNode(seg_node)
+    #############
+    
     
     # Load the segmentation file 
     DICOMSegmentationPlugin = slicer.modules.dicomPlugins['DICOMSegmentationPlugin']()
@@ -1809,6 +2054,19 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     # labelFileName = os.path.join(segmentationsDir, 'subject_hierarchy_export.SEG'+exporter.currentDateTime+".dcm")
     print ('segmentationsDir: ' + segmentationsDir)
     
+    
+    ### added ###
+    # remove the previous seg nodes with the same name before loading in the latest one.
+    seg_nodes_already_exist = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
+    print ('seg nodes that already exist: ' + str(len(seg_nodes_already_exist)))
+    seg_names = [] 
+    for seg_node in seg_nodes_already_exist:
+      seg_name = seg_node.GetName() 
+      if (seg_name==seriesDescription):
+        slicer.mrmlScene.RemoveNode(seg_node)
+    #############
+    
+    
     # Write the SEG file 
     import DICOMSegmentationPlugin 
     exporter = DICOMSegmentationPlugin.DICOMSegmentationPluginClass()
@@ -1885,9 +2143,21 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     try:
       # check if already have a label for this node
       refLabel = self.seriesMap[str(ref)]['Label']
+      
     except KeyError:
       # create a new label
       labelName = self.seriesMap[str(ref)]['ShortName']+'-label'
+      
+      # ### added ###
+      # seg_nodes_already_exist = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
+      # print ('seg nodes that already exist: ' + str(len(seg_nodes_already_exist)))
+      # seg_names = [] 
+      # for seg_node in seg_nodes_already_exist:
+      #   seg_name = seg_node.GetName() 
+      #   if (seg_name==labelName):
+      #     slicer.mrmlScene.RemoveNode(seg_node)
+      # #############
+      
       refLabel = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode", labelName)
       self.seriesMap[str(ref)]['Label'] = refLabel
 
