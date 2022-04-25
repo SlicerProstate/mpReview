@@ -884,6 +884,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     tlogic.GetNthTypeInTerminologyCategory(self.terminologyName, terminologyEntry.GetCategoryObject(), 0, terminologyEntry.GetTypeObject())
     defaultTerminologyEntry = tlogic.SerializeTerminologyEntry(terminologyEntry)
     self.editorWidget.defaultTerminologyEntry = defaultTerminologyEntry
+    
+    # self.editorWidget.setDefaultTerminologyEntrySettingsKey(self.editorWidget.defaultTerminologyEntry)
 
     self.structureNames = []
     numberOfTerminologyTypes = tlogic.GetNumberOfTypesInTerminologyCategory(self.terminologyName, terminologyEntry.GetCategoryObject())
@@ -2207,6 +2209,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     self.multiVolumeExplorer.refreshObservers()
     logging.debug('Exiting onReferenceChanged')
+    
+    
 
   '''
   def updateViews(self):
