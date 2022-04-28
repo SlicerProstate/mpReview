@@ -22,6 +22,9 @@ from DICOMLib import DICOMPlugin
 import DICOMSegmentationPlugin
 
 import DICOMwebBrowser
+
+import hashlib 
+import pydicom 
 # from builtins import False
 
 # I should not copy the class from DICOMwebBrowser, but for some reason when I use it 
@@ -1109,24 +1112,52 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         segmentationShItem = shNode.GetItemByDataNode(label) # segmentation
         shNode.SetItemParent(segmentationShItem, studyItemID)
         
-        # Export to DICOM
-        exportables = exporter.examineForExport(segmentationShItem)
-        for exp in exportables:
-          exp.directory = segmentationsDir
-          exp.setTag('ContentCreatorName', username)
-        # exporter.export(exportables)
         
-        # uniqueID = username + '-' + "SEG" + '-' + timestamp 
-        # labelFileName = os.path.join(segmentationsDir, uniqueID + ".dcm")
-        labelFileName = os.path.join(segmentationsDir, 'subject_hierarchy_export.SEG'+exporter.currentDateTime+".dcm")
-        print ('labelFileName: ' + str(labelFileName))
-   
-        # exporter.export(exportables, labelFileName)
-        exporter.export(exportables)
+        if (database_type=="local"):
         
-        #### If remote database, write the to the dicom store #### 
-        if (database_type=="remote"):
+          # Export to DICOM
+          exportables = exporter.examineForExport(segmentationShItem)
+          for exp in exportables:
+            exp.directory = segmentationsDir
+            exp.setTag('ContentCreatorName', username)
+          # exporter.export(exportables)
+          
+          # uniqueID = username + '-' + "SEG" + '-' + timestamp 
+          # labelFileName = os.path.join(segmentationsDir, uniqueID + ".dcm")
+          
+          labelFileName = os.path.join(segmentationsDir, 'subject_hierarchy_export.SEG'+exporter.currentDateTime+".dcm")
+          print ('labelFileName: ' + str(labelFileName))
+     
+          # exporter.export(exportables, labelFileName)
+          exporter.export(exportables)
+          
+        elif (database_type=="remote"):
+        
+          # Create temporary directory for saving the DICOM SEG file  
+          downloadDirectory = os.path.join(slicer.dicomDatabase.databaseDirectory,'tmp')
+          if not os.path.isdir(downloadDirectory):
+            os.mkdir(downloadDirectory)
+            
+          # Export to DICOM
+          exportables = exporter.examineForExport(segmentationShItem)
+          for exp in exportables:
+            exp.directory = downloadDirectory
+            exp.setTag('ContentCreatorName', username)
+          
+          labelFileName = os.path.join(downloadDirectory, 'subject_hierarchy_export.SEG'+exporter.currentDateTime+".dcm")
+          print ('labelFileName: ' + str(labelFileName))
+     
+          exporter.export(exportables)
+          
+          # Upload to remote server 
           self.copySegmentationsToRemote(labelFileName)
+          
+          # Now delete the files from the temporary directory 
+          for f in os.listdir(downloadDirectory):
+            os.remove(os.path.join(downloadDirectory, f))
+          # Delete the temporary directory 
+          os.rmdir(downloadDirectory)
+      
           # also remove from the dicom database - it was added automatically?
           
         success = 1 
@@ -1692,11 +1723,86 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     
     
     #
-    # self.selectAllSeriesButton.setEnabled(True)
-    # self.deselectAllSeriesButton.setEnabled(True)
+    #self.selectAllSeriesButton.setEnabled(True)
+    #self.deselectAllSeriesButton.setEnabled(True)
     #
     # self.progress.delete()
     # self.setTabsEnabled([1], True)
+    
+  def loadVolumeFromLocalDatabase(self): 
+    """ Load a series from the local DICOM database """
+    
+    db = slicer.dicomDatabase
+    
+    # Get appropriate files 
+    seriesInstanceUID = self.seriesMap[seriesNumber]['seriesInstanceUID']
+    fileList = db.filesForSeries(seriesInstanceUID)
+
+    # Now load
+    import DICOMScalarVolumePlugin
+    scalarVolumeReader = DICOMScalarVolumePlugin.DICOMScalarVolumePluginClass()
+    loadable = scalarVolumeReader.examineForImport([fileList])[0]
+    volume = scalarVolumeReader.load(loadable)
+    
+    return volume 
+  
+  def loadVolumeFromRemoteDatabase(self, selectedStudy, selectedSeries):
+    """ Load a series from a remote DICOM server """
+          
+    indexer = ctk.ctkDICOMIndexer()        
+  
+    # A temporary directory for the downloaded DICOM files from the remote database 
+    downloadDirectory = os.path.join(slicer.dicomDatabase.databaseDirectory, 'tmp')
+    if not os.path.isdir(downloadDirectory):
+      os.mkdir(downloadDirectory)
+     
+    # Get the instances corresponding to the chosen study and series      
+    instances = self.DICOMwebClient.search_for_instances(
+                          study_instance_uid=selectedStudy,
+                          series_instance_uid=selectedSeries
+                          )
+    
+    # The instances that are already in the DICOM database, no need to download  
+    instancesAlreadyInDatabase = slicer.dicomDatabase.instancesForSeries(selectedSeries)
+    
+    # Download and write the files that are not currently in the DICOM database 
+    for instanceIndex, instance in enumerate(instances):
+      sopInstanceUid = instance['00080018']['Value'][0]
+      if sopInstanceUid in instancesAlreadyInDatabase:
+        # instance is already in database
+        continue
+      fileName = os.path.join(downloadDirectory, hashlib.md5(sopInstanceUid.encode()).hexdigest() + '.dcm')
+      # If the sopinstanceUid is not not already downloaded, download the file 
+      if not os.path.isfile(fileName):
+        retrievedInstance = self.DICOMwebClient.retrieve_instance(
+                                    study_instance_uid=selectedStudy,
+                                    series_instance_uid=selectedSeries,
+                                    sop_instance_uid=sopInstanceUid)
+        # Write the file to the tmp folder 
+        pydicom.filewriter.write_file(fileName, retrievedInstance)
+        
+    # Now add the directory to the DICOM database
+    indexer.addDirectory(slicer.dicomDatabase, downloadDirectory, True)  # index with file copy
+    indexer.waitForImportFinished()
+    
+    # Now delete the files from the temporary directory 
+    for f in os.listdir(downloadDirectory):
+      os.remove(os.path.join(downloadDirectory, f))
+    # Delete the temporary directory 
+    os.rmdir(downloadDirectory)
+    
+    # Now load the newly added files 
+    fileList = slicer.dicomDatabase.filesForSeries(selectedSeries)
+
+    # Now load
+    import DICOMScalarVolumePlugin
+    scalarVolumeReader = DICOMScalarVolumePlugin.DICOMScalarVolumePluginClass()
+    loadable = scalarVolumeReader.examineForImport([fileList])[0]
+    volume = scalarVolumeReader.load(loadable)
+    
+    return volume 
+    
+      
 
   def onStep2Selected(self):
     # if self.currentTabIndex == 2:
@@ -1762,18 +1868,31 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       # loadable = scalarVolumeReader.examineForImport([files])[0]
       # volume = scalarVolumeReader.load(loadable)
       
-      # Instead load from the DICOM database 
-      db = slicer.dicomDatabase
-      # Get appropriate files 
-      seriesInstanceUID = self.seriesMap[seriesNumber]['seriesInstanceUID']
-      fileList = db.filesForSeries(seriesInstanceUID)
-      # print ('fileList: ' + str(fileList))
-      # Now load
-      import DICOMScalarVolumePlugin
-      scalarVolumeReader = DICOMScalarVolumePlugin.DICOMScalarVolumePluginClass()
-      loadable = scalarVolumeReader.examineForImport([fileList])[0]
-      volume = scalarVolumeReader.load(loadable)
       
+      
+      # # Instead load from the DICOM database 
+      # db = slicer.dicomDatabase
+      # # Get appropriate files 
+      # seriesInstanceUID = self.seriesMap[seriesNumber]['seriesInstanceUID']
+      # fileList = db.filesForSeries(seriesInstanceUID)
+      # # print ('fileList: ' + str(fileList))
+      # # Now load
+      # import DICOMScalarVolumePlugin
+      # scalarVolumeReader = DICOMScalarVolumePlugin.DICOMScalarVolumePluginClass()
+      # loadable = scalarVolumeReader.examineForImport([fileList])[0]
+      # volume = scalarVolumeReader.load(loadable)
+      
+      # Load from DICOM database 
+      if (self.selectLocalDatabaseButton.isChecked()):
+        print ('Loading volume from local DICOM database')
+        volume = self.loadVolumeFromLocalDatabase()
+      # Or load from remote server  
+      elif (self.selectRemoteDatabaseButton.isChecked()):
+        print ('Loading volume from remote DICOM server')
+        studyInstanceUID = self.selectedStudyNumber
+        seriesInstanceUID = self.seriesMap[seriesNumber]['seriesInstanceUID']
+        volume = self.loadVolumeFromRemoteDatabase(studyInstanceUID, seriesInstanceUID)
+        
               
       
       if volume.GetClassName() == 'vtkMRMLScalarVolumeNode':
@@ -1960,6 +2079,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     '''From the reference series number, find the corresponding labels from the 
        DICOM database. Choose the latest one and load that segmentation. '''
         
+    indexer = ctk.ctkDICOMIndexer()  
+        
     ref = int(self.refSeriesNumber) 
     print ('ref: ' + str(ref))
     # set the segmentation node to self.seriesMap[str(ref)]['Label'] 
@@ -2051,9 +2172,12 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     db = slicer.dicomDatabase
     # labelSeries = label.GetName().split(':')[0] # fix 
     labelSeries = str(ref) # should be right 
-    segmentationsDir = os.path.join(db.databaseDirectory, self.selectedStudyName, labelSeries) 
+    # segmentationsDir = os.path.join(db.databaseDirectory, self.selectedStudyName, labelSeries) 
+    # self.logic.createDirectory(segmentationsDir)
+    # # labelFileName = os.path.join(segmentationsDir, 'subject_hierarchy_export.SEG'+exporter.currentDateTime+".dcm")
+    # print ('segmentationsDir: ' + segmentationsDir)
+    segmentationsDir = os.path.join(slicer.dicomDatabase.databaseDirectory, 'tmp') 
     self.logic.createDirectory(segmentationsDir)
-    # labelFileName = os.path.join(segmentationsDir, 'subject_hierarchy_export.SEG'+exporter.currentDateTime+".dcm")
     print ('segmentationsDir: ' + segmentationsDir)
     
     
@@ -2075,8 +2199,36 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     # DICOMSegmentationPlugin = slicer.modules.dicomPlugins['DICOMSegmentationPlugin']()
     fileName = os.path.join(segmentationsDir, 'subject_hierarchy_export.SEG'+exporter.currentDateTime+".dcm")
     print ('fileName: ' + fileName)
-    import pydicom 
+    # import pydicom 
     pydicom.filewriter.write_file(fileName, retrievedInstance)
+    
+    # Add the tmp directory to the local DICOM database 
+    indexer.addDirectory(slicer.dicomDatabase, segmentationsDir, True)  # index with file copy
+    indexer.waitForImportFinished()
+    
+    # Now delete the files from the temporary directory 
+    for f in os.listdir(segmentationsDir):
+      os.remove(os.path.join(segmentationsDir, f))
+    # Delete the temporary directory 
+    os.rmdir(segmentationsDir)
+    
+    # # Now load the newly added files 
+    # fileList = slicer.dicomDatabase.filesForSeries(selectedSeries)
+    #
+    # # Now load
+    # import DICOMScalarVolumePlugin
+    # scalarVolumeReader = DICOMScalarVolumePlugin.DICOMScalarVolumePluginClass()
+    # loadable = scalarVolumeReader.examineForImport([fileList])[0]
+    # volume = scalarVolumeReader.load(loadable)
+    #
+    # return volume 
+  
+    # Now need to load the DICOM SEG from the local DICOM database, and not 
+    # from the file that was just saved out and deleted
+    fileList = slicer.dicomDatabase.filesForSeries(seriesInstanceUID)
+    fileName = fileList[0]
+  
+    
     
     # Load the SEG file 
     # loadables = DICOMSegmentationPlugin.examineFiles([fileName])
