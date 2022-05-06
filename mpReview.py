@@ -2338,6 +2338,16 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     self.editorWidget.setSegmentationNode(self.seriesMap[str(ref)]['Label'])
     self.editorWidget.setMasterVolumeNode(self.volumeNodes[0])
+    
+    ### For each segment that is already present in the segmentationNode, set the terminology entry to the one I want ###
+    # Get list of segments 
+    segmentationNode = self.seriesMap[str(ref)]['Label']
+    segmentIds = segmentationNode.GetSegmentation().GetSegmentIDs() 
+    for segmentId in segmentIds: 
+      # Set the terminology entry 
+      segment = segmentationNode.GetSegmentation().GetSegment(segmentId)
+      segment.SetTag(slicer.vtkSegment.GetTerminologyEntryTagName(),
+                     self.editorWidget.defaultTerminologyEntry)
 
     self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,
                                  layout=[self.rows,self.cols],viewNames=self.sliceNames,
@@ -2353,6 +2363,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.cvLogic.rotateToVolumePlanes(self.volumeNodes[0])
     self.setOpacityOnAllSliceWidgets(1.0)
     self.editorWidget.segmentationNode().GetDisplayNode().SetVisibility2DFill(not self.labelMapOutlineButton.checked)
+    # self.editorWidget.segmentationNode().AddObserver(slicer.vtkSegmentation.SegmentAdded, self.onSegmentAdded)
 
     self.onViewUpdateRequested(self.viewButtonGroup.checkedId())
 
