@@ -1564,6 +1564,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         # seriesMap[seriesNumber]['ShortName'] = str(seriesNumber)+":"+seriesDescription
     
     self.seriesMap = seriesMap 
+    # print ('self.seriesMap: ' + str(self.seriesMap))
     
     self.fillSeriesTable()
         
@@ -1723,13 +1724,14 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     
     
     #
-    #self.selectAllSeriesButton.setEnabled(True)
-    #self.deselectAllSeriesButton.setEnabled(True)
+    self.selectAllSeriesButton.setEnabled(True)
+    self.deselectAllSeriesButton.setEnabled(True)
     #
     # self.progress.delete()
     # self.setTabsEnabled([1], True)
+    self.setTabsEnabled([2], True)
     
-  def loadVolumeFromLocalDatabase(self): 
+  def loadVolumeFromLocalDatabase(self, seriesNumber): 
     """ Load a series from the local DICOM database """
     
     db = slicer.dicomDatabase
@@ -1885,7 +1887,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       # Load from DICOM database 
       if (self.selectLocalDatabaseButton.isChecked()):
         print ('Loading volume from local DICOM database')
-        volume = self.loadVolumeFromLocalDatabase()
+        studyInstanceUID = self.selectedStudyNumber # added in 
+        volume = self.loadVolumeFromLocalDatabase(seriesNumber)
       # Or load from remote server  
       elif (self.selectRemoteDatabaseButton.isChecked()):
         print ('Loading volume from remote DICOM server')
@@ -2426,7 +2429,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def selectAllSeries(self, selected=False):
     for item in self.seriesItems:
       item.setCheckState(2 if selected else 0)
-    self.setTabsEnabled([1], selected)
+    # self.setTabsEnabled([1], selected)
+    self.setTabsEnabled([2], selected)
 
   def restoreForeground(self):
     # This relies on slice view names and also (apparently) trashes zoom levels
