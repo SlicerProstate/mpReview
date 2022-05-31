@@ -45,13 +45,13 @@ class GoogleCloudPlatform(object):
     return process.stdout.read()
 
   def projects(self):
-    return self.gcloud("projects list --format=value(PROJECT_ID)").split("\n")
+    return sorted(self.gcloud("projects list --sort-by=projectId --format=value(PROJECT_ID)").split("\n"), key=str.lower)
 
   def datasets(self, project):
-    return self.gcloud(f"--project {project} healthcare datasets list --format=value(ID,LOCATION)").split("\n")
+    return sorted(self.gcloud(f"--project {project} healthcare datasets list --format=value(ID,LOCATION)").split("\n"), key=str.lower)
 
   def dicomStores(self, project, dataset):
-    return self.gcloud(f"--project {project} healthcare dicom-stores list --dataset {dataset} --format=value(ID)").split("\n")
+    return sorted(self.gcloud(f"--project {project} healthcare dicom-stores list --dataset {dataset} --format=value(ID)").split("\n"), key=str.lower)
 
   def token(self):
     return self.gcloud("auth print-access-token").strip()
@@ -308,6 +308,12 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.projectSelectorCombobox.connect("currentIndexChanged(int)", self.onProjectSelected)
     self.projectSelectorCombobox.setEnabled(False)
     
+    project_list = self.gcp.projects()
+    self.projectCompleter = qt.QCompleter(project_list)
+    self.projectCompleter.setCaseSensitivity(0)
+    self.projectCompleter.setCompletionColumn(0)
+    self.projectSelectorCombobox.setCompleter(self.projectCompleter)
+    
     self.datasetSelectorCombobox = qt.QComboBox()
     databaseGroupBoxLayout.addRow("Dataset: ", self.datasetSelectorCombobox)
     self.datasetSelectorCombobox.connect("currentIndexChanged(int)", self.onDatasetSelected)
@@ -345,7 +351,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       url += f"/dicomStores/{self.dicomStore}"
       url += "/dicomWeb"
     else:
-      url = ''
+      # url = ''
+      url = self.serverUrlLineEdit.text
     
     self.serverUrl = url
   
@@ -358,6 +365,14 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.dicomStoreSelectorCombobox.clear()
       qt.QTimer.singleShot(0, lambda : self.datasetSelectorCombobox.addItems(self.gcp.datasets(self.project)))
       
+      self.datasetSelectorCombobox.setEditable(True)
+      dataset_list = self.gcp.datasets(self.project)
+      self.datasetCompleter = qt.QCompleter(dataset_list)
+      self.datasetCompleter.setCaseSensitivity(0)
+      self.datasetCompleter.setCompletionColumn(0)
+      self.datasetSelectorCombobox.setCompleter(self.datasetCompleter)
+    
+      
   def onDatasetSelected(self):
     currentText = self.datasetSelectorCombobox.currentText
     if currentText != "":
@@ -366,6 +381,13 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.location = datasetTextList[1]
       self.dicomStoreSelectorCombobox.clear()
       qt.QTimer.singleShot(0, lambda : self.dicomStoreSelectorCombobox.addItems(self.gcp.dicomStores(self.project, self.dataset)))
+      
+      self.dicomStoreSelectorCombobox.setEditable(True)
+      dicomStore_list = self.gcp.dicomStores(self.project, self.dataset)
+      self.dicomStoreCompleter = qt.QCompleter(dicomStore_list)
+      self.dicomStoreCompleter.setCaseSensitivity(0)
+      self.dicomStoreCompleter.setCompletionColumn(0)
+      self.dicomStoreSelectorCombobox.setCompleter(self.dicomStoreCompleter)
 
   # def onDICOMStoreSelected(self):
   #   currentText = self.dicomStoreSelectorCombobox.currentText
@@ -527,6 +549,20 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.onDICOMStoreChangedMessageBox()
       self.setTabsEnabled([1,2], False) # set the study tab and segmentation tab to false.
     
+
+    # self.getServerUrl()
+    # self.updateStudyTableRemote()
+    
+    return 
+  
+  def onURLEdited(self):
+    
+    print ('server url text changed')
+    self.serverUrl = self.serverUrlLineEdit.text
+    print (self.serverUrl)
+    
+    return 
+    
       
   def updateStudiesAndSeriesTabAvailability(self):
     self.setTabsEnabled([1], True)
@@ -538,6 +574,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     dicomweb_client.log.configure_logging(2)
     from dicomweb_client.api import DICOMwebClient
     effectiveServerUrl = self.serverUrl
+    
+    # print ('effectiveServerUrl: ' + str(effectiveServerUrl))
+    
     session = None
     headers = {}
     headers["Authorization"] = f"Bearer {GoogleCloudPlatform().token()}"
@@ -573,7 +612,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     # self.studyAndSeriesSelectionWidgetLayout.addWidget(qt.QLabel("Data directory:"), 0, 0, 1, 1)
     # self.studyAndSeriesSelectionWidgetLayout.addWidget(self.dataDirButton, 0, 1, 1, 2)
 
-    print ('in setupDataAndStudySelectionUI')
+    # print ('in setupDataAndStudySelectionUI')
     self.customLUTInfoIcon = self.createHelperLabel()
     self.studyAndSeriesSelectionWidgetLayout.addWidget(self.customLUTInfoIcon, 0, 2, 1, 1, qt.Qt.AlignRight)
     self.customLUTInfoIcon.hide()
@@ -638,6 +677,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.editorWidget.setEffectNameOrder(["Paint", "Draw", "Erase", "Fill between slices", "Margin"])
     self.editorWidget.jumpToSelectedSegmentEnabled = True
     self.editorWidget.switchToSegmentationsButtonVisible = False
+    # added
+    self.editorWidget.setMasterVolumeNodeSelectorVisible(False)
+    self.editorWidget.setSegmentationNodeSelectorVisible(False)
 
     # Select parameter set node if one is found in the scene, and create one otherwise
     segmentEditorSingletonTag = "mpReviewSegmentEditor"
@@ -760,8 +802,12 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     
     
     self.selectLocalDatabaseButton.clicked.connect(lambda: self.selectDatabaseOKButton.setEnabled(True))
-    self.selectRemoteDatabaseButton.clicked.connect(lambda: self.updateSelectorAvailability())
+    # self.selectRemoteDatabaseButton.clicked.connect(lambda: self.updateSelectorAvailability())
+    self.selectRemoteDatabaseButton.clicked.connect(lambda : [self.selectDatabaseOKButton.setEnabled(True), 
+                                                             self.updateSelectorAvailability()])
     self.selectDatabaseOKButton.clicked.connect(lambda: self.checkWhichDatabaseSelected())
+    
+    self.serverUrlLineEdit.textChanged.connect(lambda: self.onURLEdited())
 
 
 
@@ -862,7 +908,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def checkAndSetLUT(self):
     # Default to module color table
     self.terminologyFile = os.path.join(self.resourcesPath, "SegmentationCategoryTypeModifier-mpReview.json")
-    print ('self.terminologyFile: ' + str(self.terminologyFile))
+    # print ('self.terminologyFile: ' + str(self.terminologyFile))
 
     self.customLUTInfoIcon.show()
     self.customLUTInfoIcon.toolTip = 'Using Default Terminology'
@@ -877,7 +923,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     tlogic = slicer.modules.terminologies.logic()
     self.terminologyName = tlogic.LoadTerminologyFromFile(self.terminologyFile)
-    print ('self.terminologyName: ' + str(self.terminologyName))
+    # print ('self.terminologyName: ' + str(self.terminologyName))
 
     # Set the first entry in this terminology as the default so that when the user
     # opens the terminoogy selector, the correct list is shown.
@@ -896,7 +942,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       tlogic.GetNthTypeInTerminologyCategory(self.terminologyName, terminologyEntry.GetCategoryObject(), terminologyTypeIndex, terminologyEntry.GetTypeObject())
       self.structureNames.append(terminologyEntry.GetTypeObject().GetCodeMeaning())
 
-    print(self.structureNames)
+    # print(self.structureNames)
 
     # import json
     # with open(self.terminologyFile) as f:
@@ -1005,7 +1051,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     preFilledURL += '?entry.1455103354='+self.getSetting('UserName')
     preFilledURL += '&entry.347120626='+self.selectedStudyName
     u = qt.QUrl(preFilledURL)
-    print ('u: ' + str(u))
+    # print ('u: ' + str(u))
     # self.webView.setUrl(u)
     self.webView.setUrl(preFilledURL)
     slicer.app.openUrl(u)
@@ -1021,7 +1067,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     preFilledURL += '&entry.204001910='+self.selectedStudyName
     print('Pre-filled URL:'+preFilledURL)
     u = qt.QUrl(preFilledURL)
-    print ('u: ' + str(u))
+    # print ('u: ' + str(u))
     # self.webView.setUrl(u)
     self.webView.setUrl(preFilledURL)
     slicer.app.openUrl(u)
@@ -1370,8 +1416,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.setCrosshairEnabled(False)
 
     self.editorWidget.setActiveEffect(None)
-    if len(self.studiesView.selectedIndexes()) > 0:
-      self.onStudySelected(self.studiesView.selectedIndexes()[0])
+    # if len(self.studiesView.selectedIndexes()) > 0:
+    #   self.onStudySelected(self.studiesView.selectedIndexes()[0])
+      
     # self.updateSegmentationTabAvailability()
     return True
   
@@ -1384,7 +1431,12 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.updateStudyTable() 
       
     elif self.selectRemoteDatabaseButton.isChecked():
-      self.onDICOMStoreChanged()
+      self.updateStudyTableRemote()
+      
+      ### old ###
+      # self.onDICOMStoreChanged()
+      
+      ### old ### 
       # first check if the serverURL is valid
       # if self.isValidserverURL:  
       # if valid, updateStudyTableRemote()
@@ -1410,7 +1462,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.dicomwebAuthorize()
     # fill the studies 
     self.studiesMap = {} 
-    self.getStudyNamesRemoteDatabase()      
+    ## self.getStudyNamesRemoteDatabase()    # 5-26-22  
     self.fillStudyTableRemoteDatabase()
 
     # update the availability of the next tab 
@@ -1418,12 +1470,18 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     
     
   def updateSelectorAvailability(self):
+  
     # ungray out the selection 
+    
     self.projectSelectorCombobox.setEnabled(True)
+    self.projectSelectorCombobox.setEditable(True)
+    
     self.datasetSelectorCombobox.setEnabled(True)
+    
     self.dicomStoreSelectorCombobox.setEnabled(True)
+    
     self.serverUrlLineEdit.setReadOnly(False)
-    # self.serverUrlLineEdit.setReadOnly(True)
+    
   
   def getPatientIDsRemoteDatabase(self, studies):
     
@@ -1438,6 +1496,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   
   def getStudyNamesRemoteDatabase(self):
     
+    print ('********** Getting the studies to update the study names *******')
+    
     # Get the studies 
     offset = 0 
     studies = [] 
@@ -1451,6 +1511,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         break
       studies.extend(subset)
       offset += len(subset) 
+    # print ('search_for_studies in remote database')
     
     # Iterate over each patient ID, get the appropriate list of studies 
     studiesMap = {} 
@@ -1577,9 +1638,14 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     
     # Get the studyInstanceUID of the study selected 
     studyInstanceUID = self.selectedStudyNumber
+    
     # Get the series 
+    print ('******** Getting the series to update the series table remote ******')
     seriesList = self.DICOMwebClient.search_for_series(studyInstanceUID)
-    print ('seriesList: ' + str(seriesList))
+    # print ('seriesList: ' + str(seriesList))
+    # print ('search_for_series in remote database')
+    
+    self.seriesList = seriesList 
 
     seriesMap = {} 
     for series in seriesList: 
@@ -1601,7 +1667,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
                                    'LongName': seriesDescription, 
                                    'seriesInstanceUID': seriesInstanceUID} 
     self.seriesMap = seriesMap 
-    print ('self.seriesMap: ' + str(self.seriesMap))
+    # print ('self.seriesMap: ' + str(self.seriesMap))
+    # print ('retrieve_series_metadata in remote database')
     
     self.fillSeriesTable()
         
@@ -1698,9 +1765,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       slicer.mrmlScene.RemoveNode(node)
 
     self.selectedStudyName = self.studiesModel.item(modelIndex.row(),0).text()
-    print ('self.selectedStudyName: ' + str(self.selectedStudyName))
+    # print ('self.selectedStudyName: ' + str(self.selectedStudyName))
     self.selectedStudyNumber = list(self.studiesMap.keys())[[f['ShortName'] for f in list(self.studiesMap.values())].index(self.selectedStudyName)]
-    print ('self.selectedStudyNumber: ' + str(self.selectedStudyNumber))
+    # print ('self.selectedStudyNumber: ' + str(self.selectedStudyNumber))
     self.parameters['StudyName'] = self.selectedStudyName
 
     # self.resourcesDir = os.path.join(self.inputDataDir, self.selectedStudyName, 'RESOURCES')
@@ -1758,11 +1825,13 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     if not os.path.isdir(downloadDirectory):
       os.mkdir(downloadDirectory)
      
-    # Get the instances corresponding to the chosen study and series      
+    # Get the instances corresponding to the chosen study and series  
+    print ('********** Searching for instances for volumes from remote database *********')    
     instances = self.DICOMwebClient.search_for_instances(
                           study_instance_uid=selectedStudy,
                           series_instance_uid=selectedSeries
                           )
+    # print ('search_for_instances in remote database')
     
     # The instances that are already in the DICOM database, no need to download  
     instancesAlreadyInDatabase = slicer.dicomDatabase.instancesForSeries(selectedSeries)
@@ -1782,6 +1851,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
                                     sop_instance_uid=sopInstanceUid)
         # Write the file to the tmp folder 
         pydicom.filewriter.write_file(fileName, retrievedInstance)
+    # print ('retrieve_instance(s) in remote database')
         
     # Now add the directory to the DICOM database
     indexer.addDirectory(slicer.dicomDatabase, downloadDirectory, True)  # index with file copy
@@ -1886,12 +1956,12 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       
       # Load from DICOM database 
       if (self.selectLocalDatabaseButton.isChecked()):
-        print ('Loading volume from local DICOM database')
+        # print ('Loading volume from local DICOM database')
         studyInstanceUID = self.selectedStudyNumber # added in 
         volume = self.loadVolumeFromLocalDatabase(seriesNumber)
       # Or load from remote server  
       elif (self.selectRemoteDatabaseButton.isChecked()):
-        print ('Loading volume from remote DICOM server')
+        # print ('Loading volume from remote DICOM server')
         studyInstanceUID = self.selectedStudyNumber
         seriesInstanceUID = self.seriesMap[seriesNumber]['seriesInstanceUID']
         volume = self.loadVolumeFromRemoteDatabase(studyInstanceUID, seriesInstanceUID)
@@ -2013,7 +2083,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
        DICOM database. Choose the latest one and load that segmentation. '''
         
     ref = int(self.refSeriesNumber) 
-    print ('ref: ' + str(ref))
+    # print ('ref: ' + str(ref))
     # set the segmentation node to self.seriesMap[str(ref)]['Label'] 
     
     # Get the list of series descriptions and filenames 
@@ -2055,7 +2125,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     ### added ###
     # remove the previous seg nodes with the same name before loading in the latest one.
     seg_nodes_already_exist = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
-    print ('seg nodes that already exist: ' + str(len(seg_nodes_already_exist)))
+    # print ('seg nodes that already exist: ' + str(len(seg_nodes_already_exist)))
     seg_names = [] 
     for seg_node in seg_nodes_already_exist:
       seg_name = seg_node.GetName() 
@@ -2085,7 +2155,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     indexer = ctk.ctkDICOMIndexer()  
         
     ref = int(self.refSeriesNumber) 
-    print ('ref: ' + str(ref))
+    # print ('ref: ' + str(ref))
     # set the segmentation node to self.seriesMap[str(ref)]['Label'] 
     
     # Get the meta data for the self.selectedStudyNumber 
@@ -2094,8 +2164,10 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     # Get the study selected
     studyInstanceUID = self.selectedStudyNumber
     # Get the list of series  
-    seriesList = self.DICOMwebClient.search_for_series(studyInstanceUID)
-    print ('seriesList: ' + str(seriesList)) 
+    # seriesList = self.DICOMwebClient.search_for_series(studyInstanceUID) # should not call this again?
+    # print ('seriesList: ' + str(seriesList)) 
+    # print ('search_for_studies (seg) in remote database')
+    
     
     # seriesList_label = [] 
     seriesDescriptions = [] 
@@ -2104,11 +2176,21 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     ContentDates = []
     ContentTimes = [] 
     
-    for series in seriesList: 
+    print ('*******Getting the latest DICOM SEG files from remote*******')
+    
+    # for series in seriesList:
+    for series in self.seriesList:  
+    
+    
       # seriesNumber = series['00200011']['Value'][0] # seriesNumber doesn't exist.. 
       # need to get metadata 
       # seriesInstanceUID = series['00081030']['Value'][0]
+      
       seriesInstanceUID = series['0020000E']['Value'][0]
+      # seriesInstanceUID = self.seriesMap[str(ref)]['seriesInstanceUID'] 
+      
+      
+      
       metadata = self.DICOMwebClient.retrieve_series_metadata(study_instance_uid=studyInstanceUID,
                                                               series_instance_uid=seriesInstanceUID
                                                               )
@@ -2116,6 +2198,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       seriesNumber = str(metadata[0]['00200011']['Value'][0])
       # seriesInstanceUID = series['00081030']['Value'][0]
       seriesDescription = series['0008103E']['Value'][0]
+      # seriesDescription = self.seriesMap[str(ref)]['LongName']
+      
       ShortName = str(seriesNumber)+":"+seriesDescription
             
       # ContentCreatorName = series['00700084']['Value'][0] # check this -- only in the SEG file 
@@ -2138,11 +2222,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
           ContentTimes.append(ContentTime)
           
           
-      print ('seriesDescriptions with username: ' + str(seriesDescriptions)) # should all have label in name, correct. 
-      print ('seriesInstanceUIDs_label: ' + str(seriesInstanceUIDs_label))
-      print ('sopInstanceUIDs: ' + str(sopInstanceUIDs))
-      print ('contentDates: ' + str(ContentDates))
-      print ('contentTimes: ' + str(ContentTimes))
+
+      
+    # print ('retrieve_series_metadata (seg) in remote database')
           
     # No labels exist 
     if not len(seriesInstanceUIDs_label):
@@ -2167,10 +2249,13 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
           sopInstanceUID = sopInstanceUIDs[index]
           
     
+    print ('******** Getting the matching DICOM SEG instance from remote *********')
+    
     # Retrieve the instance using the DICOM web client  
     retrievedInstance = self.DICOMwebClient.retrieve_instance(study_instance_uid=studyInstanceUID,
                                                               series_instance_uid=seriesInstanceUID, 
                                                               sop_instance_uid=sopInstanceUID)
+    # print ('retrieve_instance (seg) from remote database')
     # Save to here for now 
     db = slicer.dicomDatabase
     # labelSeries = label.GetName().split(':')[0] # fix 
@@ -2181,13 +2266,13 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     # print ('segmentationsDir: ' + segmentationsDir)
     segmentationsDir = os.path.join(slicer.dicomDatabase.databaseDirectory, 'tmp') 
     self.logic.createDirectory(segmentationsDir)
-    print ('segmentationsDir: ' + segmentationsDir)
+    # print ('segmentationsDir: ' + segmentationsDir)
     
     
     ### added ###
     # remove the previous seg nodes with the same name before loading in the latest one.
     seg_nodes_already_exist = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
-    print ('seg nodes that already exist: ' + str(len(seg_nodes_already_exist)))
+    # print ('seg nodes that already exist: ' + str(len(seg_nodes_already_exist)))
     seg_names = [] 
     for seg_node in seg_nodes_already_exist:
       seg_name = seg_node.GetName() 
@@ -2201,7 +2286,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     exporter = DICOMSegmentationPlugin.DICOMSegmentationPluginClass()
     # DICOMSegmentationPlugin = slicer.modules.dicomPlugins['DICOMSegmentationPlugin']()
     fileName = os.path.join(segmentationsDir, 'subject_hierarchy_export.SEG'+exporter.currentDateTime+".dcm")
-    print ('fileName: ' + fileName)
+    # print ('fileName: ' + fileName)
     # import pydicom 
     pydicom.filewriter.write_file(fileName, retrievedInstance)
     
@@ -2265,11 +2350,15 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     eligible = text not in ["", "None"]
     self.setCrosshairEnabled(eligible)
     logging.debug('Current reference node: '+text)
+    
     if eligible:
       self.refSeriesNumber = text.split(':')[0]
       ref = int(self.refSeriesNumber)
     else:
       return
+    
+    self.refSeriesNumber = text.split(':')[0]
+    ref = int(self.refSeriesNumber)
 
     logging.debug('Reference series selected: '+str(ref))
 
@@ -2366,7 +2455,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     # self.editorWidget.segmentationNode().AddObserver(slicer.vtkSegmentation.SegmentAdded, self.onSegmentAdded)
 
     self.onViewUpdateRequested(self.viewButtonGroup.checkedId())
-
+    
     logging.debug('Setting master node for the Editor to '+self.volumeNodes[0].GetID())
 
     # # default to selecting the first available structure for this volume
@@ -2376,7 +2465,19 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.multiVolumeExplorer.refreshObservers()
     logging.debug('Exiting onReferenceChanged')
     
+    # Added
+    # Link the slice views
+    # links the scrolling, but not the zoom and pan 
+    sliceCompositeNodes = slicer.util.getNodesByClass("vtkMRMLSliceCompositeNode")
+    for sliceCompositeNode in sliceCompositeNodes:
+      sliceCompositeNode.HotLinkedControlOn()
+      sliceCompositeNode.LinkedControlOn()
+      # sliceCompositeNode.SetHotLinkedControl(True)
+      # sliceCompositeNode.SetLinkedControl(True)
     
+
+
+      return
 
   '''
   def updateViews(self):
