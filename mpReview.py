@@ -64,6 +64,10 @@ class GoogleCloudPlatform(object):
   
   def locations(self):
     return self.gcloud(f"compute regions list --format=value(NAME)").split("\n")
+  
+  def create_dicomStore(self, project, location, dataset, dicomStore):
+    return sorted(self.gcloud(f"--project {project} healthcare dicom-stores create {dicomStore} --dataset {dataset} --format=value(ID)").split("\n"), key=str.lower)
+
 
 
 class mpReview(ScriptedLoadableModule, ModuleWidgetMixin):
@@ -1229,6 +1233,15 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
  
     # upload file to bucket 
     self.upload_file_to_bucket(labelFileName, bucket_name, project_id=self.project)
+    
+    # create dicomStore for only SEG if it doesn't already exist
+    # self.dicomStore_seg = self.dicomStore + '_seg' 
+    # dicomStores_list = self.gcp.dicomStores(project=self.project, dataset=self.dataset)
+    # if not (self.dicomStore_seg in dicomStores_list):
+    #   self.gcp.create_dicomStore(project=self.project, 
+    #                              location=self.location, 
+    #                              dataset=self.dataset,
+    #                              dicomStore=self.dicomStore_seg)
 
     # copy the SEG file from bucket to the dicom data store selected 
     self.gcp.copy_from_bucket_to_dicomStore(project=self.project, 
@@ -1236,6 +1249,11 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
                                             dataset=self.dataset, 
                                             dicomStore=self.dicomStore, 
                                             bucket_name=bucket_name)
+    # self.gcp.copy_from_bucket_to_dicomStore(project=self.project, 
+    #                                     location=self.location, 
+    #                                     dataset=self.dataset, 
+    #                                     dicomStore=self.dicomStore_seg, 
+    #                                     bucket_name=bucket_name)
 
     # remove files from bucket 
     self.remove_files_from_bucket(bucket_name, project_id=self.project)
