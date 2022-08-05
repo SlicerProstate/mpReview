@@ -32,9 +32,9 @@ import pydicom
 # I guess temporary for now, as I will have to list only the projects/datasets/datastores 
 # that actually contain dicom files anyway, so this will change. 
 class GoogleCloudPlatform(object):
-
+  
   def gcloud(self, subcommand):
-   
+  
     import shutil 
     args = [shutil.which('gcloud')]
     if (None in args):
@@ -298,25 +298,26 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     databaseGroupBoxLayout = qt.QFormLayout()
     
     self.selectLocalDatabaseButton = qt.QRadioButton('Use local database')
-    self.selectRemoteDatabaseButton = qt.QRadioButton('Use remote database')
+    self.selectRemoteDatabaseButton = qt.QRadioButton('Use GCP remote server')
+    self.selectOtherRemoteDatabaseButton = qt.QRadioButton('Use other remote server')
     
     # self.gcp = DICOMwebBrowser.GoogleCloudPlatform() # this doesn't work, why?  
-    self.gcp = GoogleCloudPlatform() # this works 
+    # self.gcp = GoogleCloudPlatform() # this works 
     
     databaseGroupBoxLayout.addRow(self.selectLocalDatabaseButton)
     databaseGroupBoxLayout.addRow(self.selectRemoteDatabaseButton)
     
     self.projectSelectorCombobox = qt.QComboBox()
     databaseGroupBoxLayout.addRow("Project: ", self.projectSelectorCombobox)
-    self.projectSelectorCombobox.addItems(self.gcp.projects())
+    # self.projectSelectorCombobox.addItems(self.gcp.projects())
     self.projectSelectorCombobox.connect("currentIndexChanged(int)", self.onProjectSelected)
     self.projectSelectorCombobox.setEnabled(False)
     
-    project_list = self.gcp.projects()
-    self.projectCompleter = qt.QCompleter(project_list)
-    self.projectCompleter.setCaseSensitivity(0)
-    self.projectCompleter.setCompletionColumn(0)
-    self.projectSelectorCombobox.setCompleter(self.projectCompleter)
+    # project_list = self.gcp.projects()
+    # self.projectCompleter = qt.QCompleter(project_list)
+    # self.projectCompleter.setCaseSensitivity(0)
+    # self.projectCompleter.setCompletionColumn(0)
+    # self.projectSelectorCombobox.setCompleter(self.projectCompleter)
     
     self.datasetSelectorCombobox = qt.QComboBox()
     databaseGroupBoxLayout.addRow("Dataset: ", self.datasetSelectorCombobox)
@@ -329,7 +330,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.dicomStoreSelectorCombobox.setEnabled(False)
     
     self.serverUrlLineEdit = qt.QLineEdit()
-    databaseGroupBoxLayout.addRow("Server URL: ", self.serverUrlLineEdit)
+    databaseGroupBoxLayout.addRow("GCP Server URL: ", self.serverUrlLineEdit)
     self.serverUrlLineEdit.setText('')
     self.serverUrlLineEdit.setReadOnly(True)
     
@@ -337,8 +338,22 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.selectDatabaseOKButton.setEnabled(False)
     databaseGroupBoxLayout.addRow(self.selectDatabaseOKButton)
     
+    # Other remote 
+    # databaseGroupBoxLayout.setVerticalSpacing(10) # this sets for all. 
+    databaseGroupBoxLayout.addRow(self.selectOtherRemoteDatabaseButton)
+    
+    self.OtherserverUrlLineEdit = qt.QLineEdit()
+    databaseGroupBoxLayout.addRow("Other Server URL: ", self.OtherserverUrlLineEdit)
+    self.OtherserverUrlLineEdit.setText('')
+    self.OtherserverUrlLineEdit.setReadOnly(True)
+    
+    self.selectOtherRemoteDatabaseOKButton = qt.QPushButton("OK")
+    self.selectOtherRemoteDatabaseOKButton.setEnabled(False)
+    databaseGroupBoxLayout.addRow(self.selectOtherRemoteDatabaseOKButton)
+    
     self.databaseGroupBox.setLayout(databaseGroupBoxLayout)
     self.databaseSelectionWidgetLayout.addWidget(self.databaseGroupBox, 3, 0, 1, 3)
+    
     
     # # this works below for listing projects.
     # args = ['C:\\Users\\deepa\\AppData\\Local\\Google\\Cloud SDK\\google-cloud-sdk\\bin\\gcloud.CMD', 'projects', 'list', '--format=value(PROJECT_ID)']
@@ -567,6 +582,13 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     
     return 
     
+  def onOtherURLEdited(self):
+    
+    print ('other server url text changed')
+    self.otherserverUrl = self.OtherserverUrlLineEdit.text
+    print (self.otherserverUrl)
+    
+    return 
       
   def updateStudiesAndSeriesTabAvailability(self):
     self.setTabsEnabled([1], True)
@@ -603,6 +625,36 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   #   self.studies = studies 
   #
   #   print ('studies: ' + str(studies))
+  
+
+  def dicomwebOtherAuthorize(self):
+    import dicomweb_client.log 
+    dicomweb_client.log.configure_logging(2)
+    from dicomweb_client.api import DICOMwebClient
+    effectiveServerUrl = self.otherserverUrl 
+    
+    session = None
+    self.DICOMwebClient = DICOMwebClient(url=effectiveServerUrl, session=session)
+    
+  def setupGoogleCloudPlatform(self):
+  #
+  #   import shutil 
+  #   args = [shutil.which('gcloud')]
+  #   if (None in args):
+  #     logging.error(f"Unable to locate gcloud, please install the Google Cloud SDK")
+  #   args.extend(subcommand.split())
+  #   process = slicer.util.launchConsoleProcess(args)
+  #   process.wait()
+  #   return process.stdout.read()
+    self.gcp = GoogleCloudPlatform()
+      
+    self.projectSelectorCombobox.addItems(self.gcp.projects())
+    
+    project_list = self.gcp.projects()
+    self.projectCompleter = qt.QCompleter(project_list)
+    self.projectCompleter.setCaseSensitivity(0)
+    self.projectCompleter.setCompletionColumn(0)
+    self.projectSelectorCombobox.setCompleter(self.projectCompleter)
       
 
   def onCancel(self):
@@ -805,13 +857,31 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     # self.serverUrlLineEdit.textChanged.connect(lambda: self.onDICOMStoreChanged())
     
     
-    self.selectLocalDatabaseButton.clicked.connect(lambda: self.selectDatabaseOKButton.setEnabled(True))
+    # self.selectLocalDatabaseButton.clicked.connect(lambda: self.selectDatabaseOKButton.setEnabled(True))
+    self.selectLocalDatabaseButton.clicked.connect(lambda: self.checkWhichDatabaseSelected())
+    
+    
     # self.selectRemoteDatabaseButton.clicked.connect(lambda: self.updateSelectorAvailability())
-    self.selectRemoteDatabaseButton.clicked.connect(lambda : [self.selectDatabaseOKButton.setEnabled(True), 
-                                                             self.updateSelectorAvailability()])
+    self.selectRemoteDatabaseButton.clicked.connect(lambda : [self.setTabsEnabled([1], False),
+                                                              self.setupGoogleCloudPlatform(),
+                                                              self.selectDatabaseOKButton.setEnabled(True), 
+                                                              self.updateSelectorAvailability(set=True), 
+                                                              self.selectOtherRemoteDatabaseOKButton.setEnabled(False), 
+                                                              ])
+    
+    self.selectOtherRemoteDatabaseButton.clicked.connect(lambda : [self.setTabsEnabled([1], False),
+                                                                   self.OtherserverUrlLineEdit.setReadOnly(False), 
+                                                                   self.selectOtherRemoteDatabaseOKButton.setEnabled(True),
+                                                                   self.updateSelectorAvailability(set=False), 
+                                                                   self.selectDatabaseOKButton.setEnabled(False)])
+    
     self.selectDatabaseOKButton.clicked.connect(lambda: self.checkWhichDatabaseSelected())
     
+    self.selectOtherRemoteDatabaseOKButton.clicked.connect(lambda: self.checkWhichDatabaseSelected())
+    
     self.serverUrlLineEdit.textChanged.connect(lambda: self.onURLEdited())
+    
+    self.OtherserverUrlLineEdit.textChanged.connect(lambda: self.onOtherURLEdited()) 
 
 
 
@@ -1446,10 +1516,34 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     
     # If local was clicked, updateStudyTable 
     if self.selectLocalDatabaseButton.isChecked():
+      # disable the GCP project etc selectors and server url and ok button 
+      self.updateSelectorAvailability(set=False)
+      self.selectDatabaseOKButton.setEnabled(False)
+      self.serverUrlLineEdit.setReadOnly(True)
+      # disable the other server url and ok button 
+      self.selectOtherRemoteDatabaseOKButton.setEnabled(False)
+      self.OtherserverUrlLineEdit.setReadOnly(True)
+      # update study table 
       self.updateStudyTable() 
       
     elif self.selectRemoteDatabaseButton.isChecked():
+      # disable the other server url and ok button 
+      # self.selectOtherRemoteDatabaseOKButton.setEnabled(False)
+      # self.OtherserverUrlLineEdit.setReadOnly(True)
+      # update study table 
       self.updateStudyTableRemote()
+      
+    elif self.selectOtherRemoteDatabaseButton.isChecked():
+      # disable the GCP project etc selectors and server url and ok button 
+      # self.updateSelectorAvailability(set=False)
+      # self.selectDatabaseOKButton.setEnabled(False)
+      # self.serverUrlLineEdit.setReadOnly(True)
+      # set serverurl to be edited 
+      # self.OtherserverUrlLineEdit.setReadOnly(False)
+      # update study table 
+      self.updateOtherStudyTableRemote()
+      
+  
       
       ### old ###
       # self.onDICOMStoreChanged()
@@ -1486,19 +1580,38 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     # update the availability of the next tab 
     self.updateStudiesAndSeriesTabAvailability()
     
+  def updateOtherStudyTableRemote(self):
+    # authorize 
+    # self.dicomwebAuthorize()
+    self.dicomwebOtherAuthorize()
+    # fill the studies 
+    self.studiesMap = {} 
+    ## self.getStudyNamesRemoteDatabase()    # 5-26-22  
+    self.fillStudyTableRemoteDatabase()
+
+    # update the availability of the next tab 
+    self.updateStudiesAndSeriesTabAvailability()
     
-  def updateSelectorAvailability(self):
+    
+  def updateSelectorAvailability(self, set=True):
   
     # ungray out the selection 
-    
-    self.projectSelectorCombobox.setEnabled(True)
-    self.projectSelectorCombobox.setEditable(True)
-    
-    self.datasetSelectorCombobox.setEnabled(True)
-    
-    self.dicomStoreSelectorCombobox.setEnabled(True)
-    
-    self.serverUrlLineEdit.setReadOnly(False)
+    if (set):
+          
+      self.projectSelectorCombobox.setEnabled(True)
+      self.projectSelectorCombobox.setEditable(True)
+      self.datasetSelectorCombobox.setEnabled(True)
+      self.dicomStoreSelectorCombobox.setEnabled(True)
+      self.serverUrlLineEdit.setReadOnly(False)
+      
+    else:
+      
+      self.projectSelectorCombobox.setEnabled(False)
+      self.projectSelectorCombobox.setEditable(False)
+      self.datasetSelectorCombobox.setEnabled(False)
+      self.dicomStoreSelectorCombobox.setEnabled(False)
+      self.serverUrlLineEdit.setReadOnly(True)
+      
     
   
   def getPatientIDsRemoteDatabase(self, studies):
@@ -1805,6 +1918,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.updateSeriesTable()
     elif (self.selectRemoteDatabaseButton.isChecked()):
       self.updateSeriesTableRemote()
+    elif (self.selectOtherRemoteDatabaseButton.isChecked()):
+      self.updateSeriesTableRemote()
       
     
     
@@ -1978,11 +2093,13 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         studyInstanceUID = self.selectedStudyNumber # added in 
         volume = self.loadVolumeFromLocalDatabase(seriesNumber)
       # Or load from remote server  
-      elif (self.selectRemoteDatabaseButton.isChecked()):
+      elif (self.selectRemoteDatabaseButton.isChecked() or \
+            self.selectOtherRemoteDatabaseButton.isChecked()):
         # print ('Loading volume from remote DICOM server')
         studyInstanceUID = self.selectedStudyNumber
         seriesInstanceUID = self.seriesMap[seriesNumber]['seriesInstanceUID']
         volume = self.loadVolumeFromRemoteDatabase(studyInstanceUID, seriesInstanceUID)
+    
         
               
       
