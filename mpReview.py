@@ -1956,7 +1956,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     # A temporary directory for the downloaded DICOM files from the remote database 
     downloadDirectory = os.path.join(slicer.dicomDatabase.databaseDirectory, 'tmp')
     if not os.path.isdir(downloadDirectory):
-      os.mkdir(downloadDirectory)
+      # os.mkdir(downloadDirectory)
+      os.makedirs(downloadDirectory)
      
     # Get the instances corresponding to the chosen study and series  
     print ('********** Searching for instances for volumes from remote database *********')    
