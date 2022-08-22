@@ -1172,7 +1172,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     
     if (self.selectLocalDatabaseButton.isChecked()):
       savedMessage = self.saveSegmentations(timestamp, username, database_type="local") 
-    elif (self.selectRemoteDatabaseButton.isChecked()):
+    elif (self.selectRemoteDatabaseButton.isChecked() or self.selectOtherRemoteDatabaseButton.isChecked()):
       savedMessage = self.saveSegmentations(timestamp, username, database_type="remote")
     
     '''
@@ -1270,7 +1270,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
           exporter.export(exportables)
           
           # Upload to remote server 
-          self.copySegmentationsToRemote(labelFileName)
+          # self.copySegmentationsToRemote(labelFileName) # this one uses buckets and DICOM datastores 
+          print('uploading seg dcm file to the remote server')
+          self.copySegmentationsToRemoteDicomweb(labelFileName) # this one uses dicomweb client 
           
           # Now delete the files from the temporary directory 
           for f in os.listdir(downloadDirectory):
@@ -1288,7 +1290,23 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     return savedMessage
   
+  def copySegmentationsToRemoteDicomweb(self, labelFileName):
+    """Uses the dicomweb client to store DICOM SEG instance in the remote server"""
+    
+    # print ('in copySegmentationsToRemoteDicomweb')
+    dataset = pydicom.dcmread(labelFileName)
+    # print('dataset: ' + str(dataset))
+    
+    # self.DICOMwebClient.store_instances(datasets=[dataset], study=self.selectedStudyNumber)
+    self.DICOMwebClient.store_instances(datasets=[dataset])
+
+    
+    return 
+
+    
+  
   def copySegmentationsToRemote(self, labelFileName):
+    """Uses buckets and the DICOM datastore to store DICOM SEG instance in the remote server"""
     
     # create a temporary bucket
     import random
@@ -1971,6 +1989,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     instancesAlreadyInDatabase = slicer.dicomDatabase.instancesForSeries(selectedSeries)
     
     # Download and write the files that are not currently in the DICOM database 
+    print('downloading and writing the files that are currently not in the DICOM database')
     for instanceIndex, instance in enumerate(instances):
       sopInstanceUid = instance['00080018']['Value'][0]
       if sopInstanceUid in instancesAlreadyInDatabase:
@@ -1988,19 +2007,23 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     # print ('retrieve_instance(s) in remote database')
         
     # Now add the directory to the DICOM database
+    print ('adding the directory to the DICOM database')
     indexer.addDirectory(slicer.dicomDatabase, downloadDirectory, True)  # index with file copy
     indexer.waitForImportFinished()
     
     # Now delete the files from the temporary directory 
+    print('delete the files from the temporary directory')
     for f in os.listdir(downloadDirectory):
       os.remove(os.path.join(downloadDirectory, f))
     # Delete the temporary directory 
     os.rmdir(downloadDirectory)
     
     # Now load the newly added files 
+    print ('load the newly added files')
     fileList = slicer.dicomDatabase.filesForSeries(selectedSeries)
 
     # Now load
+    print ('now load the volumes')
     import DICOMScalarVolumePlugin
     scalarVolumeReader = DICOMScalarVolumePlugin.DICOMScalarVolumePluginClass()
     loadable = scalarVolumeReader.examineForImport([fileList])[0]
@@ -2286,7 +2309,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   
   def getLatestDICOMSEGRemote(self): 
     '''From the reference series number, find the corresponding labels from the 
-       DICOM database. Choose the latest one and load that segmentation. '''
+       remote server. Choose the latest one and load that segmentation. '''
         
     indexer = ctk.ctkDICOMIndexer()  
         
