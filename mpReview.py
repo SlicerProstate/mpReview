@@ -22,19 +22,23 @@ from DICOMLib import DICOMPlugin
 import DICOMSegmentationPlugin
 
 import DICOMwebBrowser
+from DICOMwebBrowser import GoogleCloudPlatform
 
 import hashlib 
 import pydicom 
 # from builtins import False
 
-# I should not copy the class from DICOMwebBrowser, but for some reason when I use it 
-# as DICOMwebBrowser.GoogleCloudPlatform() it does not work?? 
-# I guess temporary for now, as I will have to list only the projects/datasets/datastores 
-# that actually contain dicom files anyway, so this will change. 
+
+import shutil
+
+
+
+
+
 class GoogleCloudPlatform(object):
-  
+
   def gcloud(self, subcommand):
-  
+
     import shutil 
     args = [shutil.which('gcloud')]
     if (None in args):
@@ -55,18 +59,19 @@ class GoogleCloudPlatform(object):
 
   def token(self):
     return self.gcloud("auth print-access-token").strip()
-  
+
   def copy_from_bucket_to_dicomStore(self, project, location, dataset, dicomStore, bucket_name):
     return self.gcloud(f"--project {project} healthcare dicom-stores import gcs {dicomStore} --dataset {dataset} --location {location} --gcs-uri gs://{bucket_name}/**.dcm")
-  
+
   def datasetsOnly(self, project):
     return self.gcloud(f"--project {project} healthcare datasets list --format=value(ID)").split("\n")
-  
+
   def locations(self):
     return self.gcloud(f"compute regions list --format=value(NAME)").split("\n")
-  
+
   def create_dicomStore(self, project, location, dataset, dicomStore):
     return sorted(self.gcloud(f"--project {project} healthcare dicom-stores create {dicomStore} --dataset {dataset} --format=value(ID)").split("\n"), key=str.lower)
+
 
 
 
@@ -646,7 +651,11 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   #   process = slicer.util.launchConsoleProcess(args)
   #   process.wait()
   #   return process.stdout.read()
+  
+    # print('trying to use class from DICOMwebBrowser')
     self.gcp = GoogleCloudPlatform()
+    # self.gcp = DICOMwebBrowser.GoogleCloudPlatform()
+    print('projects: ' + str(self.gcp.projects()))
       
     self.projectSelectorCombobox.addItems(self.gcp.projects())
     
@@ -686,7 +695,18 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.studiesGroupBox.setLayout(studiesGroupBoxLayout)
     self.studiesView, self.studiesModel = self.createListView('StudiesTable', ['Study ID'])
     self.studiesView.setSizePolicy(qt.QSizePolicy.Expanding, qt.QSizePolicy.Expanding)
+    
+    filter_proxy_model = qt.QSortFilterProxyModel()
+    filter_proxy_model.setSourceModel(self.studiesModel)
+    # filter_proxy_model.setSourceModel(self.studiesView.selectionModel())
+    filter_proxy_model.setFilterKeyColumn(1)
+    
+    self.studiesFilterLine = qt.QLineEdit()
+    self.studiesFilterLine.textChanged.connect(filter_proxy_model.setFilterRegExp)
+    studiesGroupBoxLayout.addWidget(self.studiesFilterLine)
+    
     studiesGroupBoxLayout.addWidget(self.studiesView)
+    
     self.studyAndSeriesSelectionWidgetLayout.addWidget(self.studiesGroupBox, 2, 0, 1, 3)
 
   def setupSeriesSelectionView(self):
@@ -1664,7 +1684,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     
     # Iterate over each patient ID, get the appropriate list of studies 
     studiesMap = {} 
-
+    ShortNames = [] 
     for study in studies: 
       patient = study['00100010']['Value'][0]['Alphabetic']
       studyDate = study['00080020']['Value'][0]
@@ -1678,6 +1698,11 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       studiesMap[studyUID] = {'ShortName': ShortName}
       studiesMap[studyUID]['LongName'] = '' # can remove LongName later
       studiesMap[studyUID]['StudyInstanceUID'] = studyUID
+      ShortNames.append(ShortName)
+      
+      
+    # Order the study names according to the ShortName 
+    # ShortNames = [f for f in ]
     
     # # Get a list of patient ids from the above studies 
     # patientList = self.getPatientIDsRemoteDatabase(studies)
