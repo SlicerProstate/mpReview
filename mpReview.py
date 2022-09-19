@@ -2049,10 +2049,11 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     # Now load
     print ('now load the volumes')
-    import DICOMScalarVolumePlugin
-    scalarVolumeReader = DICOMScalarVolumePlugin.DICOMScalarVolumePluginClass()
-    loadable = scalarVolumeReader.examineForImport([fileList])[0]
-    volume = scalarVolumeReader.load(loadable)
+    if fileList: 
+      import DICOMScalarVolumePlugin
+      scalarVolumeReader = DICOMScalarVolumePlugin.DICOMScalarVolumePluginClass()
+      loadable = scalarVolumeReader.examineForImport([fileList])[0]
+      volume = scalarVolumeReader.load(loadable)
     
     return volume 
     
