@@ -1994,7 +1994,10 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def loadVolumeFromRemoteDatabase(self, selectedStudy, selectedSeries):
     """ Load a series from a remote DICOM server """
           
-    indexer = ctk.ctkDICOMIndexer()        
+    indexer = ctk.ctkDICOMIndexer()  
+    indexer.backgroundImportEnabled=True    
+    
+    db = slicer.dicomDatabase   
   
     # A temporary directory for the downloaded DICOM files from the remote database 
     downloadDirectory = os.path.join(slicer.dicomDatabase.databaseDirectory, 'tmp')
@@ -2008,6 +2011,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
                           study_instance_uid=selectedStudy,
                           series_instance_uid=selectedSeries
                           )
+    # print ('slicer process events')
+    # slicer.app.processEvents()
     # print ('search_for_instances in remote database')
     
     # The instances that are already in the DICOM database, no need to download  
@@ -2033,8 +2038,23 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         
     # Now add the directory to the DICOM database
     print ('adding the directory to the DICOM database')
-    indexer.addDirectory(slicer.dicomDatabase, downloadDirectory, True)  # index with file copy
-    indexer.waitForImportFinished()
+    files_saved = [f for f in os.listdir(downloadDirectory) if f.endswith('.dcm')]
+    if files_saved: 
+      print('add directory')
+      indexer.addDirectory(slicer.dicomDatabase, downloadDirectory, True)  # index with file copy
+      
+      # slicer.util.selectModule("DICOM")
+      # browserWidget = slicer.modules.DICOMWidget.browserWidget
+      # dicomBrowser = browserWidget.dicomBrowser
+      # dicomBrowser.importDirectory(downloadDirectory, dicomBrowser.ImportDirectoryAddLink)
+      # dicomBrowser.waitForImportFinished()
+      
+      # DICOMUtils.importDicom(downloadDirectory,db)
+      
+      print('indexer wait for import to finish')
+      indexer.waitForImportFinished()
+      print('slicer process events')
+      slicer.app.processEvents()
     
     # Now delete the files from the temporary directory 
     print('delete the files from the temporary directory')
@@ -2046,6 +2066,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     # Now load the newly added files 
     print ('load the newly added files')
     fileList = slicer.dicomDatabase.filesForSeries(selectedSeries)
+    print ('fileList: ' + str(fileList))
 
     # Now load
     print ('now load the volumes')
@@ -2054,10 +2075,78 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     scalarVolumeReader = DICOMScalarVolumePlugin.DICOMScalarVolumePluginClass()
     loadable = scalarVolumeReader.examineForImport([fileList])[0]
     volume = scalarVolumeReader.load(loadable)
-    
+  
     return volume 
     
-      
+  
+  # def loadVolumeFromRemoteDatabase(self, selectedStudy, selectedSeries):
+  #   """ Load a series from a remote DICOM server """
+  #
+  #   indexer = ctk.ctkDICOMIndexer()        
+  #
+  #   # A temporary directory for the downloaded DICOM files from the remote database 
+  #   downloadDirectory = os.path.join(slicer.dicomDatabase.databaseDirectory, 'tmp')
+  #   if not os.path.isdir(downloadDirectory):
+  #     # os.mkdir(downloadDirectory)
+  #     os.makedirs(downloadDirectory)
+  #
+  #   # Get the instances corresponding to the chosen study and series  
+  #   print ('********** Searching for instances for volumes from remote database *********')    
+  #   instances = self.DICOMwebClient.search_for_instances(
+  #                         study_instance_uid=selectedStudy,
+  #                         series_instance_uid=selectedSeries
+  #                         )
+  #   # print ('search_for_instances in remote database')
+  #
+  #   # The instances that are already in the DICOM database, no need to download  
+  #   instancesAlreadyInDatabase = slicer.dicomDatabase.instancesForSeries(selectedSeries)
+  #
+  #   # Download and write the files that are not currently in the DICOM database 
+  #   print('downloading and writing the files that are currently not in the DICOM database')
+  #   for instanceIndex, instance in enumerate(instances):
+  #     sopInstanceUid = instance['00080018']['Value'][0]
+  #     if sopInstanceUid in instancesAlreadyInDatabase:
+  #       # instance is already in database
+  #       continue
+  #     fileName = os.path.join(downloadDirectory, hashlib.md5(sopInstanceUid.encode()).hexdigest() + '.dcm')
+  #     # If the sopinstanceUid is not not already downloaded, download the file 
+  #     if not os.path.isfile(fileName):
+  #       retrievedInstance = self.DICOMwebClient.retrieve_instance(
+  #                                   study_instance_uid=selectedStudy,
+  #                                   series_instance_uid=selectedSeries,
+  #                                   sop_instance_uid=sopInstanceUid)
+  #       # Write the file to the tmp folder 
+  #       pydicom.filewriter.write_file(fileName, retrievedInstance)
+  #   # print ('retrieve_instance(s) in remote database')
+  #
+  #   # Now add the directory to the DICOM database
+  #   print ('adding the directory to the DICOM database')
+  #   indexer.addDirectory(slicer.dicomDatabase, downloadDirectory, True)  # index with file copy
+  #   indexer.waitForImportFinished()
+  #
+  #   # Now delete the files from the temporary directory 
+  #   print('delete the files from the temporary directory')
+  #   for f in os.listdir(downloadDirectory):
+  #     os.remove(os.path.join(downloadDirectory, f))
+  #   # Delete the temporary directory 
+  #   os.rmdir(downloadDirectory)
+  #
+  #   # Now load the newly added files 
+  #   print ('load the newly added files')
+  #   fileList = slicer.dicomDatabase.filesForSeries(selectedSeries)
+  #
+  #   # Now load
+  #   print ('now load the volumes')
+  #   # if fileList: 
+  #   import DICOMScalarVolumePlugin
+  #   scalarVolumeReader = DICOMScalarVolumePlugin.DICOMScalarVolumePluginClass()
+  #   loadable = scalarVolumeReader.examineForImport([fileList])[0]
+  #   volume = scalarVolumeReader.load(loadable)
+  #
+  #   return volume 
+  #
+  #
+
 
   def onStep2Selected(self):
     # if self.currentTabIndex == 2:
