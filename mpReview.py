@@ -2656,7 +2656,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     
     if (self.selectLocalDatabaseButton.isChecked()):
       self.getLatestDICOMSEG()
-    elif (self.selectRemoteDatabaseButton.isChecked()):
+    elif (self.selectRemoteDatabaseButton.isChecked() or self.selectOtherRemoteDatabaseButton.isChecked()):
       self.getLatestDICOMSEGRemote()
     
 
