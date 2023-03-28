@@ -1651,13 +1651,36 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.serverUrlLineEdit.setReadOnly(True)
       
     
+  def getTagValue(self, study, tag_name):
+    """This function takes as input a single study metadata from dicomweb and 
+      a tag_name, and returns the numeric string for that name"""
+      
+    if tag_name is "PatientID":
+      tag_numeric = '00100020'
+    elif tag_name is "StudyDate":
+      tag_numeric = '00080020'
+    elif tag_name is "StudyInstanceUID":
+      tag_numeric = '0020000D'
+    elif tag_name is "SeriesInstanceUID": 
+      tag_numeric = '0020000E'
+    elif tag_name is "SeriesNumber":
+      tag_numeric = '00200011'
+    elif tag_name is "SeriesDescription":
+      tag_numeric = '0008103E'
+    elif tag_name is "SOPInstanceUID": 
+      tag_numeric = '00080018'
+      
+    study_value = study[tag_numeric]['Value']
+    
+    return study_value 
   
   def getPatientIDsRemoteDatabase(self, studies):
     
     patientList = [] 
     num_studies = len(studies)
     for study in studies: 
-      patientID = study['00100010']['Value'][0]['Alphabetic']
+      # patientID = study['00100010']['Value'][0]['Alphabetic']
+      patientID = self.getTagValue(study, 'PatientID')[0]
       patientList.append(patientID)
     patientList = list(set(patientList))
       
@@ -1686,15 +1709,21 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     studiesMap = {} 
     ShortNames = [] 
     for study in studies: 
-      patient = study['00100010']['Value'][0]['Alphabetic']
-      studyDate = study['00080020']['Value'][0]
+      # patient = study['00100010']['Value'][0]['Alphabetic']
+      patient = self.getTagValue(study, 'PatientID')[0]
+      
+      # studyDate = study['00080020']['Value'][0]
+      studyDate = self.getTagValue(study, 'StudyDate')[0]
+      
       # ShortName = patient_studyDate
       ShortName = patient + '_' + studyDate
       # LongName = SeriesDescription
       # seriesDescription = study['00080030']['Value'][0] # this is the study description, need series Description
       # LongName = seriesDescription 
       # set the values 
-      studyUID = study['0020000D']['Value'][0]
+      # studyUID = study['0020000D']['Value'][0]
+      studyUID = self.getTagValue(study, 'StudyInstanceUID')[0]
+      
       studiesMap[studyUID] = {'ShortName': ShortName}
       studiesMap[studyUID]['LongName'] = '' # can remove LongName later
       studiesMap[studyUID]['StudyInstanceUID'] = studyUID
@@ -1826,14 +1855,20 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       # seriesNumber = series['00200011']['Value'][0] # seriesNumber doesn't exist.. 
       # need to get metadata 
       # seriesInstanceUID = series['00081030']['Value'][0]
-      seriesInstanceUID = series['0020000E']['Value'][0]
+      # seriesInstanceUID = series['0020000E']['Value'][0]
+      seriesInstanceUID = self.getTagValue(series, 'SeriesInstanceUID')[0]
+      
       metadata = self.DICOMwebClient.retrieve_series_metadata(study_instance_uid=studyInstanceUID,
                                                               series_instance_uid=seriesInstanceUID
                                                               )
       # print ('metadata[0]: ' + str(metadata[0]))
-      seriesNumber = str(metadata[0]['00200011']['Value'][0])
+      # seriesNumber = str(metadata[0]['00200011']['Value'][0])
+      seriesNumber = str(self.getTagValue(metadata[0], 'SeriesNumber')[0]) 
+      
       # seriesInstanceUID = series['00081030']['Value'][0]
-      seriesDescription = series['0008103E']['Value'][0]
+      # seriesDescription = series['0008103E']['Value'][0]
+      seriesDescription = self.getTagValue(series, 'SeriesDescription')[0]
+      
       ShortName = str(seriesNumber)+":"+seriesDescription
       
       if "label" not in seriesDescription: 
@@ -2021,7 +2056,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     # Download and write the files that are not currently in the DICOM database 
     print('downloading and writing the files that are currently not in the DICOM database')
     for instanceIndex, instance in enumerate(instances):
-      sopInstanceUid = instance['00080018']['Value'][0]
+      # sopInstanceUid = instance['00080018']['Value'][0]
+      sopInstanceUid = self.getTagValue(instance, 'SOPInstanceUID')[0]
       if sopInstanceUid in instancesAlreadyInDatabase:
         # instance is already in database
         continue
