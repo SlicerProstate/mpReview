@@ -1669,8 +1669,13 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       tag_numeric = '0008103E'
     elif tag_name is "SOPInstanceUID": 
       tag_numeric = '00080018'
-      
-    study_value = study[tag_numeric]['Value']
+    
+    try:
+      study_value = study[tag_numeric]['Value']
+      if type(study_value) == list:
+        study_value = study_value[0]
+    except KeyError:
+      study_value = ""
     
     return study_value 
   
@@ -1680,7 +1685,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     num_studies = len(studies)
     for study in studies: 
       # patientID = study['00100010']['Value'][0]['Alphabetic']
-      patientID = self.getTagValue(study, 'PatientID')[0]
+      patientID = self.getTagValue(study, 'PatientID')
       patientList.append(patientID)
     patientList = list(set(patientList))
       
@@ -1710,10 +1715,10 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     ShortNames = [] 
     for study in studies: 
       # patient = study['00100010']['Value'][0]['Alphabetic']
-      patient = self.getTagValue(study, 'PatientID')[0]
+      patient = self.getTagValue(study, 'PatientID')
       
       # studyDate = study['00080020']['Value'][0]
-      studyDate = self.getTagValue(study, 'StudyDate')[0]
+      studyDate = self.getTagValue(study, 'StudyDate')
       
       # ShortName = patient_studyDate
       ShortName = patient + '_' + studyDate
@@ -1722,7 +1727,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       # LongName = seriesDescription 
       # set the values 
       # studyUID = study['0020000D']['Value'][0]
-      studyUID = self.getTagValue(study, 'StudyInstanceUID')[0]
+      studyUID = self.getTagValue(study, 'StudyInstanceUID')
       
       studiesMap[studyUID] = {'ShortName': ShortName}
       studiesMap[studyUID]['LongName'] = '' # can remove LongName later
@@ -1856,18 +1861,18 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       # need to get metadata 
       # seriesInstanceUID = series['00081030']['Value'][0]
       # seriesInstanceUID = series['0020000E']['Value'][0]
-      seriesInstanceUID = self.getTagValue(series, 'SeriesInstanceUID')[0]
+      seriesInstanceUID = self.getTagValue(series, 'SeriesInstanceUID')
       
       metadata = self.DICOMwebClient.retrieve_series_metadata(study_instance_uid=studyInstanceUID,
                                                               series_instance_uid=seriesInstanceUID
                                                               )
       # print ('metadata[0]: ' + str(metadata[0]))
       # seriesNumber = str(metadata[0]['00200011']['Value'][0])
-      seriesNumber = str(self.getTagValue(metadata[0], 'SeriesNumber')[0]) 
+      seriesNumber = str(self.getTagValue(metadata[0], 'SeriesNumber')) 
       
       # seriesInstanceUID = series['00081030']['Value'][0]
       # seriesDescription = series['0008103E']['Value'][0]
-      seriesDescription = self.getTagValue(series, 'SeriesDescription')[0]
+      seriesDescription = self.getTagValue(series, 'SeriesDescription')
       
       ShortName = str(seriesNumber)+":"+seriesDescription
       
@@ -2057,7 +2062,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     print('downloading and writing the files that are currently not in the DICOM database')
     for instanceIndex, instance in enumerate(instances):
       # sopInstanceUid = instance['00080018']['Value'][0]
-      sopInstanceUid = self.getTagValue(instance, 'SOPInstanceUID')[0]
+      sopInstanceUid = self.getTagValue(instance, 'SOPInstanceUID')
       if sopInstanceUid in instancesAlreadyInDatabase:
         # instance is already in database
         continue
