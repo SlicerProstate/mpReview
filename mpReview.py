@@ -1540,6 +1540,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       if continueCurrentStep:
         self.tabWidget.setCurrentIndex(self.currentTabIndex)
         return True
+      else:
+        self.checkWhichDatabaseSelected()
     return False
 
   def onStep1Selected(self):
