@@ -30,8 +30,7 @@ import pydicom
 
 
 import shutil
-from sklearn.semi_supervised import _self_training
-from _ast import Try
+
 
 
 
