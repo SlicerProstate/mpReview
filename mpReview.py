@@ -1215,35 +1215,44 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     
   def saveSegmentations(self, timestamp, username, database_type):
     
-    labelNodes = slicer.util.getNodes('*-label*')
+    # labelNodes = slicer.util.getNodes('*-label*')
+    labelNodes = slicer.util.getNodesByClass('vtkMRMLSegmentationNode') 
     logging.debug('All label nodes found: ' + str(labelNodes))
     savedMessage = 'Segmentations for the following series were saved:\n\n'
     
     import DICOMSegmentationPlugin
-    # DICOMSegmentationPlugin = slicer.modules.dicomPlugins['DICOMSegmentationPlugin']()
     exporter = DICOMSegmentationPlugin.DICOMSegmentationPluginClass()
     
     success = 0 
     
     db = slicer.dicomDatabase
     
-    for label in labelNodes.values():
+    # for label in labelNodes.values():
+    for label in labelNodes: 
     
-        # labelSeries = label.GetName().split(':')[0]
-        # labelName = label.GetName().split(':')[1]
-        # labelSeries = label.GetName().split(' : ')[0]
-        # labelName = label.GetName().split(' : ')[1]
-        labelName_ref = label.GetName()[:label.GetName().rfind("-")]
-        print('labelName_ref: ' + str(labelName_ref))
-        labelSeries = labelName_ref.split(' : ')[-1] # will be just the referenced SeriesInstanceUID 
+        # labelName_ref = label.GetName()[:label.GetName().rfind("-")]
+        # print('labelName_ref: ' + str(labelName_ref))
+        # labelSeries = labelName_ref.split(' : ')[-1] # will be just the referenced SeriesInstanceUID 
+        
+        # Instead get the labelSeries = referencedSeriesInstanceUID, from the actual segmentation object DICOM metadata 
+        # and not the name of the label 
+        # volumeNode = label.GetNodeReference('referenceImageGeometryRef')
+        labelSeries = self.refSeriesNumber 
+        
+        # For the SeriesDescription of the SEG object
+        labelName = "Segmentation for " + str(labelSeries)
       
+        # Create directory for where to save the output segmentations 
         segmentationsDir = os.path.join(db.databaseDirectory, self.selectedStudyName, labelSeries) 
         self.logic.createDirectory(segmentationsDir) 
         
-        volume_nodes = slicer.util.getNodesByClass('vtkMRMLScalarVolumeNode')
-        volume_names = [f.GetName() for f in volume_nodes]
-        matching_index = volume_names.index(labelName_ref)
-        referenceVolumeNode = volume_nodes[matching_index]
+        
+        # volume_nodes = slicer.util.getNodesByClass('vtkMRMLScalarVolumeNode')
+        # volume_names = [f.GetName() for f in volume_nodes]
+        # matching_index = volume_names.index(labelName_ref)
+        # referenceVolumeNode = volume_nodes[matching_index]
+        ### Get the referenced volume node without matching by name ### 
+        referenceVolumeNode = label.GetNodeReference('referenceImageGeometryRef')
         
         # temp2 = shNode.GetItemDataNode(shNode.GetItemByName('6:T2 Weighted Axial-label'))
         shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
@@ -1264,7 +1273,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
           exportables = exporter.examineForExport(segmentationShItem)
           for exp in exportables:
             exp.directory = segmentationsDir
-            exp.setTag('ContentCreatorName', username)
+            exp.setTag('SeriesDescription', labelName)
+            # exp.setTag('ContentCreatorName', username)
           # exporter.export(exportables)
           
           # uniqueID = username + '-' + "SEG" + '-' + timestamp 
@@ -1287,7 +1297,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
           exportables = exporter.examineForExport(segmentationShItem)
           for exp in exportables:
             exp.directory = downloadDirectory
-            exp.setTag('ContentCreatorName', username)
+            exp.setTag('SeriesDescription', labelName)
+            # exp.setTag('ContentCreatorName', username)
           
           labelFileName = os.path.join(downloadDirectory, 'subject_hierarchy_export.SEG'+exporter.currentDateTime+".dcm")
           print ('labelFileName: ' + str(labelFileName))
@@ -1310,10 +1321,113 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         success = 1 
       
         if success:
-            savedMessage = savedMessage + label.GetName() + '\n'
+            # savedMessage = savedMessage + label.GetName() + '\n'
+            savedMessage = savedMessage + labelName + '\n' # SeriesDescription of SEG
             logging.debug(label.GetName() + ' has been saved to ' + labelFileName)
 
     return savedMessage
+    
+  # def saveSegmentations(self, timestamp, username, database_type):
+  #
+  #   labelNodes = slicer.util.getNodes('*-label*')
+  #   logging.debug('All label nodes found: ' + str(labelNodes))
+  #   savedMessage = 'Segmentations for the following series were saved:\n\n'
+  #
+  #   import DICOMSegmentationPlugin
+  #   # DICOMSegmentationPlugin = slicer.modules.dicomPlugins['DICOMSegmentationPlugin']()
+  #   exporter = DICOMSegmentationPlugin.DICOMSegmentationPluginClass()
+  #
+  #   success = 0 
+  #
+  #   db = slicer.dicomDatabase
+  #
+  #   for label in labelNodes.values():
+  #
+  #       # labelSeries = label.GetName().split(':')[0]
+  #       # labelName = label.GetName().split(':')[1]
+  #       # labelSeries = label.GetName().split(' : ')[0]
+  #       # labelName = label.GetName().split(' : ')[1]
+  #       labelName_ref = label.GetName()[:label.GetName().rfind("-")]
+  #       print('labelName_ref: ' + str(labelName_ref))
+  #       labelSeries = labelName_ref.split(' : ')[-1] # will be just the referenced SeriesInstanceUID 
+  #
+  #       segmentationsDir = os.path.join(db.databaseDirectory, self.selectedStudyName, labelSeries) 
+  #       self.logic.createDirectory(segmentationsDir) 
+  #
+  #       volume_nodes = slicer.util.getNodesByClass('vtkMRMLScalarVolumeNode')
+  #       volume_names = [f.GetName() for f in volume_nodes]
+  #       matching_index = volume_names.index(labelName_ref)
+  #       referenceVolumeNode = volume_nodes[matching_index]
+  #
+  #       # temp2 = shNode.GetItemDataNode(shNode.GetItemByName('6:T2 Weighted Axial-label'))
+  #       shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
+  #
+  #       # set these for now. 
+  #       # study list could be from different patients. 
+  #       patientItemID = shNode.CreateSubjectItem(shNode.GetSceneItemID(), self.selectedStudyName)
+  #       studyItemID = shNode.CreateStudyItem(patientItemID, self.selectedStudyName)
+  #       volumeShItemID = shNode.GetItemByDataNode(referenceVolumeNode) # set volume node 
+  #       shNode.SetItemParent(volumeShItemID, studyItemID)
+  #       segmentationShItem = shNode.GetItemByDataNode(label) # segmentation
+  #       shNode.SetItemParent(segmentationShItem, studyItemID)
+  #
+  #
+  #       if (database_type=="local"):
+  #
+  #         # Export to DICOM
+  #         exportables = exporter.examineForExport(segmentationShItem)
+  #         for exp in exportables:
+  #           exp.directory = segmentationsDir
+  #           # exp.setTag('ContentCreatorName', username)
+  #         # exporter.export(exportables)
+  #
+  #         # uniqueID = username + '-' + "SEG" + '-' + timestamp 
+  #         # labelFileName = os.path.join(segmentationsDir, uniqueID + ".dcm")
+  #
+  #         labelFileName = os.path.join(segmentationsDir, 'subject_hierarchy_export.SEG'+exporter.currentDateTime+".dcm")
+  #         print ('labelFileName: ' + str(labelFileName))
+  #
+  #         # exporter.export(exportables, labelFileName)
+  #         exporter.export(exportables)
+  #
+  #       elif (database_type=="remote"):
+  #
+  #         # Create temporary directory for saving the DICOM SEG file  
+  #         downloadDirectory = os.path.join(slicer.dicomDatabase.databaseDirectory,'tmp')
+  #         if not os.path.isdir(downloadDirectory):
+  #           os.mkdir(downloadDirectory)
+  #
+  #         # Export to DICOM
+  #         exportables = exporter.examineForExport(segmentationShItem)
+  #         for exp in exportables:
+  #           exp.directory = downloadDirectory
+  #           # exp.setTag('ContentCreatorName', username)
+  #
+  #         labelFileName = os.path.join(downloadDirectory, 'subject_hierarchy_export.SEG'+exporter.currentDateTime+".dcm")
+  #         print ('labelFileName: ' + str(labelFileName))
+  #
+  #         exporter.export(exportables)
+  #
+  #         # Upload to remote server 
+  #         # self.copySegmentationsToRemote(labelFileName) # this one uses buckets and DICOM datastores 
+  #         print('uploading seg dcm file to the remote server')
+  #         self.copySegmentationsToRemoteDicomweb(labelFileName) # this one uses dicomweb client 
+  #
+  #         # Now delete the files from the temporary directory 
+  #         for f in os.listdir(downloadDirectory):
+  #           os.remove(os.path.join(downloadDirectory, f))
+  #         # Delete the temporary directory 
+  #         os.rmdir(downloadDirectory)
+  #
+  #         # also remove from the dicom database - it was added automatically?
+  #
+  #       success = 1 
+  #
+  #       if success:
+  #           savedMessage = savedMessage + label.GetName() + '\n'
+  #           logging.debug(label.GetName() + ' has been saved to ' + labelFileName)
+  #
+  #   return savedMessage
   
   def copySegmentationsToRemoteDicomweb(self, labelFileName):
     """Uses the dicomweb client to store DICOM SEG instance in the remote server"""
@@ -1684,6 +1798,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       tag_numeric = '00080023'
     elif tag_name == "ContentCreatorTime":
       tag_numeric = '00080033'
+    elif tag_name == "Modality":
+      tag_numeric = '00080060'
       
     try:
       study_value = study[tag_numeric]['Value']
@@ -1777,6 +1893,10 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     #     studiesMap[studyUID]['StudyInstanceUID'] = studyUID
         
     # print ('studiesMap: ' + str(studiesMap))  
+    
+    # order the values
+    studiesMap = {k: v for k, v in sorted(studiesMap.items(), key=lambda item: item[1]['ShortName'])}
+    
     self.studiesMap = studiesMap 
         
     return studiesMap 
@@ -1859,10 +1979,10 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       if (seriesNumber == -1 and seriesDescription): 
         seriesMap[seriesInstanceUID] = {'ShortName': seriesDescription + " : " + seriesInstanceUID}
       elif (seriesDescription == ""):
-        seriesMap[seriesInstanceUID] = {'ShortName': seriesNumber + " : " + seriesInstanceUID}
+        seriesMap[seriesInstanceUID] = {'ShortName': str(seriesNumber) + " : " + seriesInstanceUID}
       else: 
-        if ("label" not in seriesDescription):
-          seriesMap[seriesInstanceUID] = {'ShortName': str(seriesNumber) + " : " + seriesDescription + " : " + seriesInstanceUID} 
+        # if ("label" not in seriesDescription):
+        seriesMap[seriesInstanceUID] = {'ShortName': str(seriesNumber) + " : " + seriesDescription + " : " + seriesInstanceUID} 
       #
       #
       # seriesDescription = db.fileValue(fileList[0], "0008,103e")
@@ -2547,62 +2667,70 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     
     # Get the list of series for this study 
     seriesList = slicer.dicomDatabase.seriesForStudy(self.selectedStudyNumber)
-        
-    # Get the list of files that have the username
-    fileNames = []  
+    
+    fileName_load = "" 
+    
+    # Get the list of all files 
+    fileNames = [] 
     for series in seriesList: 
       fileList = slicer.dicomDatabase.filesForSeries(series)
       fileName = fileList[0]
-      ContentCreatorName = slicer.dicomDatabase.fileValue(fileName, "0070,0084")
-      if (ContentCreatorName == self.getSetting('UserName')): 
-        fileNames.append(fileName)
+      fileNames.append(fileName)
     print('fileNames: ' + str(fileNames))
     
     # No labels exist 
     if not len(fileNames):
       return False,None
     
-    # For the files that have the username, only keep the ones that have a referenced SeriesInstanceUID 
+    # For the files, only keep the ones that have a referenced SeriesInstanceUID 
     # that matches the self.refSeriesNumber 
     seg_fileNames = [] 
     for fileName in fileNames:  
       dcm = pydicom.dcmread(fileName)
-      # get referencedSeriesInstanceUID 
-      # only keep if it matches the self.refSeriesNumber 
-      referencedSeriesInstanceUID = dcm.ReferencedSeriesSequence[0].SeriesInstanceUID 
-      if (referencedSeriesInstanceUID == ref): 
-        seg_fileNames.append(fileName)
+      # check if Modality is SEG, then check ReferencedSeriesSequence
+      if (dcm.Modality == "SEG"):
+        # get referencedSeriesInstanceUID 
+        # only keep if it matches the self.refSeriesNumber 
+        referencedSeriesInstanceUID = dcm.ReferencedSeriesSequence[0].SeriesInstanceUID 
+        if (referencedSeriesInstanceUID == ref): 
+          seg_fileNames.append(fileName)
     print('seg_fileNames: ' + str(seg_fileNames))
       
-    # Get the latest SEG file that has the username 
+    # Get the latest SEG file 
     for index,seg_fileName in enumerate(seg_fileNames): 
       currentTimeStamp = os.path.getmtime(seg_fileName)
       if (index==0):
         latestTimeStamp = currentTimeStamp
-        fileName = seg_fileNames[index] 
+        fileName_load = seg_fileNames[index] 
       else:
         # if the file is newer 
         if (currentTimeStamp > latestTimeStamp):
           latestTimeStamp = currentTimeStamp 
-          fileName = seg_fileNames[index]
-    print('fileName: ' + str(fileName))
+          fileName_load = seg_fileNames[index]
+    print('fileName_load: ' + str(fileName_load))
           
     # remove all seg nodes from the scene with this referencedSeriesInstanceUID
     seg_nodes_already_exist = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
     for seg_node in seg_nodes_already_exist:
       slicer.mrmlScene.RemoveNode(seg_node)
-   
-    # Load the segmentation file 
-    DICOMSegmentationPlugin = slicer.modules.dicomPlugins['DICOMSegmentationPlugin']()
-    loadables = DICOMSegmentationPlugin.examineFiles([fileName])
-    DICOMSegmentationPlugin.load(loadables[0])
+      
+    print('fileName_load: ' + str(fileName_load))
     
-    # there should only be 1 node in the scene 
-    seg_nodes = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
-    seg_node = seg_nodes[0] 
-    seriesDescription = seg_node.GetName() 
-    refLabel = slicer.util.getNode(seriesDescription)
-    self.seriesMap[str(ref)]['Label'] = refLabel 
+    # Load the segmentation file if present
+    if fileName_load: 
+      
+      DICOMSegmentationPlugin = slicer.modules.dicomPlugins['DICOMSegmentationPlugin']()
+      # loadables = DICOMSegmentationPlugin.examineFiles([fileName])
+      loadables = DICOMSegmentationPlugin.examineFiles([fileName_load])
+      print('loadables: ' + str(loadables))
+      DICOMSegmentationPlugin.load(loadables[0])
+      
+      # there should only be 1 node in the scene 
+      seg_nodes = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
+      seg_node = seg_nodes[0] 
+      seriesDescription = seg_node.GetName() 
+      refLabel = slicer.util.getNode(seriesDescription)
+      self.seriesMap[str(ref)]['Label'] = refLabel 
     
     return True  
   
@@ -2635,30 +2763,24 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       metadata = self.DICOMwebClient.retrieve_series_metadata(study_instance_uid=studyInstanceUID,
                                                               series_instance_uid=seriesInstanceUID
                                                               )
-      # Get the ContentCreatorName 
-      ContentCreatorName = self.getTagValue(metadata[0], 'ContentCreatorName')
-      print('ContentCreatorName: ' + str(ContentCreatorName))
-      if (ContentCreatorName == self.getSetting('UserName')): 
-        # Only keep the SeriesInstanceUID if it has a referenced SeriesInstanceUID that matches the ref
+      # Get the Modality and check if SEG, if so, do the next 
+      modality = self.getTagValue(metadata[0], 'Modality')
+      if (modality == "SEG"):
+        # Get the referencedSeriesSequence and check if it matches ref 
         referencedSeriesSequence = self.getTagValue(metadata[0], 'ReferencedSeriesSequence') # check this
         print('referencedSeriesSequence: ' + str(referencedSeriesSequence))
-        # referencedSeriesInstanceUID = referencedSeriesSequence[0].SeriesInstanceUID # check this
         referencedSeriesInstanceUID = self.getTagValue(referencedSeriesSequence, 'SeriesInstanceUID')
-        print('referencedSeriesInstanceUID: ' + str(referencedSeriesInstanceUID))
         if (ref == referencedSeriesInstanceUID):
-          seriesInstanceUIDs_list.append(seriesInstanceUID)
-          # ContentCreatorDate_list.append(metadata[0]['00080023']['Value'][0]) # change these to use gettagvalue function
-          # ContentCreatorTime_list.append(metadata[0]['00080033']['Value'][0]) # change these to use gettagvalue function
-          # sopInstanceUIDs_list.append(metadata[0]['00080018']['Value'][0])    # change these to use gettagvalue function
-          ContentCreatorDate_list.append(self.getTagValue(metadata[0], 'ContentCreatorDate'))
-          ContentCreatorTime_list.append(self.getTagValue(metadata[0], 'ContentCreatorTime'))
-          sopInstanceUIDs_list.append(self.getTagValue(metadata[0], 'SOPInstanceUID'))
+            seriesInstanceUIDs_list.append(seriesInstanceUID)
+            ContentCreatorDate_list.append(self.getTagValue(metadata[0], 'ContentCreatorDate'))
+            ContentCreatorTime_list.append(self.getTagValue(metadata[0], 'ContentCreatorTime'))
+            sopInstanceUIDs_list.append(self.getTagValue(metadata[0], 'SOPInstanceUID'))
                     
     # No labels exist 
     if not len(seriesInstanceUIDs_list):
       return False,None    
     
-    # Get the latest file - the last label file with the username 
+    # Get the latest label file 
     for index, series in enumerate(seriesInstanceUIDs_list):
       ContentCreatorDate = ContentCreatorDate_list[index]
       ContentCreatorTime = ContentCreatorTime_list[index]
@@ -2739,6 +2861,141 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     
     return True      
   
+  
+  # def getLatestDICOMSEGRemote(self): 
+  #   '''From the reference series number, find the corresponding labels from the 
+  #      remote server. Choose the latest one and load that segmentation. '''
+  #
+  #   indexer = ctk.ctkDICOMIndexer()  
+  #
+  #   # ref = int(self.refSeriesNumber) 
+  #   ref = self.refSeriesNumber # the SeriesInstanceUID 
+  #   print('ref: ' + str(ref))
+  #   # set the segmentation node to self.seriesMap[str(ref)]['Label'] 
+  #
+  #   # Get the study selected
+  #   studyInstanceUID = self.selectedStudyNumber
+  #
+  #   print ('*******Getting the latest DICOM SEG files from remote*******')
+  #
+  #   # First get a list of the seriesInstanceUIDs that have the matching ContentCreatorName
+  #   seriesInstanceUIDs_list = [] 
+  #   metadata_list = [] 
+  #   ContentCreatorDate_list = [] 
+  #   ContentCreatorTime_list = [] 
+  #   sopInstanceUIDs_list = [] 
+  #
+  #   for series in self.seriesList:  
+  #     # Get the metadata to check 
+  #     seriesInstanceUID = self.getTagValue(series, 'SeriesInstanceUID')
+  #     metadata = self.DICOMwebClient.retrieve_series_metadata(study_instance_uid=studyInstanceUID,
+  #                                                             series_instance_uid=seriesInstanceUID
+  #                                                             )
+  #     # Get the ContentCreatorName 
+  #     ContentCreatorName = self.getTagValue(metadata[0], 'ContentCreatorName')
+  #     print('ContentCreatorName: ' + str(ContentCreatorName))
+  #     if (ContentCreatorName == self.getSetting('UserName')): 
+  #       # Only keep the SeriesInstanceUID if it has a referenced SeriesInstanceUID that matches the ref
+  #       referencedSeriesSequence = self.getTagValue(metadata[0], 'ReferencedSeriesSequence') # check this
+  #       print('referencedSeriesSequence: ' + str(referencedSeriesSequence))
+  #       # referencedSeriesInstanceUID = referencedSeriesSequence[0].SeriesInstanceUID # check this
+  #       referencedSeriesInstanceUID = self.getTagValue(referencedSeriesSequence, 'SeriesInstanceUID')
+  #       print('referencedSeriesInstanceUID: ' + str(referencedSeriesInstanceUID))
+  #       if (ref == referencedSeriesInstanceUID):
+  #         seriesInstanceUIDs_list.append(seriesInstanceUID)
+  #         # ContentCreatorDate_list.append(metadata[0]['00080023']['Value'][0]) # change these to use gettagvalue function
+  #         # ContentCreatorTime_list.append(metadata[0]['00080033']['Value'][0]) # change these to use gettagvalue function
+  #         # sopInstanceUIDs_list.append(metadata[0]['00080018']['Value'][0])    # change these to use gettagvalue function
+  #         ContentCreatorDate_list.append(self.getTagValue(metadata[0], 'ContentCreatorDate'))
+  #         ContentCreatorTime_list.append(self.getTagValue(metadata[0], 'ContentCreatorTime'))
+  #         sopInstanceUIDs_list.append(self.getTagValue(metadata[0], 'SOPInstanceUID'))
+  #
+  #   # No labels exist 
+  #   if not len(seriesInstanceUIDs_list):
+  #     return False,None    
+  #
+  #   # Get the latest file - the last label file with the username 
+  #   for index, series in enumerate(seriesInstanceUIDs_list):
+  #     ContentCreatorDate = ContentCreatorDate_list[index]
+  #     ContentCreatorTime = ContentCreatorTime_list[index]
+  #     currentTimeStamp = datetime.datetime.strptime(ContentCreatorDate+ContentCreatorTime, "%Y%m%d%H%M%S").timestamp()
+  #     if (index==0):
+  #       latestTimeStamp = currentTimeStamp
+  #       seriesInstanceUID = seriesInstanceUIDs_list[0]
+  #       sopInstanceUID = sopInstanceUIDs_list[0]
+  #     else:
+  #       # if the file is newer 
+  #       if (currentTimeStamp > latestTimeStamp):
+  #         latestTimeStamp = currentTimeStamp 
+  #         seriesInstanceUID = seriesInstanceUIDs_list[index]
+  #         sopInstanceUID = sopInstanceUIDs_list[index]
+  #
+  #
+  #   print ('******** Getting the matching DICOM SEG instance from remote *********')
+  #
+  #   # Retrieve the instance using the DICOM web client  
+  #   retrievedInstance = self.DICOMwebClient.retrieve_instance(study_instance_uid=studyInstanceUID,
+  #                                                             series_instance_uid=seriesInstanceUID, 
+  #                                                             sop_instance_uid=sopInstanceUID)
+  #   # Save to here for now 
+  #   db = slicer.dicomDatabase
+  #   # labelSeries = label.GetName().split(':')[0] # fix 
+  #   labelSeries = str(ref) # should be right 
+  #
+  #   segmentationsDir = os.path.join(slicer.dicomDatabase.databaseDirectory, 'tmp') 
+  #   self.logic.createDirectory(segmentationsDir)
+  #
+  #   ### added ###
+  #   # remove the previous seg nodes with the same name before loading in the latest one.
+  #   seg_nodes_already_exist = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
+  #   seg_names = [] 
+  #   for seg_node in seg_nodes_already_exist:
+  #     # seg_name = seg_node.GetName() 
+  #     # if (seg_name==seriesDescription):
+  #     slicer.mrmlScene.RemoveNode(seg_node)
+  #   #############
+  #
+  #
+  #   # Write the SEG file 
+  #   import DICOMSegmentationPlugin 
+  #   exporter = DICOMSegmentationPlugin.DICOMSegmentationPluginClass()
+  #   fileName = os.path.join(segmentationsDir, 'subject_hierarchy_export.SEG'+exporter.currentDateTime+".dcm")
+  #   # import pydicom 
+  #   pydicom.filewriter.write_file(fileName, retrievedInstance)
+  #
+  #   # Add the tmp directory to the local DICOM database 
+  #   indexer.addDirectory(slicer.dicomDatabase, segmentationsDir, True)  # index with file copy
+  #   indexer.waitForImportFinished()
+  #
+  #   # Now delete the files from the temporary directory 
+  #   for f in os.listdir(segmentationsDir):
+  #     os.remove(os.path.join(segmentationsDir, f))
+  #   # Delete the temporary directory 
+  #   os.rmdir(segmentationsDir)
+  #
+  #   # Now need to load the DICOM SEG from the local DICOM database, and not 
+  #   # from the file that was just saved out and deleted
+  #   fileList = slicer.dicomDatabase.filesForSeries(seriesInstanceUID)
+  #   fileName = fileList[0]
+  #
+  #   # Load the SEG file 
+  #   loadables = exporter.examineFiles([fileName])
+  #   exporter.load(loadables[0])
+  #
+  #   # create seriesMap 
+  #   # refLabel = slicer.util.getNode(seriesDescription) # seriesDescription should be '6:T2 Weighted Axial-label'
+  #   # self.seriesMap[str(ref)]['Label'] = refLabel 
+  #
+  #    # there should only be 1 node in the scene 
+  #   seg_nodes = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
+  #   seg_node = seg_nodes[0] 
+  #   seriesDescription = seg_node.GetName() 
+  #   refLabel = slicer.util.getNode(seriesDescription)
+  #   self.seriesMap[str(ref)]['Label'] = refLabel 
+  #
+  #   return True      
+  #
+
   
   # def getLatestDICOMSEGRemote(self): 
   #   '''From the reference series number, find the corresponding labels from the 
@@ -2984,7 +3241,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       
     except KeyError:
       # create a new label
-      labelName = self.seriesMap[ref]['ShortName']+'-label'
+      # labelName = self.seriesMap[ref]['ShortName']+'-label'
+      labelName = "Segmentation"
       
       # ### added ###
       # seg_nodes_already_exist = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
@@ -3201,6 +3459,8 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
       #   studyListAll.append(studyList[0])
         
     # return studyListAll 
+    studiesMap = {k: v for k, v in sorted(studiesMap.items(), key=lambda item: item[1]['ShortName'])}
+    
     return studiesMap 
     
     # studiesMap = {}
