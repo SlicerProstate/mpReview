@@ -1238,6 +1238,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         # and not the name of the label 
         # volumeNode = label.GetNodeReference('referenceImageGeometryRef')
         labelSeries = self.refSeriesNumber 
+        
+        # For the SeriesDescription of the SEG object
+        labelName = "Segmentation for " + str(labelSeries)
       
         # Create directory for where to save the output segmentations 
         segmentationsDir = os.path.join(db.databaseDirectory, self.selectedStudyName, labelSeries) 
@@ -1270,6 +1273,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
           exportables = exporter.examineForExport(segmentationShItem)
           for exp in exportables:
             exp.directory = segmentationsDir
+            exp.setTag('SeriesDescription', labelName)
             # exp.setTag('ContentCreatorName', username)
           # exporter.export(exportables)
           
@@ -1293,6 +1297,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
           exportables = exporter.examineForExport(segmentationShItem)
           for exp in exportables:
             exp.directory = downloadDirectory
+            exp.setTag('SeriesDescription', labelName)
             # exp.setTag('ContentCreatorName', username)
           
           labelFileName = os.path.join(downloadDirectory, 'subject_hierarchy_export.SEG'+exporter.currentDateTime+".dcm")
@@ -1316,7 +1321,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         success = 1 
       
         if success:
-            savedMessage = savedMessage + label.GetName() + '\n'
+            # savedMessage = savedMessage + label.GetName() + '\n'
+            savedMessage = savedMessage + labelName + '\n' # SeriesDescription of SEG
             logging.debug(label.GetName() + ' has been saved to ' + labelFileName)
 
     return savedMessage
@@ -1887,6 +1893,10 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     #     studiesMap[studyUID]['StudyInstanceUID'] = studyUID
         
     # print ('studiesMap: ' + str(studiesMap))  
+    
+    # order the values
+    studiesMap = {k: v for k, v in sorted(studiesMap.items(), key=lambda item: item[1]['ShortName'])}
+    
     self.studiesMap = studiesMap 
         
     return studiesMap 
@@ -3449,6 +3459,8 @@ class mpReviewLogic(ScriptedLoadableModuleLogic):
       #   studyListAll.append(studyList[0])
         
     # return studyListAll 
+    studiesMap = {k: v for k, v in sorted(studiesMap.items(), key=lambda item: item[1]['ShortName'])}
+    
     return studiesMap 
     
     # studiesMap = {}
