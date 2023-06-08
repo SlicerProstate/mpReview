@@ -109,8 +109,8 @@ class mpReview(ScriptedLoadableModule, ModuleWidgetMixin):
 
 class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
-  PIRADS_VIEWFORM_URL = 'https://docs.google.com/forms/d/1Xwhvjn_HjRJAtgV5VruLCDJ_eyj1C-txi8HWn8VyXa4/viewform'
-  QA_VIEWFORM_URL = 'https://docs.google.com/forms/d/18Ni2rcooi60fev5mWshJA0yaCzHYvmXPhcG2-jMF-uw/viewform'
+  # PIRADS_VIEWFORM_URL = 'https://docs.google.com/forms/d/1Xwhvjn_HjRJAtgV5VruLCDJ_eyj1C-txi8HWn8VyXa4/viewform'
+  # QA_VIEWFORM_URL = 'https://docs.google.com/forms/d/18Ni2rcooi60fev5mWshJA0yaCzHYvmXPhcG2-jMF-uw/viewform'
 
   @property
   def inputDataDir(self):
@@ -135,8 +135,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def __init__(self, parent = None):
     ScriptedLoadableModuleWidget.__init__(self, parent)
     self.resourcesPath = os.path.join(slicer.modules.mpreview.path.replace(self.moduleName+".py",""), 'Resources')
-    self.qaFormURL = ''
-    self.piradsFormURL = ''
+    # self.qaFormURL = ''
+    # self.piradsFormURL = ''
 
     # mrml node for invoking command line modules
     self.CLINode = None
@@ -906,99 +906,99 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
 
 
-  def enter(self):
-    userName = self.getSetting('UserName')
-    self.piradsFormURL = self.getSetting('piradsFormURL')
-    self.qaFormURL = self.getSetting('qaFormURL')
-
-    if userName is None or userName == '':
-      # prompt the user for ID (last name)
-      self.namePrompt = qt.QDialog()
-      self.namePromptLayout = qt.QVBoxLayout()
-      self.namePrompt.setLayout(self.namePromptLayout)
-      self.nameLabel = qt.QLabel('Enter your last name:', self.namePrompt)
-      import getpass
-      self.nameText = qt.QLineEdit(getpass.getuser(), self.namePrompt)
-      self.nameButton = qt.QPushButton('OK', self.namePrompt)
-      self.nameButton.connect('clicked()', self.onNameEntered)
-      self.namePromptLayout.addWidget(self.nameLabel)
-      self.namePromptLayout.addWidget(self.nameText)
-      self.namePromptLayout.addWidget(self.nameButton)
-      self.namePrompt.exec_()
-    else:
-      self.parameters['UserName'] = userName
-
-    if self.piradsFormURL is None or self.piradsFormURL == '':
-      # prompt the user for the review form
-      # Note: it is expected that the module uses the form of the structure as
-      # in http://goo.gl/nT1z4L. The known structure of the form is used to
-      # pre-populate the fields corresponding to readerName, studyName and
-      # lesionID.
-      self.URLPrompt = qt.QDialog()
-      self.URLPromptLayout = qt.QVBoxLayout()
-      self.URLPrompt.setLayout(self.URLPromptLayout)
-      self.URLLabel = qt.QLabel('Enter PI-RADS review form URL:', self.URLPrompt)
-      # replace this if you are using a different form
-      self.URLText = qt.QLineEdit(self.PIRADS_VIEWFORM_URL)
-      self.URLButton = qt.QPushButton('OK', self.URLPrompt)
-      self.URLButton.connect('clicked()', self.onPIRADSURLEntered)
-      self.URLPromptLayout.addWidget(self.URLLabel)
-      self.URLPromptLayout.addWidget(self.URLText)
-      self.URLPromptLayout.addWidget(self.URLButton)
-      self.URLPrompt.exec_()
-
-      if self.qaFormURL is None or self.qaFormURL == '':
-        # prompt the user for the review form
-        # Note: it is expected that the module uses the form of the structure as
-        # in http://goo.gl/nT1z4L. The known structure of the form is used to
-        # pre-populate the fields corresponding to readerName, studyName and
-        # lesionID.
-        self.URLPrompt = qt.QDialog()
-        self.URLPromptLayout = qt.QVBoxLayout()
-        self.URLPrompt.setLayout(self.URLPromptLayout)
-        self.URLLabel = qt.QLabel('Enter QA review form URL:', self.URLPrompt)
-        # replace this if you are using a different form
-        self.URLText = qt.QLineEdit(self.QA_VIEWFORM_URL)
-        self.URLButton = qt.QPushButton('OK', self.URLPrompt)
-        self.URLButton.connect('clicked()', self.onQAURLEntered)
-        self.URLPromptLayout.addWidget(self.URLLabel)
-        self.URLPromptLayout.addWidget(self.URLText)
-        self.URLPromptLayout.addWidget(self.URLButton)
-        self.URLPrompt.exec_()
-
-    '''
-    # ask where is the input
-    if inputLocation == None or inputLocation == '':
-      self.dirPrompt = qt.QDialog()
-      self.dirPromptLayout = qt.QVBoxLayout()
-      self.dirPrompt.setLayout(self.dirPromptLayout)
-      self.dirLabel = qt.QLabel('Choose the directory with the input data:', self.dirPrompt)
-      self.dirButton = ctk.ctkDirectoryButton(self.dirPrompt)
-      self.dirButtonDone = qt.QPushButton('OK', self.dirPrompt)
-      self.dirButtonDone.connect('clicked()', self.onInputDirEntered)
-      self.dirPromptLayout.addWidget(self.dirLabel)
-      self.dirPromptLayout.addWidget(self.dirButton)
-      self.dirPromptLayout.addWidget(self.dirButtonDone)
-      self.dirPrompt.exec_()
-    else:
-      self.parameters['InputLocation'] = inputLocation
-      logging.debug('Setting inputlocation in settings to '+inputLocation)
-    # ask where to keep the results
-    if resultsLocation == None or resultsLocation == '':
-      self.dirPrompt = qt.QDialog()
-      self.dirPromptLayout = qt.QVBoxLayout()
-      self.dirPrompt.setLayout(self.dirPromptLayout)
-      self.dirLabel = qt.QLabel('Choose the directory to store the results:', self.dirPrompt)
-      self.dirButton = ctk.ctkDirectoryButton(self.dirPrompt)
-      self.dirButtonDone = qt.QPushButton('OK', self.dirPrompt)
-      self.dirButtonDone.connect('clicked()', self.onResultsDirEntered)
-      self.dirPromptLayout.addWidget(self.dirLabel)
-      self.dirPromptLayout.addWidget(self.dirButton)
-      self.dirPromptLayout.addWidget(self.dirButtonDone)
-      self.dirPrompt.exec_()
-    else:
-      self.parameters['ResultsLocation'] = resultsLocation
-    '''
+  # def enter(self):
+  #   userName = self.getSetting('UserName')
+  #   self.piradsFormURL = self.getSetting('piradsFormURL')
+  #   self.qaFormURL = self.getSetting('qaFormURL')
+  #
+  #   if userName is None or userName == '':
+  #     # prompt the user for ID (last name)
+  #     self.namePrompt = qt.QDialog()
+  #     self.namePromptLayout = qt.QVBoxLayout()
+  #     self.namePrompt.setLayout(self.namePromptLayout)
+  #     self.nameLabel = qt.QLabel('Enter your last name:', self.namePrompt)
+  #     import getpass
+  #     self.nameText = qt.QLineEdit(getpass.getuser(), self.namePrompt)
+  #     self.nameButton = qt.QPushButton('OK', self.namePrompt)
+  #     self.nameButton.connect('clicked()', self.onNameEntered)
+  #     self.namePromptLayout.addWidget(self.nameLabel)
+  #     self.namePromptLayout.addWidget(self.nameText)
+  #     self.namePromptLayout.addWidget(self.nameButton)
+  #     self.namePrompt.exec_()
+  #   else:
+  #     self.parameters['UserName'] = userName
+  #
+  #   if self.piradsFormURL is None or self.piradsFormURL == '':
+  #     # prompt the user for the review form
+  #     # Note: it is expected that the module uses the form of the structure as
+  #     # in http://goo.gl/nT1z4L. The known structure of the form is used to
+  #     # pre-populate the fields corresponding to readerName, studyName and
+  #     # lesionID.
+  #     self.URLPrompt = qt.QDialog()
+  #     self.URLPromptLayout = qt.QVBoxLayout()
+  #     self.URLPrompt.setLayout(self.URLPromptLayout)
+  #     self.URLLabel = qt.QLabel('Enter PI-RADS review form URL:', self.URLPrompt)
+  #     # replace this if you are using a different form
+  #     self.URLText = qt.QLineEdit(self.PIRADS_VIEWFORM_URL)
+  #     self.URLButton = qt.QPushButton('OK', self.URLPrompt)
+  #     self.URLButton.connect('clicked()', self.onPIRADSURLEntered)
+  #     self.URLPromptLayout.addWidget(self.URLLabel)
+  #     self.URLPromptLayout.addWidget(self.URLText)
+  #     self.URLPromptLayout.addWidget(self.URLButton)
+  #     self.URLPrompt.exec_()
+  #
+  #     if self.qaFormURL is None or self.qaFormURL == '':
+  #       # prompt the user for the review form
+  #       # Note: it is expected that the module uses the form of the structure as
+  #       # in http://goo.gl/nT1z4L. The known structure of the form is used to
+  #       # pre-populate the fields corresponding to readerName, studyName and
+  #       # lesionID.
+  #       self.URLPrompt = qt.QDialog()
+  #       self.URLPromptLayout = qt.QVBoxLayout()
+  #       self.URLPrompt.setLayout(self.URLPromptLayout)
+  #       self.URLLabel = qt.QLabel('Enter QA review form URL:', self.URLPrompt)
+  #       # replace this if you are using a different form
+  #       self.URLText = qt.QLineEdit(self.QA_VIEWFORM_URL)
+  #       self.URLButton = qt.QPushButton('OK', self.URLPrompt)
+  #       self.URLButton.connect('clicked()', self.onQAURLEntered)
+  #       self.URLPromptLayout.addWidget(self.URLLabel)
+  #       self.URLPromptLayout.addWidget(self.URLText)
+  #       self.URLPromptLayout.addWidget(self.URLButton)
+  #       self.URLPrompt.exec_()
+  #
+  #   '''
+  #   # ask where is the input
+  #   if inputLocation == None or inputLocation == '':
+  #     self.dirPrompt = qt.QDialog()
+  #     self.dirPromptLayout = qt.QVBoxLayout()
+  #     self.dirPrompt.setLayout(self.dirPromptLayout)
+  #     self.dirLabel = qt.QLabel('Choose the directory with the input data:', self.dirPrompt)
+  #     self.dirButton = ctk.ctkDirectoryButton(self.dirPrompt)
+  #     self.dirButtonDone = qt.QPushButton('OK', self.dirPrompt)
+  #     self.dirButtonDone.connect('clicked()', self.onInputDirEntered)
+  #     self.dirPromptLayout.addWidget(self.dirLabel)
+  #     self.dirPromptLayout.addWidget(self.dirButton)
+  #     self.dirPromptLayout.addWidget(self.dirButtonDone)
+  #     self.dirPrompt.exec_()
+  #   else:
+  #     self.parameters['InputLocation'] = inputLocation
+  #     logging.debug('Setting inputlocation in settings to '+inputLocation)
+  #   # ask where to keep the results
+  #   if resultsLocation == None or resultsLocation == '':
+  #     self.dirPrompt = qt.QDialog()
+  #     self.dirPromptLayout = qt.QVBoxLayout()
+  #     self.dirPrompt.setLayout(self.dirPromptLayout)
+  #     self.dirLabel = qt.QLabel('Choose the directory to store the results:', self.dirPrompt)
+  #     self.dirButton = ctk.ctkDirectoryButton(self.dirPrompt)
+  #     self.dirButtonDone = qt.QPushButton('OK', self.dirPrompt)
+  #     self.dirButtonDone.connect('clicked()', self.onResultsDirEntered)
+  #     self.dirPromptLayout.addWidget(self.dirLabel)
+  #     self.dirPromptLayout.addWidget(self.dirButton)
+  #     self.dirPromptLayout.addWidget(self.dirButtonDone)
+  #     self.dirPrompt.exec_()
+  #   else:
+  #     self.parameters['ResultsLocation'] = resultsLocation
+  #   '''
 
   def checkAndSetLUT(self):
     # Default to module color table
@@ -1211,8 +1211,18 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     '''
 
     # savedMessage += "\n " + self.saveTargets(username, timestamp)
-    # slicer.util.infoDisplay(savedMessage, windowTitle="mpReview")
-    
+    savedMessage = "Segmentations for the following series were saved: "  + str(self.seriesMap[self.refSeriesNumber]['ShortName'])
+    slicer.util.infoDisplay(savedMessage, windowTitle="mpReview")
+
+    # Remove all nodes from scene
+    volumeNodesToRemove = slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")
+    segNodesToRemove = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
+    for node in volumeNodesToRemove:
+      slicer.mrmlScene.RemoveNode(node)
+    for node in segNodesToRemove:
+      slicer.mrmlScene.RemoveNode(node)
+
+
   def saveSegmentations(self, timestamp, username, database_type):
     
     # labelNodes = slicer.util.getNodes('*-label*')
@@ -1240,7 +1250,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         labelSeries = self.refSeriesNumber 
         
         # For the SeriesDescription of the SEG object
-        labelName = "Segmentation for " + str(labelSeries)
+        # labelName = "Segmentation for " + str(labelSeries)
+        labelName = "Segmentation"
       
         # Create directory for where to save the output segmentations 
         segmentationsDir = os.path.join(db.databaseDirectory, self.selectedStudyName, labelSeries) 
@@ -1952,13 +1963,15 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       sItem = qt.QStandardItem(seriesText) 
       self.seriesItems.append(sItem)   
       self.seriesModel.appendRow(sItem)
+      self.seriesUIDs.append(s)
       sItem.setCheckable(1)
       if self.logic.isSeriesOfInterest(seriesText):
         sItem.setCheckState(2)
     
   def updateSeriesTable(self):
     
-    self.seriesItems = []  
+    self.seriesItems = []
+    self.seriesUIDs = []
     self.seriesModel.clear()
     db = slicer.dicomDatabase
     seriesList = db.seriesForStudy(self.selectedStudyNumber)
@@ -1974,15 +1987,20 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       try:
         seriesDescription = db.fileValue(fileList[0], "0008,103e")
       except: 
-        seriesDescription = "" 
-        
-      if (seriesNumber == -1 and seriesDescription): 
-        seriesMap[seriesInstanceUID] = {'ShortName': seriesDescription + " : " + seriesInstanceUID}
+        seriesDescription = ""
+
+      if (seriesNumber != -1 and seriesDescription):
+        seriesMap[seriesInstanceUID] = {'ShortName':  str(seriesNumber) + ' : ' + seriesDescription}
+      elif (seriesNumber == -1 and seriesDescription):
+        # seriesMap[seriesInstanceUID] = {'ShortName': seriesDescription + " : " + seriesInstanceUID}
+        seriesMap[seriesInstanceUID] = {'ShortName': '[no SeriesNumber] ' + seriesDescription}
       elif (seriesDescription == ""):
-        seriesMap[seriesInstanceUID] = {'ShortName': str(seriesNumber) + " : " + seriesInstanceUID}
+        # seriesMap[seriesInstanceUID] = {'ShortName': str(seriesNumber) + " : " + seriesInstanceUID}
+        seriesMap[seriesInstanceUID] = {'ShortName': str(seriesNumber) + ' [no SeriesDescription]'}
       else: 
         # if ("label" not in seriesDescription):
-        seriesMap[seriesInstanceUID] = {'ShortName': str(seriesNumber) + " : " + seriesDescription + " : " + seriesInstanceUID} 
+        # seriesMap[seriesInstanceUID] = {'ShortName': str(seriesNumber) + " : " + seriesDescription + " : " + seriesInstanceUID}
+        seriesMap[seriesInstanceUID] = {'ShortName': '[no SeriesNumber or SeriesDescription]'}
       #
       #
       # seriesDescription = db.fileValue(fileList[0], "0008,103e")
@@ -2009,7 +2027,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     
   def updateSeriesTableRemote(self):
     
-    self.seriesItems = []  
+    self.seriesItems = []
+    self.seriesUIDs = []
     self.seriesModel.clear()
     
     # Get the studyInstanceUID of the study selected 
@@ -2054,15 +2073,18 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       #   seriesMap[seriesNumber] = {'ShortName': ShortName, 
       #                              'LongName': seriesDescription, 
       #                              'seriesInstanceUID': seriesInstanceUID} 
-      
-      if (seriesNumber == -1 and seriesDescription):
-        seriesMap[seriesInstanceUID] = {'ShortName': seriesDescription + " : " + seriesInstanceUID}
+      if (seriesNumber != -1 and seriesDescription):
+        seriesMap[seriesInstanceUID] = {'ShortName':  str(seriesNumber) + ' : ' + seriesDescription}
+      elif (seriesNumber == -1 and seriesDescription):
+        # seriesMap[seriesInstanceUID] = {'ShortName': seriesDescription + " : " + seriesInstanceUID}
+        seriesMap[seriesInstanceUID] = {'ShortName': '[no SeriesNumber] ' + seriesDescription}
       elif (seriesDescription == ""):
-        seriesMap[seriesInstanceUID] = {'ShortName': seriesNumber + " : " + seriesInstanceUID}
+        # seriesMap[seriesInstanceUID] = {'ShortName': seriesNumber + " : " + seriesInstanceUID}
+        seriesMap[seriesInstanceUID] = {'ShortName': str(seriesNumber) + ' [no SeriesDescription]'}
       else: 
-        if ("label" not in seriesDescription):
-          seriesMap[seriesInstanceUID] = {'ShortName': str(seriesNumber) + " : " + seriesDescription + " : " + seriesInstanceUID} 
-      
+        # if ("label" not in seriesDescription):
+        # seriesMap[seriesInstanceUID] = {'ShortName': str(seriesNumber) + " : " + seriesDescription + " : " + seriesInstanceUID}
+        seriesMap[seriesInstanceUID] = {'ShortName': '[no SeriesNumber or SeriesDescription]'}
   
     self.seriesMap = seriesMap 
     
@@ -2383,6 +2405,15 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.setTabsEnabled([3],True)
 
     checkedItems = [x for x in self.seriesItems if x.checkState()]
+    # get corresponding list of seriesUIDs
+    checkedItemsUIDs = [y for x,y in zip(self.seriesItems,self.seriesUIDs) if x.checkState()]
+    # checkedItemsUIDs = [y for x,y in zip(self.seriesItems,self.seriesMap.keys()) if x.checkState()]
+    # print('checkedItems:  ' + str(checkedItems))
+    # print('checkedItemsUIDs: ' + str(checkedItemsUIDs))
+    # print('self.seriesUIDs: ' + str(self.seriesUIDs))
+    # print('self.seriesMap.keys(): ' + str(self.seriesMap.keys()))
+
+
 
     self.volumeNodes = {}
     self.labelNodes = {}
@@ -2410,7 +2441,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     # iterate over all selected items and add them to the reference selector
     selectedSeries = {}
-    for i in checkedItems:
+    for i,j in zip(checkedItems,checkedItemsUIDs):
       text = i.text()
 
       progress.labelText = text
@@ -2421,9 +2452,11 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       # seriesNumber = text.split(':')[0]
       # shortName = self.seriesMap[seriesNumber]['ShortName']
       # longName = self.seriesMap[seriesNumber]['LongName']
-      seriesInstanceUID = text.split(" : ")[-1]
+      # seriesInstanceUID = text.split(" : ")[-1]
+      seriesInstanceUID = j
       shortName = self.seriesMap[seriesInstanceUID]['ShortName']
-      longName = shortName 
+      longName = shortName
+
 
       # fileName = self.seriesMap[seriesNumber]['NRRDLocation']
       # print("Loading file from "+fileName)
@@ -2676,7 +2709,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       fileList = slicer.dicomDatabase.filesForSeries(series)
       fileName = fileList[0]
       fileNames.append(fileName)
-    print('fileNames: ' + str(fileNames))
+    # print('fileNames: ' + str(fileNames))
     
     # No labels exist 
     if not len(fileNames):
@@ -2694,7 +2727,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         referencedSeriesInstanceUID = dcm.ReferencedSeriesSequence[0].SeriesInstanceUID 
         if (referencedSeriesInstanceUID == ref): 
           seg_fileNames.append(fileName)
-    print('seg_fileNames: ' + str(seg_fileNames))
+    # print('seg_fileNames: ' + str(seg_fileNames))
       
     # Get the latest SEG file 
     for index,seg_fileName in enumerate(seg_fileNames): 
@@ -2707,14 +2740,14 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         if (currentTimeStamp > latestTimeStamp):
           latestTimeStamp = currentTimeStamp 
           fileName_load = seg_fileNames[index]
-    print('fileName_load: ' + str(fileName_load))
+    # print('fileName_load: ' + str(fileName_load))
           
     # remove all seg nodes from the scene with this referencedSeriesInstanceUID
     seg_nodes_already_exist = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
     for seg_node in seg_nodes_already_exist:
       slicer.mrmlScene.RemoveNode(seg_node)
       
-    print('fileName_load: ' + str(fileName_load))
+    # print('fileName_load: ' + str(fileName_load))
     
     # Load the segmentation file if present
     if fileName_load: 
@@ -2722,7 +2755,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       DICOMSegmentationPlugin = slicer.modules.dicomPlugins['DICOMSegmentationPlugin']()
       # loadables = DICOMSegmentationPlugin.examineFiles([fileName])
       loadables = DICOMSegmentationPlugin.examineFiles([fileName_load])
-      print('loadables: ' + str(loadables))
+      # print('loadables: ' + str(loadables))
       DICOMSegmentationPlugin.load(loadables[0])
       
       # there should only be 1 node in the scene 
@@ -3200,28 +3233,45 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.setCrosshairEnabled(eligible)
     logging.debug('Current reference node: '+text)
     
+    # if eligible:
+    #   self.refSeriesNumber = text.split(" : ")[-1]
+    #   ref = self.refSeriesNumber
+    # else:
+    #   return
+    #
+    # self.refSeriesNumber = text.split(" : ")[-1]ß
+
     if eligible:
-      self.refSeriesNumber = text.split(" : ")[-1]
-      ref = self.refSeriesNumber
+      self.refSeriesNumberIndex = self.refSelector.currentIndex - 1
+      #self.refSeriesNumber = self.seriesUIDs[self.refSeriesNumberIndex] #reverse order? # does not match a seriesUID?!
+      self.refSeriesNumber = list(self.seriesMap.keys())[self.refSeriesNumberIndex]
+      # print('self.refSeriesNumberIndex: ' + str(self.refSeriesNumberIndex))
+      # print('self.refSeriesNumber: ' + str(self.refSeriesNumber))
     else:
-      return
-    
-    self.refSeriesNumber = text.split(" : ")[-1]
-    ref = self.refSeriesNumber 
+        return
+
+    ref = self.refSeriesNumber
+    # print('ref: ' + str(ref))
+    # print('seriesMap: ' + str(self.seriesMap))
 
     logging.debug('Reference series selected: '+str(ref))
 
     # volume nodes ordered by series number
     seriesNumbers = [x for x in self.seriesMap.keys()]
-    seriesNumbers.sort()
+    #seriesNumbers.sort()
     self.volumeNodes = [self.seriesMap[x]['Volume'] for x in seriesNumbers if x != ref]
     self.viewNames = [self.seriesMap[x]['ShortName'] for x in seriesNumbers if x != ref]
 
     self.volumeNodes = [self.seriesMap[ref]['Volume']] + self.volumeNodes
     self.viewNames = [self.seriesMap[ref]['ShortName']] + self.viewNames
 
-    self.sliceNames = [x for x in seriesNumbers if x != ref]
-    self.sliceNames = [ref]+self.sliceNames
+    # self.sliceNames = [x for x in seriesNumbers if x != ref]
+    # self.sliceNames = [ref]+self.sliceNames
+    seriesViewNames = [self.seriesMap[x]['ShortName'] for x in self.seriesMap.keys()]
+    # print('seriesViewNames: ' + str(seriesViewNames))
+    self.sliceNames = [y for x,y in zip(seriesNumbers,seriesViewNames) if x != ref]
+    self.sliceNames = [self.seriesMap[self.refSeriesNumber]['ShortName']] + self.sliceNames
+    # print('self.sliceNames: ' + str(self.sliceNames))
     
     # Added
     # Load the latest DICOM SEG file from the DICOM database according to the reference chosen 
