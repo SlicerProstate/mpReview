@@ -1565,10 +1565,24 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       self.seriesItems.append(sItem)   
       self.seriesModel.appendRow(sItem)
       self.seriesUIDs.append(s)
-      sItem.setCheckable(1)
-      if self.logic.isSeriesOfInterest(seriesText):
-        sItem.setCheckState(2)
-    
+
+      # add additional check for the type of series
+      # set the SEG and SR to not be selectable
+      modality = self.seriesMap[s]['Modality']
+      print("modality: " + str(modality))
+      if (modality == "SEG" or modality == "SR"):
+        # sItem.setCheckable(0)
+        sItem.setCheckState(1)
+        sItem.setCheckable(0)
+        gray_color = qt.QBrush(qt.QColor(128,128,128))
+        # setForeground(QtGui.QBrush(Qt.red))
+        sItem.setForeground(gray_color)
+      else:
+        sItem.setCheckable(1)
+        if self.logic.isSeriesOfInterest(seriesText):
+          sItem.setCheckState(2)
+
+
   def updateSeriesTable(self):
     
     self.seriesItems = []
@@ -1599,6 +1613,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       else: 
         seriesMap[seriesInstanceUID] = {'ShortName': '[no SeriesNumber or SeriesDescription]'}
 
+      # add the Modality in
+      modality = db.fileValue(fileList[0],"0008,0060")
+      seriesMap[seriesInstanceUID]['Modality'] = modality
 
     self.seriesMap = seriesMap 
     
@@ -1647,6 +1664,10 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         seriesMap[seriesInstanceUID] = {'ShortName': str(seriesNumber) + ' [no SeriesDescription]'}
       else: 
         seriesMap[seriesInstanceUID] = {'ShortName': '[no SeriesNumber or SeriesDescription]'}
+
+      # add the Modality in
+      modality = self.getTagValue(metadata[0], 'Modality')
+      seriesMap[seriesInstanceUID]['Modality'] = modality
   
     self.seriesMap = seriesMap 
     
