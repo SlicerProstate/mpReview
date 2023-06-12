@@ -1346,10 +1346,12 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     print('databaseDirectory: ' + str(databaseDirectory))
     dicomBrowser = ctk.ctkDICOMBrowser()
     dicomBrowser.databaseDirectory = databaseDirectory
-    try:
-      dicomBrowser.createNewDatabaseDirectory()
-    except:
-      print('Unable to create DICOM database: ' + databaseDirectory)
+    # If the DICOM database already exists, do not create a new one
+    if not os.path.exists(databaseDirectory):
+      try:
+        dicomBrowser.createNewDatabaseDirectory()
+      except:
+        print('Unable to create DICOM database: ' + databaseDirectory)
     
     # If local was clicked, updateStudyTable 
     if self.selectLocalDatabaseButton.isChecked():
@@ -1569,10 +1571,11 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       # add additional check for the type of series
       # set the SEG and SR to not be selectable
       modality = self.seriesMap[s]['Modality']
-      print("modality: " + str(modality))
+      # print("modality: " + str(modality))
       if (modality == "SEG" or modality == "SR"):
         # sItem.setCheckable(0)
-        sItem.setCheckState(1)
+        #sItem.setCheckState(1)
+        sItem.setCheckState(0)
         sItem.setCheckable(0)
         gray_color = qt.QBrush(qt.QColor(128,128,128))
         # setForeground(QtGui.QBrush(Qt.red))
