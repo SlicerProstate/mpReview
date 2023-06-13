@@ -2445,7 +2445,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   def selectAllSeries(self, selected=False):
     for item in self.seriesItems:
-      item.setCheckState(2 if selected else 0)
+      # to make sure SEG/SR in gray are not selected
+      if item.isCheckable() != 0:
+        item.setCheckState(2 if selected else 0)
     self.setTabsEnabled([2], selected)
 
   def restoreForeground(self):
