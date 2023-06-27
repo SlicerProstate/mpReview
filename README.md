@@ -2,7 +2,7 @@
 
 Multiparametric Review (mpReview) is a 3D Slicer (see http://slicer.org) module that facilitates review and annotation (segmentation) of multi-parametric imaging datasets. 
 
-Development of this module was supported by NIH via grants U01CA151261 and U24CA180918. Contact is Andrey Fedorov, fedorov@bwh.harvard.edu. 
+Development of this module was supported by NIH via grants U01CA151261, U24CA180918 and T32EB025823-04. Contact is Andrey Fedorov, fedorov@bwh.harvard.edu and Deepa Krishnaswamy, dkrishnaswamy@bwh.harvard.edu. 
 
 
 ### Functionality
