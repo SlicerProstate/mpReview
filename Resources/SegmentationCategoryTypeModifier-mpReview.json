@@ -1,0 +1,64 @@
+{
+  "SegmentationCategoryTypeContextName": "Segmentation category and type - mpReview",
+  "@schema": "https://raw.githubusercontent.com/qiicr/dcmqi/master/doc/segment-context-schema.json#",
+  "SegmentationCodes": {
+    "Category": [
+      {
+        "CodeMeaning": "Tissue",
+        "CodingSchemeDesignator": "SCT",
+        "CodeValue": "85756007",
+        "Type": [
+          {
+            "CodeMeaning": "WholeGland",
+            "CodingSchemeDesignator": "mpReview",
+            "CodeValue": "1",
+            "recommendedDisplayRGBValue": [51, 204, 0]
+          },
+          {
+            "CodeMeaning": "PeripheralZone",
+            "CodingSchemeDesignator": "mpReview",
+            "CodeValue": "2",
+            "recommendedDisplayRGBValue": [153, 90, 50]
+          },
+          {
+            "CodeMeaning": "TumorROI_PZ_1",
+            "CodingSchemeDesignator": "mpReview",
+            "CodeValue": "3",
+            "recommendedDisplayRGBValue": [255, 255, 0]
+          },
+          {
+            "CodeMeaning": "TumorROI_PZ_2",
+            "CodingSchemeDesignator": "mpReview",
+            "CodeValue": "4",
+            "recommendedDisplayRGBValue": [255, 255, 160]
+          },
+          {
+            "CodeMeaning": "TumorROI_CGTZ_1",
+            "CodingSchemeDesignator": "mpReview",
+            "CodeValue": "5",
+            "recommendedDisplayRGBValue": [250, 130, 0]
+          },
+          {
+            "CodeMeaning": "TumorROI_CGTZ_2",
+            "CodingSchemeDesignator": "mpReview",
+            "CodeValue": "6",
+            "recommendedDisplayRGBValue": [250, 180, 53]
+          },
+          {
+            "CodeMeaning": "BPHROI_1",
+            "CodingSchemeDesignator": "mpReview",
+            "CodeValue": "7",
+            "recommendedDisplayRGBValue": [255, 102, 102]
+          },
+          {
+            "CodeMeaning": "NormalROI_PZ_1",
+            "CodingSchemeDesignator": "mpReview",
+            "CodeValue": "8",
+            "recommendedDisplayRGBValue": [51, 204, 0]
+          }
+        ],
+        "showAnatomy": false
+      }
+    ]
+  }
+}
