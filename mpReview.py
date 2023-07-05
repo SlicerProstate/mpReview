@@ -141,6 +141,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     
     # self.paramJSONFile = os.path.join(self.resourcesPath, "mpReview_local_configuration.json")
     self.paramJSONFile = os.path.join(self.resourcesPath, "mpReview_remote_gcp_configuration.json")
+    # self.paramJSONFile = os.path.join(self.resourcesPath, "mpReview_remote_kaapana_configuration.json")
     self.parseJSON()
 
   def getAllSliceWidgets(self):
@@ -2520,6 +2521,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       print('database is specified in the json file')
       self.jsonDatabaseType = self.paramJSON['database_type']
       
+      # If local database 
       if self.jsonDatabaseType == "local":
         # set 'local' button to pressed 
         # self.selectLocalDatabaseButton.isChecked()
@@ -2528,17 +2530,41 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         self.checkWhichDatabaseSelected()
         self.tabWidget.setCurrentIndex(1)
         
-      elif self.jsonDatabaseType == "remote": 
-        # set 'use GCP remote server' button to pressed 
-        self.selectRemoteDatabaseButton.setChecked(True)
-        # self.checkWhichDatabaseSelected() 
-        self.setTabsEnabled([1], False)
-        self.setupGoogleCloudPlatform()
-        self.selectDatabaseOKButton.setEnabled(True)
-        self.updateSelectorAvailability(set=True)
-        self.selectOtherRemoteDatabaseOKButton.setEnabled(False)
+      # If remote database 
+      elif self.jsonDatabaseType == "remote" and "remote_database_configuration" in self.paramJSON.keys():
         
-        self.parseJSONRemoteGCP()
+        if "remote_database_configuration" in self.paramJSON.keys(): 
+          
+          self.jsonRemoteDatabaseConfiguration = self.paramJSON['remote_database_configuration']
+         
+          # If GCP 
+          if "project_id" in self.jsonRemoteDatabaseConfiguration.keys() and self.jsonRemoteDatabaseConfiguration["project_id"]:  
+            # set 'use GCP remote server' button to pressed 
+            self.selectRemoteDatabaseButton.setChecked(True)
+            # self.checkWhichDatabaseSelected() 
+            self.setTabsEnabled([1], False)
+            self.setupGoogleCloudPlatform()
+            self.selectDatabaseOKButton.setEnabled(True)
+            self.updateSelectorAvailability(set=True)
+            self.selectOtherRemoteDatabaseOKButton.setEnabled(False)
+            
+            self.parseJSONRemoteGCP()
+          
+          # If other server
+          elif "other_server_url" in self.jsonRemoteDatabaseConfiguration.keys() and self.jsonRemoteDatabaseConfiguration["other_server_url"]: 
+            self.selectOtherRemoteDatabaseButton.setChecked(True) 
+            self.setTabsEnabled([1], False)
+            self.OtherserverUrlLineEdit.setReadOnly(False)
+            self.selectOtherRemoteDatabaseOKButton.setEnabled(True)
+            self.updateSelectorAvailability(set=False)
+            self.selectDatabaseOKButton.setEnabled(False)     
+            
+            self.parseJSONRemoteOtherServerURL()   
+            
+          else: 
+            # popup warning 
+            print("Please check the configuration of your remote database in the json file")                                                 
+                                                                                         
     
     return
   
@@ -2639,7 +2665,28 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
      
     return 
   
-
+  def parseJSONRemoteOtherServerURL(self):
+    """This parses the json file for the other_server_url field"""
+    
+    # First make sure it's remote 
+    if self.jsonDatabaseType == "remote": 
+      
+      if "remote_database_configuration" in self.paramJSON.keys(): 
+        print ("parsing json for remote server configuration")
+        self.jsonRemoteDatabaseConfiguration = self.paramJSON['remote_database_configuration']
+  
+        # Then check for other_server_url field existence 
+        if "other_server_url" in self.jsonRemoteDatabaseConfiguration.keys():
+          
+          # if the url exists and is not empty 
+          if self.jsonRemoteDatabaseConfiguration["other_server_url"]: 
+            self.jsonOtherServerURL = self.jsonRemoteDatabaseConfiguration["other_server_url"]
+            # Set the URL 
+            self.otherserverUrl = self.jsonOtherServerURL 
+            self.OtherserverUrlLineEdit.text = self.otherserverUrl 
+          
+    return 
+  
   
   def parseJSONGetStudyNamesRemoteDatabase(self):
     """This updates the study table according to the StudyUID_list provided in the json file"""
@@ -2694,24 +2741,50 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     # Get the series 
     print ('******** Getting the series to update the series table remote ******')
     
-    seriesList = [] 
-    for seriesUID in self.jsonUIDSSeries:
-      # seriesList = self.DICOMwebClient.search_for_series(studyInstanceUID)
-      series = self.DICOMwebClient.search_for_series(search_filters={'StudyInstanceUID': studyInstanceUID, 'SeriesInstanceUID': seriesUID})
-      if (series): 
-        seriesList.append(series[0])
-        
-    if not seriesList: 
-      print('The uids provided in the json for SeriesInstanceUID_list do not exist in the server, or are not valid')
+    # First, get the metadata of all the series in the study, regardless of if they are in the json series list
+    # get the associated modality 
+    seriesList = self.DICOMwebClient.search_for_series(studyInstanceUID)
+    seriesList_keep = [] 
     
-    self.seriesList = seriesList 
-
-    seriesMap = {} 
     for series in seriesList: 
       # need to get metadata
       seriesInstanceUID = self.getTagValue(series, 'SeriesInstanceUID')
       metadata = self.DICOMwebClient.retrieve_series_metadata(study_instance_uid=studyInstanceUID,
                                                               series_instance_uid=seriesInstanceUID
+                                                              )
+      modality = self.getTagValue(metadata[0], 'Modality')
+      # If the modality is SEG 
+      if modality == "SEG":
+        referencedSeriesSequence = self.getTagValue(metadata[0], 'ReferencedSeriesSequence') 
+        referencedSeriesInstanceUID = self.getTagValue(referencedSeriesSequence, 'SeriesInstanceUID')
+        # If the referencedSeriesInstanceUID is in the list of series in the json file, keep this SeriesInstanceUID 
+        if referencedSeriesInstanceUID in self.jsonUIDSSeries: 
+          series = self.DICOMwebClient.search_for_series(search_filters={'StudyInstanceUID': studyInstanceUID, 'SeriesInstanceUID': seriesInstanceUID})
+          if (series):  
+            # seriesList_keep.append(series[0])
+            seriesList_keep.append(seriesInstanceUID)
+      # Else if the modality is not SEG and not SR - so likely either CT or MRI
+      elif (modality != "SEG" and modality != "SR"): 
+        if seriesInstanceUID in self.jsonUIDSSeries: 
+          series = self.DICOMwebClient.search_for_series(search_filters={'StudyInstanceUID': studyInstanceUID, 'SeriesInstanceUID': seriesInstanceUID})
+          if (series): 
+            # seriesList_keep.append(series[0])
+            seriesList_keep.append(seriesInstanceUID)
+            
+    if not seriesList_keep: 
+      print('The uids provided in the json for SeriesInstanceUID_list do not exist in the server, or are not valid')
+      
+    # self.seriesList = seriesList_keep  
+        
+    # Now get the metadata needed from all the series in the self.seriesList 
+
+    seriesMap = {} 
+    for series in seriesList_keep: 
+      # need to get metadata
+      # seriesInstanceUID = self.getTagValue(series, 'SeriesInstanceUID')
+      seriesInstanceUID = series 
+      metadata = self.DICOMwebClient.retrieve_series_metadata(study_instance_uid=studyInstanceUID,
+                                                              series_instance_uid=series
                                                               )
 
       try:
@@ -2720,7 +2793,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         seriesNumber = -1 
 
       try:
-        seriesDescription = self.getTagValue(series, 'SeriesDescription')
+        # seriesDescription = self.getTagValue(series, 'SeriesDescription')
+        seriesDescription = self.getTagValue(metadata[0], 'SeriesDescription')
       except: 
         seriesDescription = "" 
 

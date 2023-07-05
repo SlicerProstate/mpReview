@@ -3,8 +3,8 @@
 	"database_type": "local",
 	"remote_database_configuration": 
 		{
-			"database_type": "google", 
 			"project_id":"idc-external-018",
+			"location_id":"us-central1",
 			"dataset_id":"pw39",
 			"dicomstore":"pw39", 
 			"server_url":""
@@ -13,11 +13,6 @@
 		{
 			"StudyInstanceUID_list": "", 
 			"SeriesInstanceUID_list": ""
-		},
-	"parameters": 
-		{
-			"load_4d_series": "0",
-			"review_segmentations": "0"
 		},
 	"terminology": "C:/Users/deepa/git/mpReview/Resources/SegmentationCategoryTypeModifier-mpReview.json"
 	
