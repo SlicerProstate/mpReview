@@ -140,7 +140,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.modulePath = os.path.dirname(slicer.util.modulePath(self.moduleName))
     
     # self.paramJSONFile = os.path.join(self.resourcesPath, "mpReview_local_configuration.json")
-    self.paramJSONFile = os.path.join(self.resourcesPath, "mpReview_remote_gcp_configuration.json")
+    # self.paramJSONFile = os.path.join(self.resourcesPath, "mpReview_remote_gcp_configuration.json")
+    self.paramJSONFile = os.path.join(self.resourcesPath, "mpReview_remote_gcp_configuration_hierarchy.json")
     # self.paramJSONFile = os.path.join(self.resourcesPath, "mpReview_remote_kaapana_configuration.json")
     self.parseJSON()
 
@@ -1733,7 +1734,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.parseJSONUID_list()
     
     # If json used, check for existence of UIDS 
-    if ("uids" in self.paramJSON.keys()) and ("StudyInstanceUID_list" in self.jsonUIDSConfiguration.keys()):
+    # if ("uids" in self.paramJSON.keys()) and ("StudyInstanceUID_list" in self.jsonUIDSConfiguration.keys()):
+    if ("uids" in self.paramJSON.keys()) and self.jsonUIDSStudy: 
       self.studiesMap = self.parseJSONGetStudyNamesRemoteDatabase() 
     # Else if json not used, fill normally 
     else: 
@@ -1811,14 +1813,16 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       # self.updateSeriesTableRemote()
       self.parseJSONUID_list()
       # If json used, check for existence of UIDS 
-      if ("uids" in self.paramJSON.keys()) and ("SeriesInstanceUID_list" in self.jsonUIDSConfiguration.keys()):
+      # if ("uids" in self.paramJSON.keys()) and ("SeriesInstanceUID_list" in self.jsonUIDSConfiguration.keys()):
+      if ("uids" in self.paramJSON.keys()) and (self.jsonUIDSStudy): # if it exists 
         self.parseJSONGetSeriesNamesRemoteDatabase() 
       else: 
         self.updateSeriesTableRemote()
     elif (self.selectOtherRemoteDatabaseButton.isChecked()):
       # self.updateSeriesTableRemote()
       self.parseJSONUID_list()
-      if ("uids" in self.paramJSON.keys()) and ("SeriesInstanceUID_list" in self.jsonUIDSConfiguration.keys()):
+      # if ("uids" in self.paramJSON.keys()) and ("SeriesInstanceUID_list" in self.jsonUIDSConfiguration.keys()):
+      if ("uids" in self.paramJSON.keys()) and (self.jsonUIDSSeries): # if it exists 
         self.parseJSONGetSeriesNamesRemoteDatabase() 
       else: 
         self.updateSeriesTableRemote()
@@ -2655,14 +2659,28 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     # First make sure it's remote 
     if self.jsonDatabaseType == "remote":
       
-      # Then check for uids field existence 
+      # # Then check for uids field existence 
+      # if "uids" in self.paramJSON.keys(): 
+      #   self.jsonUIDSConfiguration = self.paramJSON['uids']
+      #   if "StudyInstanceUID_list" in self.jsonUIDSConfiguration.keys(): 
+      #     self.jsonUIDSStudy = self.jsonUIDSConfiguration["StudyInstanceUID_list"]
+      #   if "SeriesInstanceUID_list" in self.jsonUIDSConfiguration.keys(): 
+      #     self.jsonUIDSSeries = self.jsonUIDSConfiguration["SeriesInstanceUID_list"]
+      
+      # Then check for uids field existence and fill the Studies/Series lists appropriately  
       if "uids" in self.paramJSON.keys(): 
         self.jsonUIDSConfiguration = self.paramJSON['uids']
-        if "StudyInstanceUID_list" in self.jsonUIDSConfiguration.keys(): 
-          self.jsonUIDSStudy = self.jsonUIDSConfiguration["StudyInstanceUID_list"]
-        if "SeriesInstanceUID_list" in self.jsonUIDSConfiguration.keys(): 
-          self.jsonUIDSSeries = self.jsonUIDSConfiguration["SeriesInstanceUID_list"]
-     
+        num_studies = len(self.jsonUIDSConfiguration)
+        self.jsonUIDSStudy = []
+        self.jsonUIDSSeries = []  
+        for item in self.jsonUIDSConfiguration:  
+          print('item: ' + str(item))
+          if ("StudyInstanceUID" in item.keys()) and (item["StudyInstanceUID"]): 
+            self.jsonUIDSStudy.append(item["StudyInstanceUID"]) 
+          if "SeriesInstanceUID_list" in item.keys(): 
+            self.jsonUIDSSeries.append(item["SeriesInstanceUID_list"]) # can be empty, would indicate take all series 
+          
+  
     return 
   
   def parseJSONRemoteOtherServerURL(self):
@@ -2737,6 +2755,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     
     # Get the studyInstanceUID of the study selected 
     studyInstanceUID = self.selectedStudyNumber
+    studyInstanceUID_index = self.jsonUIDSStudy.index(studyInstanceUID)
     
     # Get the series 
     print ('******** Getting the series to update the series table remote ******')
@@ -2758,21 +2777,24 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         referencedSeriesSequence = self.getTagValue(metadata[0], 'ReferencedSeriesSequence') 
         referencedSeriesInstanceUID = self.getTagValue(referencedSeriesSequence, 'SeriesInstanceUID')
         # If the referencedSeriesInstanceUID is in the list of series in the json file, keep this SeriesInstanceUID 
-        if referencedSeriesInstanceUID in self.jsonUIDSSeries: 
+        # if referencedSeriesInstanceUID in self.jsonUIDSSeries: 
+        if referencedSeriesInstanceUID in self.jsonUIDSSeries[studyInstanceUID_index]:
           series = self.DICOMwebClient.search_for_series(search_filters={'StudyInstanceUID': studyInstanceUID, 'SeriesInstanceUID': seriesInstanceUID})
           if (series):  
-            # seriesList_keep.append(series[0])
             seriesList_keep.append(seriesInstanceUID)
       # Else if the modality is not SEG and not SR - so likely either CT or MRI
       elif (modality != "SEG" and modality != "SR"): 
-        if seriesInstanceUID in self.jsonUIDSSeries: 
+        # if seriesInstanceUID in self.jsonUIDSSeries: 
+        if seriesInstanceUID in self.jsonUIDSSeries[studyInstanceUID_index]:
           series = self.DICOMwebClient.search_for_series(search_filters={'StudyInstanceUID': studyInstanceUID, 'SeriesInstanceUID': seriesInstanceUID})
           if (series): 
-            # seriesList_keep.append(series[0])
             seriesList_keep.append(seriesInstanceUID)
             
     if not seriesList_keep: 
-      print('The uids provided in the json for SeriesInstanceUID_list do not exist in the server, or are not valid')
+      print('The uids provided in the json for SeriesInstanceUID_list do not exist in the server, or are not valid, therefore using all seriesInstanceUIDs in the study')
+      for series in seriesList: 
+        seriesList_keep.append(self.getTagValue(series, 'SeriesInstanceUID'))
+    
       
     # self.seriesList = seriesList_keep  
         

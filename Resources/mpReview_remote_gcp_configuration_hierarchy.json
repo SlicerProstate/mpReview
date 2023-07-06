@@ -9,20 +9,17 @@
 			"dicomstore_id":"pw39", 
 			"other_server_url":""
 		},
-	"uids":
-		{
-			[
-				{
-					"StudyInstanceUID_list": ["1.3.6.1.4.1.14519.5.2.1.3671.4754.121472087445374646718121301133"], 
-					"SeriesInstanceUID_list": ["1.3.6.1.4.1.14519.5.2.1.3671.4754.983460207615355998147518323000"] 
-				}, 
-				{
-					"StudyInstanceUID_list": [], 
-					"SeriesInstanceUID_list": []
-			] 
-		},
+
+    "uids":[
+        {
+            "StudyInstanceUID":"1.3.6.1.4.1.14519.5.2.1.3671.4754.121472087445374646718121301133",
+            "SeriesInstanceUID_list": ["1.3.6.1.4.1.14519.5.2.1.3671.4754.983460207615355998147518323000"]
+        },
+        {
+            "StudyInstanceUID":"1.3.6.1.4.1.14519.5.2.1.3671.4754.288848219213026850354055725664",
+            "SeriesInstanceUID_list": ["1.3.6.1.4.1.14519.5.2.1.3671.4754.609837242670719860929372097937"]
+        }
+	],
 	"terminology": "C:/Users/deepa/git/mpReview/Resources/SegmentationCategoryTypeModifier-mpReview.json"
 	
 } 
-
-
