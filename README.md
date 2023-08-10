@@ -26,7 +26,10 @@ The module guides the user through a workflow that consists of the following ste
 ### Additional Notes
 
 1. Currently, a terminology file for prostate cancer and anatomy is used. This could be replaced by a terminology file appropriate for the user's segmentation task.
-2. When the user loads in a series at a later timepoint to continue segmentation, the latest DICOM SEG object will be automatically loaded. A new DICOM SEG object will be saved each time. 
+2. When the user loads in a series at a later timepoint to continue segmentation, the latest DICOM SEG object will be automatically loaded. A new DICOM SEG object will be saved each time.
+
+### Example screenshot
+![mpReview screenshot](Resources/Icons/mpReview_screenshot.PNG?raw=true)
 
 ## Acknowledgments
 
