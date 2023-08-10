@@ -3,11 +3,11 @@ cmake_minimum_required(VERSION 3.0.1)
 #-----------------------------------------------------------------------------
 set(EXTENSION_NAME mpReview)
 set(EXTENSION_HOMEPAGE "http://wiki.slicer.org/slicerWiki/index.php/Documentation/Nightly/Extensions/mpReview")
-set(EXTENSION_CATEGORY "Informatics")
-set(EXTENSION_CONTRIBUTORS "Andrey Fedorov (SPL), Robin Weiss (U. of Chicago), Alireza Mehrtash (SPL), Christian Herz (SPL)")
+set(EXTENSION_CATEGORY "Segmentation")
+set(EXTENSION_CONTRIBUTORS "Andrey Fedorov (SPL), Deepa Krishnaswamy (SPL), Andras Lasso (Queen's), Robin Weiss (U. of Chicago), Alireza Mehrtash (SPL), Christian Herz (SPL)")
 set(EXTENSION_DESCRIPTION "Multiparametric Image Review (mpReview) module is intended to support review and annotation of multiparametric image data. The driving use case for the development of this module was review and segmentation of the regions of interest in prostate cancer multiparametric MRI. This work is done as part of the Quantitative Imaging Network (QIN) and Informatics Technology for Cancer Research (ITCR) initiatives of the National Cancer Institute, and is funded by the National Institutes of Health, National Cancer Institute through the grant U24 CA180918 (PIs Kikinis & Fedorov) and U01 CA151261 (PI Fennessy).")
 set(EXTENSION_ICONURL "http://wiki.slicer.org/slicerWiki/images/5/59/MpReviewLogo.png")
-set(EXTENSION_SCREENSHOTURLS "http://wiki.slicer.org/slicerWiki/images/d/d1/MpReview-Prostate.gif")
+set(EXTENSION_SCREENSHOTURLS "https://raw.githubusercontent.com/SlicerProstate/mpReview/master/Resources/Icons/mpReview_screenshot.PNG")
 set(EXTENSION_DEPENDS "SlicerDevelopmentToolbox")
 
 
