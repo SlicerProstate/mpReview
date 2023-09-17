@@ -2,7 +2,7 @@
 
 Multiparametric Review (mpReview) is a 3D Slicer (see http://slicer.org) module that facilitates review and annotation (segmentation) of multi-parametric imaging datasets. 
 
-Development of this module was supported by NIH via grants U01CA151261, U24CA180918 and T32EB025823-04. Contact is Andrey Fedorov, fedorov@bwh.harvard.edu and Deepa Krishnaswamy, dkrishnaswamy@bwh.harvard.edu. 
+Development of this module was supported by NIH via grants U01CA151261, U24CA180918, P41EB028741 and T32EB025823-04. Contact is Andrey Fedorov, fedorov@bwh.harvard.edu and Deepa Krishnaswamy, dkrishnaswamy@bwh.harvard.edu. 
 
 
 ### Functionality
@@ -37,10 +37,13 @@ This work supported in part the National Institutes of Health, National Cancer I
 * Quantitative MRI of prostate cancer as a biomarker and guide for treatment, Quantitative Imaging Network (U01 CA151261, PI Fennessy)
 * Enabling technologies for MRI-guided prostate interventions (R01 CA111288, PI Tempany)
 * The National Center for Image-Guided Therapy (P41 EB015898, PI Tempany)
+* Advanced Technologies - National Center for Image Guided Therapy (AT-NCIGT) (P41 EB028741, PI Tempany)
 * Quantitative Image Informatics for Cancer Research (QIICR) (U24 CA180918, PIs Kikinis and Fedorov)
 
 The following individuals and groups contributed directly to the development of SlicerProstate functionality:
 * Andrey Fedorov, Brigham and Women's Hospital
+* Deepa Krishnaswamy, Brigham and Women's Hospital
+* Andras Lasso, Queen's University
 * Alireza Mehrtash, Brigham and Women's Hospital
 * Robin Weiss, University of Chicago
 * Christian Herz, Brigham and Women's Hospital
