@@ -48,6 +48,7 @@ class GoogleCloudPlatform(object):
 
   def datasets(self, project):
     return sorted(self.gcloud(f"--project {project} healthcare datasets list --format=value(ID,LOCATION)").split("\n"), key=str.lower)
+    # return sorted(self.gcloud(f"--project {project} healthcare datasets list --format=value(ID)").split("\n"), key=str.lower)
 
   def dicomStores(self, project, dataset):
     return sorted(self.gcloud(f"--project {project} healthcare dicom-stores list --dataset {dataset} --format=value(ID)").split("\n"), key=str.lower)
@@ -137,6 +138,13 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.tempDir = os.path.join(slicer.app.temporaryPath, 'mpReview-tmp')
     self.logic.createDirectory(self.tempDir, message='Temporary directory location: ' + self.tempDir)
     self.modulePath = os.path.dirname(slicer.util.modulePath(self.moduleName))
+    
+    # self.paramJSONFile = os.path.join(self.resourcesPath, "mpReview_local_configuration.json")
+    # self.paramJSONFile = os.path.join(self.resourcesPath, "mpReview_remote_gcp_configuration.json")
+    # self.paramJSONFile = os.path.join(self.resourcesPath, "mpReview_remote_gcp_configuration_hierarchy.json")
+    self.paramJSONFile = os.path.join(self.resourcesPath, "mpReview_remote_gcp_configuration_hierarchy_with_terminology.json")
+    # self.paramJSONFile = os.path.join(self.resourcesPath, "mpReview_remote_kaapana_configuration.json")
+    self.parseJSON()
 
   def getAllSliceWidgets(self):
     widgetNames = self.layoutManager.sliceViewNames()
@@ -252,6 +260,8 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.currentTabIndex = 0
 
     self.checkAndSetLUT() # I added 
+    
+    self.parseJSONDatabase()
 
   def setupInformationFrame(self):
 
@@ -350,6 +360,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       
       self.datasetSelectorCombobox.setEditable(True)
       dataset_list = self.gcp.datasets(self.project)
+      # dataset_list = [f[0] for f.split() in dataset_list]
       self.datasetCompleter = qt.QCompleter(dataset_list)
       self.datasetCompleter.setCaseSensitivity(0)
       self.datasetCompleter.setCompletionColumn(0)
@@ -373,6 +384,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   def onDICOMStoreSelected(self):
     currentText = self.dicomStoreSelectorCombobox.currentText
+    print("in onDICOMStoreSelected. currentText: " + str(currentText)) 
     if currentText != "":
       self.dicomStore = currentText.split()[0]
       # populate the server url here
@@ -400,7 +412,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   def checkIfLocationExists(self):
     
     locationList = self.gcp.locations()
-    if not self.location in locationlist: 
+    if not self.location in locationList: 
       return False
     else:
       return True 
@@ -894,7 +906,15 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   #     self.parameters['ResultsLocation'] = resultsLocation
   #   '''
 
+
   def checkAndSetLUT(self):
+    """This function parses the terminology file""" 
+     
+    self.parseJSONTerminology()
+
+
+  def checkAndSetLUT_old(self):
+    
     # Default to module color table
     self.terminologyFile = os.path.join(self.resourcesPath, "SegmentationCategoryTypeModifier-mpReview.json")
     # print ('self.terminologyFile: ' + str(self.terminologyFile))
@@ -1354,7 +1374,7 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
         print('Unable to create DICOM database: ' + databaseDirectory)
     
     # If local was clicked, updateStudyTable 
-    if self.selectLocalDatabaseButton.isChecked():
+    if self.selectLocalDatabaseButton.isChecked() or self.jsonDatabaseType == "local":
       # disable the GCP project etc selectors and server url and ok button 
       self.updateSelectorAvailability(set=False)
       self.selectDatabaseOKButton.setEnabled(False)
@@ -1399,7 +1419,6 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.studiesMap = {} 
     ## self.getStudyNamesRemoteDatabase()    # 5-26-22  
     self.fillStudyTableRemoteDatabase()
-
     # update the availability of the next tab 
     self.updateStudiesAndSeriesTabAvailability()
     
@@ -1712,7 +1731,17 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.studyItems = [] 
     self.studiesModel.clear()
     self.seriesModel.clear()
-    self.studiesMap = self.getStudyNamesRemoteDatabase()
+    
+    self.parseJSONUID_list()
+    
+    # If json used, check for existence of UIDS 
+    # if ("uids" in self.paramJSON.keys()) and ("StudyInstanceUID_list" in self.jsonUIDSConfiguration.keys()):
+    if ("uids" in self.paramJSON.keys()) and self.jsonUIDSStudy: 
+      self.studiesMap = self.parseJSONGetStudyNamesRemoteDatabase() 
+    # Else if json not used, fill normally 
+    else: 
+      self.studiesMap = self.getStudyNamesRemoteDatabase()
+      
     self.setStudiesView()
     
   def setStudiesView(self):
@@ -1782,9 +1811,23 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     if (self.selectLocalDatabaseButton.isChecked()):
       self.updateSeriesTable()
     elif (self.selectRemoteDatabaseButton.isChecked()):
-      self.updateSeriesTableRemote()
+      # self.updateSeriesTableRemote()
+      self.parseJSONUID_list()
+      # If json used, check for existence of UIDS 
+      # if ("uids" in self.paramJSON.keys()) and ("SeriesInstanceUID_list" in self.jsonUIDSConfiguration.keys()):
+      if ("uids" in self.paramJSON.keys()) and (self.jsonUIDSStudy): # if it exists 
+        self.parseJSONGetSeriesNamesRemoteDatabase() 
+      else: 
+        self.updateSeriesTableRemote()
     elif (self.selectOtherRemoteDatabaseButton.isChecked()):
-      self.updateSeriesTableRemote()
+      # self.updateSeriesTableRemote()
+      self.parseJSONUID_list()
+      # if ("uids" in self.paramJSON.keys()) and ("SeriesInstanceUID_list" in self.jsonUIDSConfiguration.keys()):
+      if ("uids" in self.paramJSON.keys()) and (self.jsonUIDSSeries): # if it exists 
+        self.parseJSONGetSeriesNamesRemoteDatabase() 
+      else: 
+        self.updateSeriesTableRemote()
+      
 
     self.selectAllSeriesButton.setEnabled(True)
     self.deselectAllSeriesButton.setEnabled(True)
@@ -2464,6 +2507,474 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
   # Gets triggered on a click in the structures table
   def onStructureClicked(self, segmentID):
     self.labelMapVisibilityButton.checked = False
+    
+    
+  def parseJSON(self):
+    """Read in the JSON file that parameterizes mpReview"""
+    # later this JSON file will be passed in the slicer startup script 
+    
+    with open(self.paramJSONFile, 'r') as f:
+      self.paramJSON = json.load(f)
+      print(self.paramJSON)
+    
+  def parseJSONDatabase(self):
+    """Parses the type of database - local or remote """
+    
+    # check if database_type exists 
+    if "database_type" in self.paramJSON.keys():
+      
+      print('database is specified in the json file')
+      self.jsonDatabaseType = self.paramJSON['database_type']
+      
+      # If local database 
+      if self.jsonDatabaseType == "local":
+        # set 'local' button to pressed 
+        # self.selectLocalDatabaseButton.isChecked()
+        self.selectLocalDatabaseButton.setChecked(True)
+        # run this to setup the study table 
+        self.checkWhichDatabaseSelected()
+        self.tabWidget.setCurrentIndex(1)
+        
+      # If remote database 
+      elif self.jsonDatabaseType == "remote" and "remote_database_configuration" in self.paramJSON.keys():
+        
+        if "remote_database_configuration" in self.paramJSON.keys(): 
+          
+          self.jsonRemoteDatabaseConfiguration = self.paramJSON['remote_database_configuration']
+         
+          # If GCP 
+          if "project_id" in self.jsonRemoteDatabaseConfiguration.keys() and self.jsonRemoteDatabaseConfiguration["project_id"]:  
+            # set 'use GCP remote server' button to pressed 
+            self.selectRemoteDatabaseButton.setChecked(True)
+            # self.checkWhichDatabaseSelected() 
+            self.setTabsEnabled([1], False)
+            self.setupGoogleCloudPlatform()
+            self.selectDatabaseOKButton.setEnabled(True)
+            self.updateSelectorAvailability(set=True)
+            self.selectOtherRemoteDatabaseOKButton.setEnabled(False)
+            
+            self.parseJSONRemoteGCP()
+          
+          # If other server
+          elif "other_server_url" in self.jsonRemoteDatabaseConfiguration.keys() and self.jsonRemoteDatabaseConfiguration["other_server_url"]: 
+            self.selectOtherRemoteDatabaseButton.setChecked(True) 
+            self.setTabsEnabled([1], False)
+            self.OtherserverUrlLineEdit.setReadOnly(False)
+            self.selectOtherRemoteDatabaseOKButton.setEnabled(True)
+            self.updateSelectorAvailability(set=False)
+            self.selectDatabaseOKButton.setEnabled(False)     
+            
+            self.parseJSONRemoteOtherServerURL()   
+            
+          else: 
+            # popup warning 
+            print("Please check the configuration of your remote database in the json file")                                                 
+                                                                                         
+    
+    return
+  
+  def parseJSONRemoteGCP(self):
+    """Parses the fields necessary for remote GCP server"""
+    
+    if self.jsonDatabaseType == "remote": 
+      
+      if "remote_database_configuration" in self.paramJSON.keys(): 
+        print ("parsing json for remote gcp configuration")
+        self.jsonRemoteDatabaseConfiguration = self.paramJSON['remote_database_configuration']
+        # if "database_type" in self.jsonRemoteDatabaseConfiguration.keys():
+          # self.jsonRemoteDatabaseConfigurationDatabaseType = self.jsonRemoteDatabaseConfiguration["database_type"]
+          # if (self.jsonRemoteDatabaseConfigurationDatabaseType == "google"): 
+        
+        if "project_id" in self.jsonRemoteDatabaseConfiguration.keys(): 
+          self.jsonRemoteDatabaseConfigurationProject = self.jsonRemoteDatabaseConfiguration["project_id"]
+          self.parseJSONRemoteGCPCheckExistence(field_to_check="project")
+        if "location_id" in self.jsonRemoteDatabaseConfiguration.keys(): 
+          self.jsonRemoteDatabaseConfigurationLocation = self.jsonRemoteDatabaseConfiguration["location_id"]
+          self.parseJSONRemoteGCPCheckExistence(field_to_check="location")
+        if "dataset_id" in self.jsonRemoteDatabaseConfiguration.keys(): 
+          self.jsonRemoteDatabaseConfigurationDataset = self.jsonRemoteDatabaseConfiguration["dataset_id"]
+          self.parseJSONRemoteGCPCheckExistence(field_to_check="dataset")
+        if "dicomstore_id" in self.jsonRemoteDatabaseConfiguration.keys(): 
+          self.jsonRemoteDatabaseConfigurationDicomstore = self.jsonRemoteDatabaseConfiguration["dicomstore_id"]
+          self.parseJSONRemoteGCPCheckExistence(field_to_check="dicomstore")
+
+    return  
+  
+  def parseJSONRemoteGCPCheckExistence(self, field_to_check):
+    """Check existence of project, location, dataset, or DICOM datastore"""
+    
+    if field_to_check == "project": 
+      self.project = self.jsonRemoteDatabaseConfiguration["project_id"]
+      project_exists = self.checkIfProjectExists()
+      if project_exists: 
+        # set in the dropdown menu
+        self.projectSelectorCombobox.currentText = self.project
+        self.onProjectSelected()
+      else: 
+        # popup warning 
+        print("project " + str(self.project) + " does not exist for the user, please select a project from the dropdown menu")
+
+        
+    elif field_to_check == "location": 
+      self.location = self.jsonRemoteDatabaseConfiguration["location_id"]
+      location_exists = self.checkIfLocationExists()
+      if not location_exists: 
+        # popup warning 
+        print("location " + str(self.location) + " is not correct for this dataset, please check your config file")
+      
+      
+    elif field_to_check == "dataset":
+      self.dataset = self.jsonRemoteDatabaseConfiguration["dataset_id"] 
+      # + ' ' + self.jsonRemoteDatabaseConfiguration["location_id"]
+      dataset_exists = self.checkIfDatasetExists()
+      if dataset_exists: 
+        # set in the dropdown menu 
+        self.datasetSelectorCombobox.currentText = self.dataset + "\t" + self.jsonRemoteDatabaseConfiguration["location_id"]
+        self.onDatasetSelected()
+      else:  
+        # popup warning 
+        print("dataset " + str(self.dataset) + " does not exist in the project selected, please select a dataset from the dropdown menu")
+        
+        
+    elif field_to_check == "dicomstore":
+      self.dicomStore = self.jsonRemoteDatabaseConfiguration["dicomstore_id"]
+      dicomstore_exists = self.checkIfDicomStoreExists()
+      if dicomstore_exists: 
+        # set in the dropdown menu 
+        self.dicomStoreSelectorCombobox.currentText = self.dicomStore 
+        print('dicomstore currentText: ' + str(self.dicomStoreSelectorCombobox.currentText))
+        self.onDICOMStoreSelected()
+       
+      else: 
+        # popup warning 
+        print("dicomstore " + str(self.dicomStore) + " does not exist in the dataset selected, please select a dicomstore from the dropdown menu")
+        
+    else: 
+      print("Field " + str(field_to_check) + " does not exist.")    
+    return  
+  
+  
+  def parseJSONUID_list(self):
+    """This parses the json file for the StudyInstanceUID_list and SeriesInstanceUID_list"""
+    
+    # First make sure it's remote 
+    if self.jsonDatabaseType == "remote":
+      
+      # # Then check for uids field existence 
+      # if "uids" in self.paramJSON.keys(): 
+      #   self.jsonUIDSConfiguration = self.paramJSON['uids']
+      #   if "StudyInstanceUID_list" in self.jsonUIDSConfiguration.keys(): 
+      #     self.jsonUIDSStudy = self.jsonUIDSConfiguration["StudyInstanceUID_list"]
+      #   if "SeriesInstanceUID_list" in self.jsonUIDSConfiguration.keys(): 
+      #     self.jsonUIDSSeries = self.jsonUIDSConfiguration["SeriesInstanceUID_list"]
+      
+      # Then check for uids field existence and fill the Studies/Series lists appropriately  
+      if "uids" in self.paramJSON.keys(): 
+        self.jsonUIDSConfiguration = self.paramJSON['uids']
+        num_studies = len(self.jsonUIDSConfiguration)
+        self.jsonUIDSStudy = []
+        self.jsonUIDSSeries = []  
+        for item in self.jsonUIDSConfiguration:  
+          print('item: ' + str(item))
+          if ("StudyInstanceUID" in item.keys()) and (item["StudyInstanceUID"]): 
+            self.jsonUIDSStudy.append(item["StudyInstanceUID"]) 
+          if "SeriesInstanceUID_list" in item.keys(): 
+            self.jsonUIDSSeries.append(item["SeriesInstanceUID_list"]) # can be empty, would indicate take all series 
+          
+  
+    return 
+  
+  def parseJSONRemoteOtherServerURL(self):
+    """This parses the json file for the other_server_url field"""
+    
+    # First make sure it's remote 
+    if self.jsonDatabaseType == "remote": 
+      
+      if "remote_database_configuration" in self.paramJSON.keys(): 
+        print ("parsing json for remote server configuration")
+        self.jsonRemoteDatabaseConfiguration = self.paramJSON['remote_database_configuration']
+  
+        # Then check for other_server_url field existence 
+        if "other_server_url" in self.jsonRemoteDatabaseConfiguration.keys():
+          
+          # if the url exists and is not empty 
+          if self.jsonRemoteDatabaseConfiguration["other_server_url"]: 
+            self.jsonOtherServerURL = self.jsonRemoteDatabaseConfiguration["other_server_url"]
+            # Set the URL 
+            self.otherserverUrl = self.jsonOtherServerURL 
+            self.OtherserverUrlLineEdit.text = self.otherserverUrl 
+          
+    return 
+  
+  
+  def parseJSONGetStudyNamesRemoteDatabase(self):
+    """This updates the study table according to the StudyUID_list provided in the json file"""
+    
+    print ('********** Getting the studies to update the study names *******')
+    
+    # For each study in StudyInstanceUID_list, check if it exists in the dicom store 
+    studies = [] 
+    for studyUID in self.jsonUIDSStudy:
+      study = self.DICOMwebClient.search_for_studies(search_filters={'StudyInstanceUID': studyUID})
+      if (study): 
+        studies.append(study[0])
+        
+    print('studies: ' + str(studies))
+    # later popup warning
+    if not studies: 
+      print('The uids provided in the json for StudyInstanceUID_list do not exist in the server, or are not valid')
+      
+    
+    # Iterate over each patient ID, get the appropriate list of studies 
+    studiesMap = {} 
+    ShortNames = [] 
+    for study in studies: 
+      patient = self.getTagValue(study, 'PatientID')
+      studyDate = self.getTagValue(study, 'StudyDate')
+      ShortName = patient + '_' + studyDate
+      studyUID = self.getTagValue(study, 'StudyInstanceUID')
+      studiesMap[studyUID] = {'ShortName': ShortName}
+      studiesMap[studyUID]['LongName'] = '' # can remove LongName later
+      studiesMap[studyUID]['StudyInstanceUID'] = studyUID
+      ShortNames.append(ShortName)
+    
+    # order the values
+    studiesMap = {k: v for k, v in sorted(studiesMap.items(), key=lambda item: item[1]['ShortName'])}
+    
+    self.studiesMap = studiesMap 
+        
+    return studiesMap 
+    
+    return 
+  
+  def parseJSONGetSeriesNamesRemoteDatabase(self):
+    """This updates the series table according to the SeriesUID_list provided in the json file"""
+    
+    self.seriesItems = []
+    self.seriesUIDs = []
+    self.seriesModel.clear()
+    
+    # Get the studyInstanceUID of the study selected 
+    studyInstanceUID = self.selectedStudyNumber
+    studyInstanceUID_index = self.jsonUIDSStudy.index(studyInstanceUID)
+    
+    # Get the series 
+    print ('******** Getting the series to update the series table remote ******')
+    
+    # First, get the metadata of all the series in the study, regardless of if they are in the json series list
+    # get the associated modality 
+    seriesList = self.DICOMwebClient.search_for_series(studyInstanceUID)
+    seriesList_keep = [] 
+    
+    for series in seriesList: 
+      # need to get metadata
+      seriesInstanceUID = self.getTagValue(series, 'SeriesInstanceUID')
+      metadata = self.DICOMwebClient.retrieve_series_metadata(study_instance_uid=studyInstanceUID,
+                                                              series_instance_uid=seriesInstanceUID
+                                                              )
+      modality = self.getTagValue(metadata[0], 'Modality')
+      # If the modality is SEG 
+      if modality == "SEG":
+        referencedSeriesSequence = self.getTagValue(metadata[0], 'ReferencedSeriesSequence') 
+        referencedSeriesInstanceUID = self.getTagValue(referencedSeriesSequence, 'SeriesInstanceUID')
+        # If the referencedSeriesInstanceUID is in the list of series in the json file, keep this SeriesInstanceUID 
+        # if referencedSeriesInstanceUID in self.jsonUIDSSeries: 
+        if referencedSeriesInstanceUID in self.jsonUIDSSeries[studyInstanceUID_index]:
+          series = self.DICOMwebClient.search_for_series(search_filters={'StudyInstanceUID': studyInstanceUID, 'SeriesInstanceUID': seriesInstanceUID})
+          if (series):  
+            seriesList_keep.append(seriesInstanceUID)
+      # Else if the modality is not SEG and not SR - so likely either CT or MRI
+      elif (modality != "SEG" and modality != "SR"): 
+        # if seriesInstanceUID in self.jsonUIDSSeries: 
+        if seriesInstanceUID in self.jsonUIDSSeries[studyInstanceUID_index]:
+          series = self.DICOMwebClient.search_for_series(search_filters={'StudyInstanceUID': studyInstanceUID, 'SeriesInstanceUID': seriesInstanceUID})
+          if (series): 
+            seriesList_keep.append(seriesInstanceUID)
+            
+    if not seriesList_keep: 
+      print('The uids provided in the json for SeriesInstanceUID_list do not exist in the server, or are not valid, therefore using all seriesInstanceUIDs in the study')
+      for series in seriesList: 
+        seriesList_keep.append(self.getTagValue(series, 'SeriesInstanceUID'))
+    
+      
+    # self.seriesList = seriesList_keep  
+        
+    # Now get the metadata needed from all the series in the self.seriesList 
+
+    seriesMap = {} 
+    for series in seriesList_keep: 
+      # need to get metadata
+      # seriesInstanceUID = self.getTagValue(series, 'SeriesInstanceUID')
+      seriesInstanceUID = series 
+      metadata = self.DICOMwebClient.retrieve_series_metadata(study_instance_uid=studyInstanceUID,
+                                                              series_instance_uid=series
+                                                              )
+
+      try:
+        seriesNumber = str(self.getTagValue(metadata[0], 'SeriesNumber')) 
+      except: 
+        seriesNumber = -1 
+
+      try:
+        # seriesDescription = self.getTagValue(series, 'SeriesDescription')
+        seriesDescription = self.getTagValue(metadata[0], 'SeriesDescription')
+      except: 
+        seriesDescription = "" 
+
+      if (seriesNumber != -1 and seriesDescription):
+        seriesMap[seriesInstanceUID] = {'ShortName':  str(seriesNumber) + ' : ' + seriesDescription}
+      elif (seriesNumber == -1 and seriesDescription):
+        seriesMap[seriesInstanceUID] = {'ShortName': '[no SeriesNumber] ' + seriesDescription}
+      elif (seriesDescription == ""):
+        seriesMap[seriesInstanceUID] = {'ShortName': str(seriesNumber) + ' [no SeriesDescription]'}
+      else: 
+        seriesMap[seriesInstanceUID] = {'ShortName': '[no SeriesNumber or SeriesDescription]'}
+
+      # add the Modality in
+      modality = self.getTagValue(metadata[0], 'Modality')
+      seriesMap[seriesInstanceUID]['Modality'] = modality
+  
+    self.seriesMap = seriesMap 
+    
+    self.fillSeriesTable()
+        
+    self.updateSegmentationTabAvailability()  
+     
+    return  
+  
+  
+  def parseJSONTerminology(self):
+    """Parse the terminology from the json file"""
+    
+    # check if "terminology" is a key in the json file
+    if "terminology" in self.paramJSON.keys():
+      print('terminology is in the JSON parameterization file') 
+      # if so, parse it and SET  
+      # self.terminologyFile = self.paramJSON['terminology']
+      self.terminologyEntry = self.paramJSON['terminology']
+      self.setJSONTerminology()
+      
+    else: 
+      self.customLUTInfoIcon.show()
+      self.customLUTInfoIcon.toolTip = 'Using Default Terminology'
+    
+    return 
+  
+  def setJSONTerminology(self):
+    """Set the terminology parsed from the json file"""
+    
+    self.customLUTInfoIcon.show()
+    self.customLUTInfoIcon.toolTip = 'Using Project-specific Terminology'
+    
+    # with open(self.terminologyEntry) as f: 
+    with open(self.paramJSONFile) as f: 
+      termData = json.load(f) 
+      if 'terminology' in termData.keys():
+        termData = termData['terminology']
+        termCategory = termData["SegmentationCodes"]["Category"][0]
+        termType = termCategory["Type"][0]
+        defaultTerminologyEntry = (termData["SegmentationCategoryTypeContextName"]
+              + "~" + termCategory["CodingSchemeDesignator"] + "^" + termCategory["CodeValue"] + "^" + termCategory["CodeMeaning"]
+              + "~" + termType["CodingSchemeDesignator"] + "^" + termType["CodeValue"] + "^" + termType["CodeMeaning"]
+              + "~^^"
+              + "~Anatomic codes - DICOM master list~^^~^^")
+    
+        terminologyEntry = slicer.vtkSlicerTerminologyEntry()
+        tlogic = slicer.modules.terminologies.logic()
+        tlogic.DeserializeTerminologyEntry(defaultTerminologyEntry, terminologyEntry)
+        terminologyEntry.GetTerminologyContextName() # should be set to 'Segmentation category and type - mpReview' 
+        
+        self.terminologyName = terminologyEntry.GetTerminologyContextName()
+        self.editorWidget.defaultTerminologyEntry = defaultTerminologyEntry
+         
+    # import json
+    # with open(self.terminologyFile) as f:
+    #   termData = json.load(f)
+    # termCategory = termData["SegmentationCodes"]["Category"][0]
+    # termType = termCategory["Type"][0]
+    # # defaultTerminologyEntry should look something like this:
+    # #   "Segmentation category and type - mpReview~SCT^85756007^Tissue~mpReview^1^WholeGland~^^~Anatomic codes - DICOM master list~^^~^^"
+    # defaultTerminologyEntry = (termData["SegmentationCategoryTypeContextName"]
+    #   + "~" + termCategory["CodingSchemeDesignator"] + "^" + termCategory["CodeValue"] "^" + termCategory["CodeMeaning"]
+    #   + "~" + termType["CodingSchemeDesignator"] + "^" + termType["CodeValue"] "^" + termType["CodeMeaning"]
+    #   + "~^^"
+    #   + "~Anatomic codes - DICOM master list~^^~^^")
+    
+    return 
+    
+    
+    #
+    #
+    # tlogic = slicer.modules.terminologies.logic()
+    #
+    # self.terminologyName = tlogic.LoadTerminologyFromFile(self.terminologyFile)
+    #
+    # # Set the first entry in this terminology as the default so that when the user
+    # # opens the terminoogy selector, the correct list is shown.
+    # terminologyEntry = slicer.vtkSlicerTerminologyEntry()
+    # terminologyEntry.SetTerminologyContextName(self.terminologyName)
+    # tlogic.GetNthCategoryInTerminology(self.terminologyName, 0, terminologyEntry.GetCategoryObject())
+    # tlogic.GetNthTypeInTerminologyCategory(self.terminologyName, terminologyEntry.GetCategoryObject(), 0, terminologyEntry.GetTypeObject())
+    # defaultTerminologyEntry = tlogic.SerializeTerminologyEntry(terminologyEntry)
+    # self.editorWidget.defaultTerminologyEntry = defaultTerminologyEntry
+    #
+    # # self.editorWidget.setDefaultTerminologyEntrySettingsKey(self.editorWidget.defaultTerminologyEntry)
+    #
+    # self.structureNames = []
+    # numberOfTerminologyTypes = tlogic.GetNumberOfTypesInTerminologyCategory(self.terminologyName, terminologyEntry.GetCategoryObject())
+    # for terminologyTypeIndex in range(numberOfTerminologyTypes):
+    #   tlogic.GetNthTypeInTerminologyCategory(self.terminologyName, terminologyEntry.GetCategoryObject(), terminologyTypeIndex, terminologyEntry.GetTypeObject())
+    #   self.structureNames.append(terminologyEntry.GetTypeObject().GetCodeMeaning())
+    #
+    # return 
+  
+    
+  # def parseJSONTerminology(self):
+  #   """Parse the terminology from the json file"""
+  #
+  #   # check if "terminology" is a key in the json file
+  #   if "terminology" in self.paramJSON.keys():
+  #     print('terminology is in the JSON parameterization file') 
+  #     # if so, parse it and SET  
+  #     self.terminologyFile = self.paramJSON['terminology']
+  #     self.setJSONTerminology()
+  #
+  #   else: 
+  #     self.customLUTInfoIcon.show()
+  #     self.customLUTInfoIcon.toolTip = 'Using Default Terminology'
+  #
+  #   return 
+  #
+  # def setJSONTerminology(self):
+  #   """Set the terminology parsed from the json file"""
+  #
+  #   self.customLUTInfoIcon.show()
+  #   self.customLUTInfoIcon.toolTip = 'Using Project-specific Terminology'
+  #
+  #   tlogic = slicer.modules.terminologies.logic()
+  #   self.terminologyName = tlogic.LoadTerminologyFromFile(self.terminologyFile)
+  #
+  #   # Set the first entry in this terminology as the default so that when the user
+  #   # opens the terminoogy selector, the correct list is shown.
+  #   terminologyEntry = slicer.vtkSlicerTerminologyEntry()
+  #   terminologyEntry.SetTerminologyContextName(self.terminologyName)
+  #   tlogic.GetNthCategoryInTerminology(self.terminologyName, 0, terminologyEntry.GetCategoryObject())
+  #   tlogic.GetNthTypeInTerminologyCategory(self.terminologyName, terminologyEntry.GetCategoryObject(), 0, terminologyEntry.GetTypeObject())
+  #   defaultTerminologyEntry = tlogic.SerializeTerminologyEntry(terminologyEntry)
+  #   self.editorWidget.defaultTerminologyEntry = defaultTerminologyEntry
+  #
+  #   # self.editorWidget.setDefaultTerminologyEntrySettingsKey(self.editorWidget.defaultTerminologyEntry)
+  #
+  #   self.structureNames = []
+  #   numberOfTerminologyTypes = tlogic.GetNumberOfTypesInTerminologyCategory(self.terminologyName, terminologyEntry.GetCategoryObject())
+  #   for terminologyTypeIndex in range(numberOfTerminologyTypes):
+  #     tlogic.GetNthTypeInTerminologyCategory(self.terminologyName, terminologyEntry.GetCategoryObject(), terminologyTypeIndex, terminologyEntry.GetTypeObject())
+  #     self.structureNames.append(terminologyEntry.GetTypeObject().GetCodeMeaning())
+  #
+  #   return 
+  #
+
+
 
 class mpReviewLogic(ScriptedLoadableModuleLogic):
   """This class should implement all the actual

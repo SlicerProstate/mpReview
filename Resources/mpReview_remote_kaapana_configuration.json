@@ -1,0 +1,21 @@
+{
+	"username": "deepa", 
+	"database_type": "remote",
+	"remote_database_configuration": 
+		{
+			"project_id":"",
+			"location_id":"",
+			"dataset_id":"",
+			"dicomstore_id":"", 
+			"other_server_url":"http://dcm4chee-service.store:8080/dcm4chee-arc/aets/KAAPANA/rs"
+		},
+	"uids":
+		{
+			"StudyInstanceUID_list": ["1.3.6.1.4.1.14519.5.2.1.3671.4754.121472087445374646718121301133"], 
+			"SeriesInstanceUID_list": ["1.3.6.1.4.1.14519.5.2.1.3671.4754.983460207615355998147518323000"]
+		},
+	"terminology": "C:/Users/deepa/git/mpReview/Resources/SegmentationCategoryTypeModifier-mpReview.json"
+	
+} 
+
+

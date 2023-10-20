@@ -1,0 +1,21 @@
+{
+	"username": "deepa", 
+	"database_type": "local",
+	"remote_database_configuration": 
+		{
+			"project_id":"idc-external-018",
+			"location_id":"us-central1",
+			"dataset_id":"pw39",
+			"dicomstore":"pw39", 
+			"server_url":""
+		},
+	"uids":
+		{
+			"StudyInstanceUID_list": "", 
+			"SeriesInstanceUID_list": ""
+		},
+	"terminology": "C:/Users/deepa/git/mpReview/Resources/SegmentationCategoryTypeModifier-mpReview.json"
+	
+} 
+
+
