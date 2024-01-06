@@ -325,6 +325,26 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.databaseGroupBox.setLayout(databaseGroupBoxLayout)
     self.databaseSelectionWidgetLayout.addWidget(self.databaseGroupBox, 3, 0, 1, 3)
     
+    ###############################
+    ### Select terminology file ### 
+    ###############################
+    
+    self.terminologyGroupBox = qt.QGroupBox("Terminology")
+    terminologyGroupBoxLayout = qt.QFormLayout()
+    self.selectTerminologyFileButton = qt.QPushButton("Select Segmentation JSON Terminology file")
+    self.selectTerminologyFileButton.setEnabled(True)
+    terminologyGroupBoxLayout.addRow(self.selectTerminologyFileButton)
+    
+    self.terminologyGroupBox.setLayout(terminologyGroupBoxLayout)
+    self.databaseSelectionWidgetLayout.addWidget(self.terminologyGroupBox, 4, 0, 1, 3)
+    
+  def selectTerminologyFile(self):
+    """ open a QFileDialog box where the user can optionally choose a segmentation JSON terminology file """
+    segJsonPrompt = qt.QFileDialog()
+    self.terminologyFile = segJsonPrompt.getOpenFileName(None,"Select File", "", "All Files (*);;Python Files (*.json)")
+    print('new self.terminologyFile: ' + str(self.terminologyFile))
+    self.checkAndSetLUT()
+    
   def getServerUrl(self):
 
     if hasattr(self,'dicomStore'):
@@ -797,10 +817,11 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.serverUrlLineEdit.textChanged.connect(lambda: self.onURLEdited())
     
     self.OtherserverUrlLineEdit.textChanged.connect(lambda: self.onOtherURLEdited()) 
+    
+    self.selectTerminologyFileButton.clicked.connect(lambda: self.selectTerminologyFile())
+    
 
-
-
-  # def enter(self):
+  # def enter(self): 
   #   userName = self.getSetting('UserName')
   #   self.piradsFormURL = self.getSetting('piradsFormURL')
   #   self.qaFormURL = self.getSetting('qaFormURL')
@@ -896,9 +917,13 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   def checkAndSetLUT(self):
     # Default to module color table
-    self.terminologyFile = os.path.join(self.resourcesPath, "SegmentationCategoryTypeModifier-mpReview.json")
-    # print ('self.terminologyFile: ' + str(self.terminologyFile))
-
+    # self.terminologyFile = os.path.join(self.resourcesPath, "SegmentationCategoryTypeModifier-mpReview.json")
+    
+    # if self.terminologyFile is None:
+    if not hasattr(self,'terminologyFile'):
+      self.terminologyFile = os.path.join(self.resourcesPath, "SegmentationCategoryTypeModifier-mpReview.json")
+    print('self.terminologyFile: ' + str(self.terminologyFile))
+    
     self.customLUTInfoIcon.show()
     self.customLUTInfoIcon.toolTip = 'Using Default Terminology'
 
