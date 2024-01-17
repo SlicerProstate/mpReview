@@ -325,6 +325,52 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.databaseGroupBox.setLayout(databaseGroupBoxLayout)
     self.databaseSelectionWidgetLayout.addWidget(self.databaseGroupBox, 3, 0, 1, 3)
     
+    ###############################
+    ### Select terminology file ### 
+    ###############################
+    
+    self.terminologyGroupBox = qt.QGroupBox("Terminology")
+    terminologyGroupBoxLayout = qt.QFormLayout()
+    # self.selectTerminologyFileButton = qt.QPushButton("Select Segmentation JSON Terminology file")
+    # self.selectTerminologyFileButton.setEnabled(True)
+    # terminologyGroupBoxLayout.addRow(self.selectTerminologyFileButton)
+    self.terminologyFilePathLineEdit = ctk.ctkPathLineEdit()
+    self.terminologyFilePathLineEdit.filters = ctk.ctkPathLineEdit.Files
+    self.terminologyFilePathLineEdit.nameFilters = ['*.json']
+    self.terminologyFilePathLineEdit.settingKey = 'Segmentation JSON Terminology file'
+    terminologyGroupBoxLayout.addRow("Segmentation JSON Terminology file:", self.terminologyFilePathLineEdit)
+    #self.checkAndSetLUT() 
+    # print('self.terminologyFilePathLineEdit.currentPath: ' + str(self.terminologyFilePathLineEdit.currentPath))
+    # if not self.terminologyFilePathLineEdit.currentPath: 
+    #   self.terminologyFile = os.path.join(self.resourcesPath, "SegmentationCategoryTypeModifier-mpReview.json")
+    # else:
+    #   self.checkAndSetLUT() 
+    
+    self.terminologyGroupBox.setLayout(terminologyGroupBoxLayout)
+    self.databaseSelectionWidgetLayout.addWidget(self.terminologyGroupBox, 4, 0, 1, 3)
+    
+  def getTerminologyFile(self):
+    """ load the selected terminology file """
+    
+    if self.terminologyFilePathLineEdit.currentPath: 
+      self.terminologyFile = self.terminologyFilePathLineEdit.currentPath 
+      self.checkAndSetLUT() 
+ 
+    
+  def selectTerminologyFile(self):
+    """ open a QFileDialog box where the user can optionally choose a segmentation JSON terminology file """
+    segJsonPrompt = qt.QFileDialog()
+    # self.terminologyFile = segJsonPrompt.getOpenFileName(None,"Select File", "", "JSON Files (*.json)")# "All Files (*);;JSON Files (*.json)"
+    jsonFilenameSelected = segJsonPrompt.getOpenFileName(None,"Select File", "", "JSON Files (*.json)")# "All Files (*);;JSON Files (*.json)"
+    jsonFilenames = segJsonPrompt.selectedFiles()
+    print('jsonFilenameSelected: ' + str(jsonFilenameSelected))
+    print('jsonFilenames: ' + str(jsonFilenames))
+    if jsonFilenameSelected: 
+      self.terminologyFile = jsonFilenameSelected  
+
+    print('new self.terminologyFile: ' + str(self.terminologyFile))
+    self.checkAndSetLUT()
+    
   def getServerUrl(self):
 
     if hasattr(self,'dicomStore'):
@@ -797,10 +843,12 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.serverUrlLineEdit.textChanged.connect(lambda: self.onURLEdited())
     
     self.OtherserverUrlLineEdit.textChanged.connect(lambda: self.onOtherURLEdited()) 
+    
+    # self.selectTerminologyFileButton.clicked.connect(lambda: self.selectTerminologyFile())
+    self.terminologyFilePathLineEdit.currentPathChanged.connect(lambda: self.getTerminologyFile())
+    
 
-
-
-  # def enter(self):
+  # def enter(self): 
   #   userName = self.getSetting('UserName')
   #   self.piradsFormURL = self.getSetting('piradsFormURL')
   #   self.qaFormURL = self.getSetting('qaFormURL')
@@ -896,9 +944,17 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
   def checkAndSetLUT(self):
     # Default to module color table
-    self.terminologyFile = os.path.join(self.resourcesPath, "SegmentationCategoryTypeModifier-mpReview.json")
-    # print ('self.terminologyFile: ' + str(self.terminologyFile))
-
+    # self.terminologyFile = os.path.join(self.resourcesPath, "SegmentationCategoryTypeModifier-mpReview.json")
+    
+    # if self.terminologyFile is None:
+    if not hasattr(self,'terminologyFile'):
+      self.terminologyFile = os.path.join(self.resourcesPath, "SegmentationCategoryTypeModifier-mpReview.json")
+    else: 
+      print('self.terminologyFilePathLineEdit.currentPath: ' + str(self.terminologyFilePathLineEdit.currentPath))
+      if not self.terminologyFilePathLineEdit.currentPath: 
+        self.terminologyFile = os.path.join(self.resourcesPath, "SegmentationCategoryTypeModifier-mpReview.json")
+    print('self.terminologyFile: ' + str(self.terminologyFile))
+    
     self.customLUTInfoIcon.show()
     self.customLUTInfoIcon.toolTip = 'Using Default Terminology'
 
@@ -909,10 +965,44 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     #   # use custom color table
     #   self.terminologyFile = terminologyFileLoc
     #   self.customLUTInfoIcon.toolTip = 'Project-Specific terminology Found'
+    
+    # Do some basic checking on the terminology file, if specific fields exist 
+    f = open(self.terminologyFile)
+    jsonData = json.load(f)
+    # check that 
+    if ("SegmentationCategoryTypeContextName" not in jsonData): 
+      print('Field SegmentationCategoryTypeContextName does not exist in json file, using default terminology')
+      self.terminologyFile = os.path.join(self.resourcesPath, "SegmentationCategoryTypeModifier-mpReview.json")
+      f = open(self.terminologyFile)
+      jsonData = json.load(f)
+    if ("SegmentationCodes" not in jsonData):
+      print('Field SegmentationCodes does not exist in json file, using default terminology')
+      self.terminologyFile = os.path.join(self.resourcesPath, "SegmentationCategoryTypeModifier-mpReview.json")
+      f = open(self.terminologyFile)
+      jsonData = json.load(f)
+    jsonData2 = jsonData['SegmentationCodes']
+    if ("Category" not in jsonData2): 
+      print("Field Category does not exist in the SegmentationCodes, using default terminology")
+      self.terminologyFile = os.path.join(self.resourcesPath, "SegmentationCategoryTypeModifier-mpReview.json")
+      f = open(self.terminologyFile)
+      jsonData = json.load(f)
+      jsonData2 = jsonData['SegmentationCodes']
+    jsonData3 = jsonData2['Category'][0]['Type']
+    # check that each dictionary has the four fields: "CodeMeaning", "CodingSchemeDesignator", "CodeValue" and 
+    # "recommendedDisplayRGBValue" 
+    for m in range(0,len(jsonData3)): 
+      if (("CodeMeaning" not in jsonData3[m]) or 
+         ("CodingSchemeDesignator" not in jsonData3[m]) or 
+         ("CodeValue" not in jsonData3[m]) or 
+         ("recommendedDisplayRGBValue" not in jsonData3[m])): 
+        print("One or more of the four required fields CodeMeaning, CodingSchemeDesignator, CodeValue and recommendedDisplayRGBValue missing from an entry, using default terminology")
+        self.terminologyFile = os.path.join(self.resourcesPath, "SegmentationCategoryTypeModifier-mpReview.json")
+
+    
 
     tlogic = slicer.modules.terminologies.logic()
     self.terminologyName = tlogic.LoadTerminologyFromFile(self.terminologyFile)
-
+      
     # Set the first entry in this terminology as the default so that when the user
     # opens the terminoogy selector, the correct list is shown.
     terminologyEntry = slicer.vtkSlicerTerminologyEntry()
@@ -921,14 +1011,15 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     tlogic.GetNthTypeInTerminologyCategory(self.terminologyName, terminologyEntry.GetCategoryObject(), 0, terminologyEntry.GetTypeObject())
     defaultTerminologyEntry = tlogic.SerializeTerminologyEntry(terminologyEntry)
     self.editorWidget.defaultTerminologyEntry = defaultTerminologyEntry
-    
+      
     # self.editorWidget.setDefaultTerminologyEntrySettingsKey(self.editorWidget.defaultTerminologyEntry)
-
     self.structureNames = []
     numberOfTerminologyTypes = tlogic.GetNumberOfTypesInTerminologyCategory(self.terminologyName, terminologyEntry.GetCategoryObject())
     for terminologyTypeIndex in range(numberOfTerminologyTypes):
       tlogic.GetNthTypeInTerminologyCategory(self.terminologyName, terminologyEntry.GetCategoryObject(), terminologyTypeIndex, terminologyEntry.GetTypeObject())
       self.structureNames.append(terminologyEntry.GetTypeObject().GetCodeMeaning())
+
+      
 
     # print(self.structureNames)
 
