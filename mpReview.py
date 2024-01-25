@@ -1113,14 +1113,36 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     savedMessage = "Segmentations for the following series were saved: "  + str(self.seriesMap[self.refSeriesNumber]['ShortName'])
     slicer.util.infoDisplay(savedMessage, windowTitle="mpReview")
 
-    # Remove all nodes from scene
-    volumeNodesToRemove = slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")
-    segNodesToRemove = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
-    for node in volumeNodesToRemove:
+    # # Remove all nodes from scene
+    # volumeNodesToRemove = slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")
+    # # slicer.mrmlScene.getNodesByClass("vtkMRMLScalarVolumeNode").UnRegister(None)
+    # nodes = slicer.mrmlScene.GetNodesByClass('vtkMRMLScalarVolumeNode')
+    # nodes.UnRegister(slicer.mrmlScene)
+    # segNodesToRemove = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
+    # # slicer.mrmlScene.getNodesByClass("vtkMRMLSegmentationNode").UnRegister(None)
+    # nodes = slicer.mrmlScene.GetNodesByClass('vtkMRMLSegmentationNode')
+    # nodes.UnRegister(slicer.mrmlScene)
+    # for node in volumeNodesToRemove:
+    #   slicer.mrmlScene.RemoveNode(node)
+    # for node in segNodesToRemove:
+    #   slicer.mrmlScene.RemoveNode(node)
+    # volumeNodesToRemove = None
+    # segNodesToRemove = None
+    # nodes = None
+    
+    for i in range(slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLScalarVolumeNode')):
+      node = slicer.mrmlScene.GetNthNodeByClass(0, 'vtkMRMLScalarVolumeNode')
+      node.UnRegister(slicer.mrmlScene)
       slicer.mrmlScene.RemoveNode(node)
-    for node in segNodesToRemove:
+    for i in range(slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLSegmentationNode')):
+      node = slicer.mrmlScene.GetNthNodeByClass(0, 'vtkMRMLSegmentationNode')
+      node.UnRegister(slicer.mrmlScene)
       slicer.mrmlScene.RemoveNode(node)
+    
 
+
+    # self.multiVolumeExplorer.removeObservers()
+    
     # Now that segmentations have been saved, gray out the Segmentation tab and Completion tab
     self.setTabsEnabled([2,3], False)
 
@@ -1132,6 +1154,10 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     
     # labelNodes = slicer.util.getNodes('*-label*')
     labelNodes = slicer.util.getNodesByClass('vtkMRMLSegmentationNode') 
+    # slicer.mrmlScene.getNodesByClass("vtkMRMLSegmentationNode").UnRegister(None)
+    nodes = slicer.mrmlScene.GetNodesByClass('vtkMRMLSegmentationNode')
+    nodes.UnRegister(slicer.mrmlScene)
+    
     logging.debug('All label nodes found: ' + str(labelNodes))
     savedMessage = 'Segmentations for the following series were saved:\n\n'
     
@@ -1234,6 +1260,11 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
             savedMessage = savedMessage + labelName + '\n' # SeriesDescription of SEG
             logging.debug(label.GetName() + ' has been saved to ' + labelFileName)
 
+    
+    labelNodes = None
+    nodes = None
+    referenceVolumeNode = None
+    
     return savedMessage
 
   
@@ -1764,9 +1795,18 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
 
     # if any volumes have been loaded (we returned back from a previous step)
     # then remove all of them from the scene
-    allVolumeNodes = slicer.util.getNodes('vtkMRML*VolumeNode*')
-    for node in allVolumeNodes.values():
+    # allVolumeNodes = slicer.util.getNodes('vtkMRML*VolumeNode*')
+    # for node in allVolumeNodes.values():
+    #   slicer.mrmlScene.RemoveNode(node)
+    # nodes = slicer.mrmlScene.GetNodesByClass('vtkMRML*VolumeNode*')
+    # nodes.UnRegister(slicer.mrmlScene)
+    # allVolumeNodes = None
+    # nodes = None
+    for i in range(slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRML*VolumeNode*')):
+      node = slicer.mrmlScene.GetNthNodeByClass(0, 'vtkMRML*VolumeNode*')
+      node.UnRegister(slicer.mrmlScene)
       slicer.mrmlScene.RemoveNode(node)
+    
 
     self.selectedStudyName = self.studiesModel.item(modelIndex.row(),0).text()
     # print ('self.selectedStudyName: ' + str(self.selectedStudyName))
@@ -2118,10 +2158,19 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     # print('fileName_load: ' + str(fileName_load))
           
     # remove all seg nodes from the scene with this referencedSeriesInstanceUID
-    seg_nodes_already_exist = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
-    for seg_node in seg_nodes_already_exist:
-      slicer.mrmlScene.RemoveNode(seg_node)
-
+    # seg_nodes_already_exist = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
+    # # slicer.mrmlScene.getNodesByClass("vtkMRMLSegmentationNode").UnRegister(None)
+    # nodes = slicer.mrmlScene.GetNodesByClass('vtkMRMLSegmentationNode')
+    # nodes.UnRegister(slicer.mrmlScene)
+    # for seg_node in seg_nodes_already_exist:
+    #   slicer.mrmlScene.RemoveNode(seg_node)
+    # seg_nodes_already_exist = None
+    # nodes = None
+    for i in range(slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLSegmentationNode')):
+      node = slicer.mrmlScene.GetNthNodeByClass(0, 'vtkMRMLSegmentationNode')
+      node.UnRegister(slicer.mrmlScene)
+      slicer.mrmlScene.RemoveNode(node)
+    
     # Load the segmentation file if present
     if fileName_load: 
       
@@ -2132,10 +2181,15 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
       
       # there should only be 1 node in the scene 
       seg_nodes = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
+      # slicer.mrmlScene.getNodesByClass("vtkMRMLSegmentationNode").UnRegister(None)
+      nodes = slicer.mrmlScene.GetNodesByClass('vtkMRMLSegmentationNode')
+      nodes.UnRegister(slicer.mrmlScene)
       seg_node = seg_nodes[0] 
       seriesDescription = seg_node.GetName() 
       refLabel = slicer.util.getNode(seriesDescription)
       self.seriesMap[str(ref)]['Label'] = refLabel 
+      seg_nodes = None
+      nodes = None
     
     return True  
   
@@ -2217,13 +2271,23 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.logic.createDirectory(segmentationsDir)
     
     ### added ###
-    # remove the previous seg nodes with the same name before loading in the latest one.
-    seg_nodes_already_exist = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
-    seg_names = [] 
-    for seg_node in seg_nodes_already_exist:
-      # seg_name = seg_node.GetName() 
-      # if (seg_name==seriesDescription):
-      slicer.mrmlScene.RemoveNode(seg_node)
+    # # remove the previous seg nodes with the same name before loading in the latest one.
+    # seg_nodes_already_exist = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
+    # # slicer.mrmlScene.getNodesByClass("vtkMRMLSegmentationNode").UnRegister(None)
+    # nodes = slicer.mrmlScene.GetNodesByClass('vtkMRMLSegmentationNode')
+    # nodes.UnRegister(slicer.mrmlScene)
+    # seg_names = [] 
+    # for seg_node in seg_nodes_already_exist:
+    #   # seg_name = seg_node.GetName() 
+    #   # if (seg_name==seriesDescription):
+    #   slicer.mrmlScene.RemoveNode(seg_node)
+    # seg_nodes_already_exist = None
+    # nodes = None
+    for i in range(slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLSegmentationNode')):
+      node = slicer.mrmlScene.GetNthNodeByClass(0, 'vtkMRMLSegmentationNode')
+      node.UnRegister(slicer.mrmlScene)
+      slicer.mrmlScene.RemoveNode(node)
+    
     #############
     
     
@@ -2255,10 +2319,19 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     
      # there should only be 1 node in the scene 
     seg_nodes = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
+    # slicer.mrmlScene.getNodesByClass("vtkMRMLSegmentationNode").UnRegister(None)
+    nodes = slicer.mrmlScene.GetNodesByClass('vtkMRMLSegmentationNode')
+    nodes.UnRegister(slicer.mrmlScene)
+    
     seg_node = seg_nodes[0] 
     seriesDescription = seg_node.GetName() 
     refLabel = slicer.util.getNode(seriesDescription)
-    self.seriesMap[str(ref)]['Label'] = refLabel 
+    self.seriesMap[str(ref)]['Label'] = refLabel
+    
+    seg_nodes = None
+    nodes = None
+    refLabel = None
+ 
     
     return True
 
@@ -2344,6 +2417,9 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     self.cvLogic.viewerPerVolume(self.volumeNodes, background=self.volumeNodes[0], label=refLabel,
                                  layout=[self.rows,self.cols],viewNames=self.sliceNames,
                                  orientation=self.currentOrientation)
+    
+    appLogic = slicer.app.applicationLogic()
+    appLogic.FitSliceToAll(True, False)
 
     # Make sure redslice has the ref image (the others were set with viewerPerVolume)
     redSliceWidget = self.layoutManager.sliceWidget('Red')
@@ -2372,15 +2448,20 @@ class mpReviewWidget(ScriptedLoadableModuleWidget, ModuleWidgetMixin):
     # Link the slice views
     # links the scrolling, but not the zoom and pan 
     sliceCompositeNodes = slicer.util.getNodesByClass("vtkMRMLSliceCompositeNode")
+    # slicer.mrmlScene.getNodesByClass("vtkMRMLSliceCompositeNode").UnRegister(None)
+    nodes = slicer.mrmlScene.GetNodesByClass('vtkMRMLSliceCompositeNode')
+    nodes.UnRegister(slicer.mrmlScene)
     for sliceCompositeNode in sliceCompositeNodes:
       sliceCompositeNode.HotLinkedControlOn()
       sliceCompositeNode.LinkedControlOn()
       # sliceCompositeNode.SetHotLinkedControl(True)
       # sliceCompositeNode.SetLinkedControl(True)
     
+    sliceCompositeNodes = None
+    nodes = None 
 
 
-      return
+    return
 
   '''
   def updateViews(self):
