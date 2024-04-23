@@ -4,8 +4,13 @@ cmake_minimum_required(VERSION 3.0.1)
 set(EXTENSION_NAME mpReview)
 set(EXTENSION_HOMEPAGE "https://github.com/SlicerProstate/mpReview")
 set(EXTENSION_CATEGORY "Informatics")
-set(EXTENSION_CONTRIBUTORS "Andrey Fedorov (SPL), Deepa Krishnaswamy (SPL), Andras Lasso (Queen's), Robin Weiss (U. of Chicago), Alireza Mehrtash (SPL), Christian Herz (SPL)")
-set(EXTENSION_DESCRIPTION "Multiparametric Image Review (mpReview) module is intended to support review and annotation of multiparametric image data. The driving use case for the development of this module was review and segmentation of the regions of interest in prostate cancer multiparametric MRI. This work is done as part of the Quantitative Imaging Network (QIN) and Informatics Technology for Cancer Research (ITCR) initiatives of the National Cancer Institute, and is funded by the National Institutes of Health, National Cancer Institute through the grant U24 CA180918 (PIs Kikinis & Fedorov) and U01 CA151261 (PI Fennessy).")
+set(EXTENSION_CONTRIBUTORS "Andrey Fedorov (Brigham and Women's Hospital), Deepa Krishnaswamy (Brigham and Women's Hospital), Andras Lasso (Queen's University), Robin Weiss (University of Chicago), Alireza Mehrtash (Brigham and Women's Hospital), Christian Herz (Brigham and Women's Hospital)")
+set(EXTENSION_DESCRIPTION "The Multiparametric Image Review (mpReview) extension facilitates review and annotation (segmentation) of multi-parametric imaging datasets.
+
+The driving use case for the development of this module was review and segmentation of the regions of interest in prostate cancer multiparametric MRI. 
+
+This work is done as part of the Quantitative Imaging Network (QIN) and Informatics Technology for Cancer Research (ITCR) initiatives of the National Cancer Institute, and is funded by the National Institutes of Health, National Cancer Institute through the grant U24 CA180918 (PIs Kikinis & Fedorov) and U01 CA151261 (PI Fennessy).")
+
 set(EXTENSION_ICONURL "https://raw.githubusercontent.com/SlicerProstate/mpReview/master/Resources/Icons/mpReview.png")
 set(EXTENSION_SCREENSHOTURLS "https://raw.githubusercontent.com/SlicerProstate/mpReview/master/Resources/Icons/mpReview_screenshot.PNG")
 set(EXTENSION_DEPENDS "SlicerDevelopmentToolbox" "QuantitativeReporting" "DICOMwebBrowser")
